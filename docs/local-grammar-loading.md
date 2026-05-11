@@ -12,3 +12,10 @@ Manual verification:
 - `file://` pointing at `/private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511` was tested.
 - Zed compiled grammar `wxml` and finished compiling the dev extension.
 - Zed log showed no WXML grammar loading error after the separate local git checkout was used.
+
+Final smoke check:
+
+- Reinstalled the dev extension from `/Users/zs/Desktop/study/wxml-zed`.
+- Zed log at `2026-05-11T17:45:50+08:00` reported `compiled grammar wxml` and `finished compiling extension`.
+- An open `.wxml` file switched from `Unknown` to `WXML` in the Zed status bar, and WXML highlighting rendered in the editor.
+- Zed generated `grammars/wxml/` as a local build checkout; the repository already ignores `/grammars`.
