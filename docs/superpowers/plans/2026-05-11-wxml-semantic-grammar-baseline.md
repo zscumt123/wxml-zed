@@ -218,6 +218,7 @@ WXS external module
 
 <wxs module="m" src="./demo.wxs" />
 <wxs module="utils" src="../common/utils.wxs" />
+<wxs src="./reversed.wxs" module="reversed" />
 
 ---
 
@@ -238,6 +239,15 @@ WXS external module
         (attribute_name)
         (quoted_attribute_value))
       (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value))))
+  (wxs_external
+    (wxs_external_self_closing_tag
+      (tag_name)
+      (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value))
+      (wxs_module_attribute
         (attribute_name)
         (quoted_attribute_value)))))
 ```
@@ -300,16 +310,15 @@ NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli te
 
 Expected: command fails. Failure output should show current nodes such as `template_element`, `wxs_element`, or generic `element/self_closing_tag` where the new corpus expects `template_definition`, `template_usage`, `wxs_inline`, `wxs_external`, or self-closing `slot_element`.
 
-- [ ] **Step 7: Commit failing corpus expectations**
+- [ ] **Step 7: Keep failing corpus changes uncommitted**
 
 Run:
 
 ```bash
-git add grammar/tree-sitter-wxml/test/corpus/template_definition.txt grammar/tree-sitter-wxml/test/corpus/template_usage.txt grammar/tree-sitter-wxml/test/corpus/wxs_inline.txt grammar/tree-sitter-wxml/test/corpus/wxs_external.txt grammar/tree-sitter-wxml/test/corpus/slot_element.txt
-git commit -m "test: add semantic wxml grammar expectations"
+git status --short grammar/tree-sitter-wxml/test/corpus/template_definition.txt grammar/tree-sitter-wxml/test/corpus/template_usage.txt grammar/tree-sitter-wxml/test/corpus/wxs_inline.txt grammar/tree-sitter-wxml/test/corpus/wxs_external.txt grammar/tree-sitter-wxml/test/corpus/slot_element.txt
 ```
 
-Expected: commit succeeds with only corpus files staged.
+Expected: output shows modified corpus files and the new `slot_element.txt`. Do not commit these failing expectations yet; they must be committed together with the grammar, generated artifacts, and query updates after full verification passes.
 
 ## Task 2: Implement Semantic Grammar Nodes and Regenerate Artifacts
 
@@ -472,15 +481,27 @@ Replace the existing `wxs_element`, `wxs_start_tag`, and `wxs_end_tag` rules wit
       ),
 
     wxs_external_self_closing_tag: ($) =>
-      seq(
-        "<",
-        alias(token("wxs"), $.tag_name),
-        repeat($.attribute),
-        $.wxs_module_attribute,
-        repeat($.attribute),
-        $.wxs_src_attribute,
-        repeat($.attribute),
-        "/>"
+      choice(
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          repeat($.attribute),
+          $.wxs_module_attribute,
+          repeat($.attribute),
+          $.wxs_src_attribute,
+          repeat($.attribute),
+          "/>"
+        ),
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          repeat($.attribute),
+          $.wxs_src_attribute,
+          repeat($.attribute),
+          $.wxs_module_attribute,
+          repeat($.attribute),
+          "/>"
+        )
       ),
 
     wxs_module_attribute: ($) =>
@@ -518,7 +539,7 @@ NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli ge
 
 Expected: command exits `0` and updates generated files under `grammar/tree-sitter-wxml/src/`.
 
-- [ ] **Step 8: Run corpus tests and inspect failures**
+- [ ] **Step 8: Run corpus tests until they pass**
 
 Run from repository root:
 
@@ -526,7 +547,7 @@ Run from repository root:
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli test --grammar-path grammar/tree-sitter-wxml
 ```
 
-Expected: either all corpus tests pass, or failures are limited to exact tree-shape differences caused by the new node names. If failures show normal `image` or `input` self-closing tags no longer parse, fix `self_closing_tag` before proceeding.
+Expected: all corpus tests pass. If failures show normal `image` or `input` self-closing tags no longer parse, fix `self_closing_tag` before proceeding. If failures are exact tree-shape differences caused by the new node names, update the corpus expectation in the same task and rerun this command until it exits `0`.
 
 - [ ] **Step 9: Verify representative parse node names**
 
@@ -538,16 +559,15 @@ NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli pa
 
 Expected: output contains `template_definition`, `template_usage`, `wxs_inline`, `wxs_external`, `import_statement`, `include_statement`, and `slot_element`.
 
-- [ ] **Step 10: Commit grammar and generated artifacts**
+- [ ] **Step 10: Keep grammar changes uncommitted until query verification**
 
 Run:
 
 ```bash
-git add grammar/tree-sitter-wxml/grammar.js grammar/tree-sitter-wxml/src/grammar.json grammar/tree-sitter-wxml/src/node-types.json grammar/tree-sitter-wxml/src/parser.c grammar/tree-sitter-wxml/test/corpus/template_definition.txt grammar/tree-sitter-wxml/test/corpus/template_usage.txt grammar/tree-sitter-wxml/test/corpus/wxs_inline.txt grammar/tree-sitter-wxml/test/corpus/wxs_external.txt grammar/tree-sitter-wxml/test/corpus/slot_element.txt
-git commit -m "feat: add semantic wxml grammar nodes"
+git status --short grammar/tree-sitter-wxml/grammar.js grammar/tree-sitter-wxml/src/grammar.json grammar/tree-sitter-wxml/src/node-types.json grammar/tree-sitter-wxml/src/parser.c grammar/tree-sitter-wxml/test/corpus
 ```
 
-Expected: commit succeeds. The diff includes `grammar.js`, generated `src` artifacts, and corpus files.
+Expected: output shows grammar, generated artifacts, and corpus changes. Do not commit yet; the next task updates Zed queries so the first implementation commit can pass full verification.
 
 ## Task 3: Update Zed Queries for Semantic Nodes
 
@@ -698,26 +718,38 @@ scripts/verify-tree-sitter.sh
 
 Expected: command exits `0` and prints `wxml-zed tree-sitter verification passed`.
 
-- [ ] **Step 5: Inspect outline output**
+- [ ] **Step 5: Confirm outline query has no generic external-WXS fallback**
 
 Run:
 
 ```bash
-rg -n 'template_definition|wxs_inline|wxs_external|capture: .*name|capture: .*item' /tmp/wxml-zed-outline-query.out
+rg -n "self_closing_tag|#eq\\? @_tag \"wxs\"" languages/wxml/outline.scm
 ```
 
-Expected: output includes `userCard`, `utils`, `inline`, `./item.wxml`, and `../common/header.wxml`. It should not require a generic external-WXS `element/self_closing_tag` match in `languages/wxml/outline.scm`.
+Expected: no output.
 
-- [ ] **Step 6: Commit query updates**
+- [ ] **Step 6: Inspect outline output names**
 
 Run:
 
 ```bash
-git add languages/wxml/outline.scm languages/wxml/highlights.scm languages/wxml/textobjects.scm
-git commit -m "feat: consume semantic wxml nodes in zed queries"
+for expected in '"userCard"' '"utils"' '"inline"' '"./item.wxml"' '"../common/header.wxml"'; do
+  rg -n "text: \`$expected\`" /tmp/wxml-zed-outline-query.out
+done
 ```
 
-Expected: commit succeeds with only query files staged.
+Expected: each expected outline label is found in `/tmp/wxml-zed-outline-query.out`.
+
+- [ ] **Step 7: Commit semantic grammar, generated artifacts, corpus, and query updates**
+
+Run:
+
+```bash
+git add grammar/tree-sitter-wxml/grammar.js grammar/tree-sitter-wxml/src/grammar.json grammar/tree-sitter-wxml/src/node-types.json grammar/tree-sitter-wxml/src/parser.c grammar/tree-sitter-wxml/test/corpus/template_definition.txt grammar/tree-sitter-wxml/test/corpus/template_usage.txt grammar/tree-sitter-wxml/test/corpus/wxs_inline.txt grammar/tree-sitter-wxml/test/corpus/wxs_external.txt grammar/tree-sitter-wxml/test/corpus/slot_element.txt languages/wxml/outline.scm languages/wxml/highlights.scm languages/wxml/textobjects.scm
+git commit -m "feat: add semantic wxml grammar nodes"
+```
+
+Expected: commit succeeds only after `scripts/verify-tree-sitter.sh` has passed. The commit includes grammar, generated artifacts, corpus, and query files together so history does not contain a half-broken intermediate state.
 
 ## Task 4: Sync Local Zed Grammar Checkout and Manifest Rev
 
@@ -830,7 +862,9 @@ Expected: command exits `0` and prints `wxml-zed tree-sitter verification passed
 Run:
 
 ```bash
-rg -n "template_definition|template_usage|wxs_inline|wxs_external|slot_element|import_statement|include_statement" /tmp/wxml-zed-parse.out
+for node in template_definition template_usage wxs_inline wxs_external slot_element import_statement include_statement; do
+  rg -n "$node" /tmp/wxml-zed-parse.out
+done
 ```
 
 Expected: all listed semantic node names appear at least once.
