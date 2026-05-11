@@ -10,4 +10,4 @@ snippets = ["./snippets/wxml.json"]
 
 [grammars.wxml]
 repository = "file:///private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511"
-rev = "81bd97fa3bbc43516ad0e7ea5518d72651d954bf"
+rev = "00e5168d456b8960d31533b9587802d73e7a0989"
