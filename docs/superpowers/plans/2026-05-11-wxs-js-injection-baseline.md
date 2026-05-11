@@ -20,7 +20,7 @@
 
 No grammar source changes are planned for this phase. If implementation discovers that query parent scoping is not accepted by Zed or the Tree-sitter CLI, keep the existing direct `raw_text` capture and still enforce fixture-backed assertions.
 
-## Task 1: Add Focused Injection Fixture and Red Verification
+## Task 1: Add Focused Injection Fixture and Concrete Assertions
 
 **Files:**
 - Create: `fixtures/wxs-injection.wxml`
@@ -47,7 +47,7 @@ Create `fixtures/wxs-injection.wxml` with exactly this content:
 </wxs>
 ```
 
-- [ ] **Step 2: Add failing concrete injection assertions**
+- [ ] **Step 2: Add concrete injection assertions**
 
 In `scripts/verify-tree-sitter.sh`, after the existing optional `injections.scm` query against `fixtures/test.wxml`, add a second query against the new fixture and concrete assertions:
 
@@ -76,15 +76,23 @@ with:
 if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
   npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$FIXTURE" >/tmp/wxml-zed-injections-query.out
   npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$INJECTION_FIXTURE" >/tmp/wxml-zed-wxs-injections-query.out
+  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$INJECTION_FIXTURE" >/tmp/wxml-zed-wxs-injection-parse.out
 
-  rg -n 'capture: .*injection\.content.*text: `user\.name \|\| "Guest"`' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'capture: .*injection\.content.*text: `math\.double\(count\)`' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'capture: .*injection\.content.*var double = function' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'capture: .*injection\.content.*var fallback = function' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
+  test "$(rg -c 'capture: .*injection\.content' /tmp/wxml-zed-wxs-injections-query.out)" -ge 4
+  rg -n 'text: ` user\.name \|\| "Guest" `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
+  rg -n 'text: ` math\.double\(count\) `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
+  rg -n '\(wxs_inline' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
+  rg -n '\(wxs_fallback' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
+  test "$(rg -c '\(raw_text' /tmp/wxml-zed-wxs-injection-parse.out)" -ge 2
+  test "$(rg -c '\(expression' /tmp/wxml-zed-wxs-injection-parse.out)" -ge 2
 fi
 ```
 
-These assertions intentionally check output text, not only query success.
+These assertions intentionally combine query output and parse output. The query
+output proves injection captures exist; the parse output proves those captures
+are backed by `wxs_inline`, `wxs_fallback`, `raw_text`, and `expression` nodes.
+Do not assert multiline `raw_text` body text from query output: Tree-sitter CLI
+does not print `text:` for multiline captures.
 
 - [ ] **Step 3: Run verification and confirm the current behavior**
 
@@ -94,7 +102,7 @@ Run:
 scripts/verify-tree-sitter.sh
 ```
 
-Expected: this may pass immediately if the existing broad `raw_text` and `expression` injection already emits the required captures. If it fails, the failure should be one of the new `rg` assertions, proving the script now catches concrete injection regressions.
+Expected: this may pass immediately if the existing broad `raw_text` and `expression` injection already emits the required captures. If it fails, the failure should come from the new query or parse assertions, proving the script now catches concrete injection regressions.
 
 - [ ] **Step 4: Inspect injection output if assertions fail**
 
@@ -104,14 +112,21 @@ Run:
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli query --grammar-path grammar/tree-sitter-wxml languages/wxml/injections.scm fixtures/wxs-injection.wxml
 ```
 
-Expected output should contain `injection.content` captures for:
+Expected query output should contain four `injection.content` captures:
 
-- `user.name || "Guest"`
-- WXS raw text containing `var double = function`
-- `math.double(count)`
-- recovery WXS raw text containing `var fallback = function`
+- one interpolation capture for ` user.name || "Guest" `
+- one raw-text capture for the inline WXS body
+- one interpolation capture for ` math.double(count) `
+- one raw-text capture for the recovered WXS body
 
-If Tree-sitter formats multiline `raw_text` captures differently, adjust only the `rg` pattern text in Step 2 so it matches the real output while still proving the same behavior.
+Then run:
+
+```bash
+NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/wxs-injection.wxml
+```
+
+Expected parse output should contain `wxs_inline`, `wxs_fallback`, at least two
+`raw_text` nodes, and at least two `expression` nodes.
 
 - [ ] **Step 5: Do not commit yet**
 
@@ -214,7 +229,7 @@ Use the existing README structure; replace the current WXS paragraph if one alre
 Run:
 
 ```bash
-rg -n "syntax highlighting only|does not type-check WXS|resolve external `.wxs` files|language-service layer" README.md
+rg -n 'syntax highlighting only|does not type-check WXS|resolve external `\.wxs` files|language-service layer' README.md
 ```
 
 Expected: all phrases are present in README output.
@@ -247,15 +262,21 @@ Run:
 
 ```bash
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli query --grammar-path grammar/tree-sitter-wxml languages/wxml/injections.scm fixtures/wxs-injection.wxml >/tmp/wxml-zed-wxs-injections-review.out
+NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/wxs-injection.wxml >/tmp/wxml-zed-wxs-injection-parse-review.out
 ```
 
 Then run:
 
 ```bash
-rg -n 'user\.name|math\.double|var double = function|var fallback = function' /tmp/wxml-zed-wxs-injections-review.out
+rg -n 'capture: .*injection\.content|user\.name|math\.double' /tmp/wxml-zed-wxs-injections-review.out
+rg -n '\(wxs_inline|\(wxs_fallback|\(raw_text|\(expression' /tmp/wxml-zed-wxs-injection-parse-review.out
+rg -n 'var double = function|var fallback = function' fixtures/wxs-injection.wxml
 ```
 
-Expected: output shows captures containing all four text fragments.
+Expected: query output shows injection captures for the interpolation expressions
+and raw-text ranges; parse output shows `wxs_inline`, `wxs_fallback`, `raw_text`,
+and `expression`; fixture output shows the inline and fallback WXS JavaScript
+body text.
 
 - [ ] **Step 3: Check git diff**
 
