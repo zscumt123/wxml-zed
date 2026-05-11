@@ -1,0 +1,75 @@
+==================
+Reserved tag recovery
+==================
+
+<template data="{{x}}"></template>
+<template data="{{x}}" />
+<template name="afterBadTemplate"></template>
+<wxs src="./missing-module.wxs" />
+<wxs module="missingSrc" />
+<wxs src="./paired-only.wxs">
+  var x = 1;
+</wxs>
+<wxs module="afterBadWxs">
+  module.exports = {};
+</wxs>
+
+---
+
+(document
+  (template_fallback
+    (template_fallback_start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression)))))
+    (template_end_tag
+      (tag_name)))
+  (template_fallback
+    (template_fallback_self_closing_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))))
+  (template_definition
+    (template_definition_start_tag
+      (tag_name)
+      (template_name_attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (template_end_tag
+      (tag_name)))
+  (wxs_fallback
+    (wxs_fallback_self_closing_tag
+      (tag_name)
+      (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value))))
+  (wxs_fallback
+    (wxs_fallback_self_closing_tag
+      (tag_name)
+      (wxs_module_attribute
+        (attribute_name)
+        (quoted_attribute_value))))
+  (wxs_fallback
+    (wxs_fallback_start_tag
+      (tag_name)
+      (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (raw_text)
+    (wxs_end_tag
+      (tag_name)))
+  (wxs_inline
+    (wxs_inline_start_tag
+      (tag_name)
+      (wxs_module_attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (raw_text)
+    (wxs_end_tag
+      (tag_name))))

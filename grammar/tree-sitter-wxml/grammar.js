@@ -34,10 +34,12 @@ module.exports = grammar({
         $.include_statement,
         $.template_definition,
         $.template_usage,
+        $.template_fallback,
         $.slot_element,
         $.block_element,
         $.wxs_inline,
         $.wxs_external,
+        $.wxs_fallback,
         $.element,
       ),
 
@@ -131,6 +133,16 @@ module.exports = grammar({
         ),
       )),
 
+    template_fallback: ($) =>
+      prec(1, choice(
+        $.template_fallback_self_closing_tag,
+        seq(
+          $.template_fallback_start_tag,
+          repeat($._node),
+          $.template_end_tag,
+        ),
+      )),
+
     template_definition_start_tag: ($) =>
       seq(
         "<",
@@ -157,6 +169,22 @@ module.exports = grammar({
         alias(token("template"), $.tag_name),
         repeat($.attribute),
         $.template_is_attribute,
+        repeat($.attribute),
+        "/>"
+      ),
+
+    template_fallback_start_tag: ($) =>
+      seq(
+        "<",
+        alias(token("template"), $.tag_name),
+        repeat($.attribute),
+        ">"
+      ),
+
+    template_fallback_self_closing_tag: ($) =>
+      seq(
+        "<",
+        alias(token("template"), $.tag_name),
         repeat($.attribute),
         "/>"
       ),
@@ -210,6 +238,16 @@ module.exports = grammar({
     wxs_external: ($) =>
       prec(3, $.wxs_external_self_closing_tag),
 
+    wxs_fallback: ($) =>
+      prec(1, choice(
+        $.wxs_fallback_self_closing_tag,
+        seq(
+          $.wxs_fallback_start_tag,
+          optional($.raw_text),
+          $.wxs_end_tag,
+        ),
+      )),
+
     block_start_tag: ($) =>
       seq("<", alias(token("block"), $.tag_name), repeat($.attribute), ">"),
 
@@ -244,6 +282,44 @@ module.exports = grammar({
           $.wxs_src_attribute,
           repeat($.attribute),
           $.wxs_module_attribute,
+          repeat($.attribute),
+          "/>"
+        )
+      ),
+
+    wxs_fallback_start_tag: ($) =>
+      choice(
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          $.wxs_src_attribute,
+          ">"
+        ),
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          repeat($.attribute),
+          ">"
+        )
+      ),
+
+    wxs_fallback_self_closing_tag: ($) =>
+      choice(
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          $.wxs_src_attribute,
+          "/>"
+        ),
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
+          $.wxs_module_attribute,
+          "/>"
+        ),
+        seq(
+          "<",
+          alias(token("wxs"), $.tag_name),
           repeat($.attribute),
           "/>"
         )

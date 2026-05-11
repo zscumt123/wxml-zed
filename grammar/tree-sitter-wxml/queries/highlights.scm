@@ -43,9 +43,12 @@
 ; Template elements
 (template_definition) @none
 (template_usage) @none
+(template_fallback) @none
 (template_definition_start_tag) @none
 (template_usage_start_tag) @none
 (template_usage_self_closing_tag) @none
+(template_fallback_start_tag) @none
+(template_fallback_self_closing_tag) @none
 (template_end_tag) @none
 (template_name_attribute) @none
 (template_is_attribute) @none
@@ -64,8 +67,11 @@
 ; WXS elements (JavaScript modules)
 (wxs_inline) @none
 (wxs_external) @none
+(wxs_fallback) @none
 (wxs_inline_start_tag) @none
 (wxs_external_self_closing_tag) @none
+(wxs_fallback_start_tag) @none
+(wxs_fallback_self_closing_tag) @none
 (wxs_end_tag) @none
 (wxs_module_attribute) @none
 (wxs_src_attribute) @none
@@ -82,9 +88,11 @@
 ((attribute_name) @emphasis.strong
  (#match? @emphasis.strong "^(model:|data-)"))
 
-; Special attributes
-((attribute_name) @property.special
- (#any-of? @property.special "slot" "is" "module" "src"))
+; Special declaration attributes
+(template_name_attribute (attribute_name) @property.special)
+(template_is_attribute (attribute_name) @property.special)
+(wxs_module_attribute (attribute_name) @property.special)
+(wxs_src_attribute (attribute_name) @property.special)
 
 ; Punctuation and operators
 "<" @punctuation.bracket

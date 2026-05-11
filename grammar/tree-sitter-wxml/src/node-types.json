@@ -71,6 +71,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -80,6 +84,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -165,6 +173,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -174,6 +186,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -236,6 +252,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -245,6 +265,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -428,6 +452,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -437,6 +465,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -567,6 +599,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -576,6 +612,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -616,6 +656,123 @@
       "multiple": false,
       "required": true,
       "types": [
+        {
+          "type": "tag_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "template_fallback",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_element",
+          "named": true
+        },
+        {
+          "type": "element",
+          "named": true
+        },
+        {
+          "type": "entity",
+          "named": true
+        },
+        {
+          "type": "import_statement",
+          "named": true
+        },
+        {
+          "type": "include_statement",
+          "named": true
+        },
+        {
+          "type": "interpolation",
+          "named": true
+        },
+        {
+          "type": "slot_element",
+          "named": true
+        },
+        {
+          "type": "template_definition",
+          "named": true
+        },
+        {
+          "type": "template_end_tag",
+          "named": true
+        },
+        {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
+          "type": "template_fallback_self_closing_tag",
+          "named": true
+        },
+        {
+          "type": "template_fallback_start_tag",
+          "named": true
+        },
+        {
+          "type": "template_usage",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        },
+        {
+          "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
+          "named": true
+        },
+        {
+          "type": "wxs_inline",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "template_fallback_self_closing_tag",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        },
+        {
+          "type": "tag_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "template_fallback_start_tag",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        },
         {
           "type": "tag_name",
           "named": true
@@ -714,6 +871,10 @@
           "named": true
         },
         {
+          "type": "template_fallback",
+          "named": true
+        },
+        {
           "type": "template_usage",
           "named": true
         },
@@ -731,6 +892,10 @@
         },
         {
           "type": "wxs_external",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback",
           "named": true
         },
         {
@@ -834,6 +999,83 @@
         },
         {
           "type": "wxs_module_attribute",
+          "named": true
+        },
+        {
+          "type": "wxs_src_attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "wxs_fallback",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "raw_text",
+          "named": true
+        },
+        {
+          "type": "wxs_end_tag",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback_self_closing_tag",
+          "named": true
+        },
+        {
+          "type": "wxs_fallback_start_tag",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "wxs_fallback_self_closing_tag",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        },
+        {
+          "type": "tag_name",
+          "named": true
+        },
+        {
+          "type": "wxs_module_attribute",
+          "named": true
+        },
+        {
+          "type": "wxs_src_attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "wxs_fallback_start_tag",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        },
+        {
+          "type": "tag_name",
           "named": true
         },
         {

@@ -17,6 +17,15 @@ npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxm
 if [ -f "$ROOT_DIR/languages/wxml/textobjects.scm" ]; then
   npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/textobjects.scm" "$FIXTURE" >/tmp/wxml-zed-textobjects-query.out
 fi
+if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$FIXTURE" >/tmp/wxml-zed-injections-query.out
+fi
+if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$FIXTURE" >/tmp/wxml-zed-indents-query.out
+fi
+if [ -f "$ROOT_DIR/languages/wxml/brackets.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/brackets.scm" "$FIXTURE" >/tmp/wxml-zed-brackets-query.out
+fi
 
 node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$ROOT_DIR/snippets/wxml.json"
 

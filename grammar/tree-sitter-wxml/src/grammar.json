@@ -42,6 +42,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "template_fallback"
+        },
+        {
+          "type": "SYMBOL",
           "name": "slot_element"
         },
         {
@@ -55,6 +59,10 @@
         {
           "type": "SYMBOL",
           "name": "wxs_external"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "wxs_fallback"
         },
         {
           "type": "SYMBOL",
@@ -542,6 +550,39 @@
         ]
       }
     },
+    "template_fallback": {
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "template_fallback_self_closing_tag"
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "template_fallback_start_tag"
+              },
+              {
+                "type": "REPEAT",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_node"
+                }
+              },
+              {
+                "type": "SYMBOL",
+                "name": "template_end_tag"
+              }
+            ]
+          }
+        ]
+      }
+    },
     "template_definition_start_tag": {
       "type": "SEQ",
       "members": [
@@ -657,6 +698,70 @@
         {
           "type": "SYMBOL",
           "name": "template_is_attribute"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "attribute"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "/>"
+        }
+      ]
+    },
+    "template_fallback_start_tag": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "<"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "STRING",
+              "value": "template"
+            }
+          },
+          "named": true,
+          "value": "tag_name"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "attribute"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ">"
+        }
+      ]
+    },
+    "template_fallback_self_closing_tag": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "<"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "STRING",
+              "value": "template"
+            }
+          },
+          "named": true,
+          "value": "tag_name"
         },
         {
           "type": "REPEAT",
@@ -973,6 +1078,44 @@
         "name": "wxs_external_self_closing_tag"
       }
     },
+    "wxs_fallback": {
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "wxs_fallback_self_closing_tag"
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "wxs_fallback_start_tag"
+              },
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "raw_text"
+                  },
+                  {
+                    "type": "BLANK"
+                  }
+                ]
+              },
+              {
+                "type": "SYMBOL",
+                "name": "wxs_end_tag"
+              }
+            ]
+          }
+        ]
+      }
+    },
     "block_start_tag": {
       "type": "SEQ",
       "members": [
@@ -1170,6 +1313,167 @@
             {
               "type": "SYMBOL",
               "name": "wxs_module_attribute"
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "attribute"
+              }
+            },
+            {
+              "type": "STRING",
+              "value": "/>"
+            }
+          ]
+        }
+      ]
+    },
+    "wxs_fallback_start_tag": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "<"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "TOKEN",
+                "content": {
+                  "type": "STRING",
+                  "value": "wxs"
+                }
+              },
+              "named": true,
+              "value": "tag_name"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "wxs_src_attribute"
+            },
+            {
+              "type": "STRING",
+              "value": ">"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "<"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "TOKEN",
+                "content": {
+                  "type": "STRING",
+                  "value": "wxs"
+                }
+              },
+              "named": true,
+              "value": "tag_name"
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "attribute"
+              }
+            },
+            {
+              "type": "STRING",
+              "value": ">"
+            }
+          ]
+        }
+      ]
+    },
+    "wxs_fallback_self_closing_tag": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "<"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "TOKEN",
+                "content": {
+                  "type": "STRING",
+                  "value": "wxs"
+                }
+              },
+              "named": true,
+              "value": "tag_name"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "wxs_src_attribute"
+            },
+            {
+              "type": "STRING",
+              "value": "/>"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "<"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "TOKEN",
+                "content": {
+                  "type": "STRING",
+                  "value": "wxs"
+                }
+              },
+              "named": true,
+              "value": "tag_name"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "wxs_module_attribute"
+            },
+            {
+              "type": "STRING",
+              "value": "/>"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "<"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "TOKEN",
+                "content": {
+                  "type": "STRING",
+                  "value": "wxs"
+                }
+              },
+              "named": true,
+              "value": "tag_name"
             },
             {
               "type": "REPEAT",

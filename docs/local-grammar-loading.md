@@ -31,3 +31,17 @@ Semantic grammar baseline smoke check:
 - Rebuilt WXML v0.2.0 from Zed's Extensions panel.
 - Zed log at `2026-05-11T18:46:54+08:00` reported `compiled grammar wxml` and `finished compiling extension`.
 - The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild.
+
+Recovery fix smoke setup:
+
+- Synced the recovery grammar changes into `/private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511`.
+- Committed the local grammar checkout at `fa31bef18059aacecc00a580463a6422c8a70fea`.
+- Updated `extension.toml` to pin `[grammars.wxml].rev` to that recovery commit before rebuilding the dev extension.
+
+Recovery fix smoke check:
+
+- Rebuilt WXML v0.2.0 from Zed's Extensions panel.
+- Zed log at `2026-05-11T19:07:43+08:00` reported `compiled grammar wxml` and `finished compiling extension`.
+- The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild.
+- `languages/wxml/outline.scm` query output included `./item.wxml`, `../common/header.wxml`, `userCard`, `utils`, and `inline`.
+- `languages/wxml/highlights.scm` query executed successfully against `fixtures/test.wxml`.

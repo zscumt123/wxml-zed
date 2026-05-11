@@ -25,8 +25,20 @@
 
 (template_usage_self_closing_tag "/>" @end) @indent
 
+(template_fallback
+  (template_fallback_start_tag) @start
+  (template_end_tag)? @end) @indent
+
+(template_fallback_self_closing_tag "/>" @end) @indent
+
 (wxs_inline
   (wxs_inline_start_tag) @start
   (wxs_end_tag)? @end) @indent
 
 (wxs_external_self_closing_tag "/>" @end) @indent
+
+(wxs_fallback
+  (wxs_fallback_start_tag) @start
+  (wxs_end_tag)? @end) @indent
+
+(wxs_fallback_self_closing_tag "/>" @end) @indent

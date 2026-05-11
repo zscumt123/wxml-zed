@@ -7,4 +7,6 @@
 ((slot_element (slot_start_tag) @open (slot_end_tag) @close) (#set! newline.only))
 ((template_definition (template_definition_start_tag) @open (template_end_tag) @close) (#set! newline.only))
 ((template_usage (template_usage_start_tag) @open (template_end_tag) @close) (#set! newline.only))
+((template_fallback (template_fallback_start_tag) @open (template_end_tag) @close) (#set! newline.only))
 ((wxs_inline (wxs_inline_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))
+((wxs_fallback (wxs_fallback_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))
