@@ -32,6 +32,9 @@ layer 1 useful in Zed queries.
   nodes where the grammar can represent the concept directly.
 - Make WXML declaration nodes explicit for outline and future navigation:
   template definitions, template usage, WXS modules, imports, and includes.
+- Keep vendored grammar source, generated parser artifacts, and the local Zed
+  grammar checkout synchronized so automated and manual checks test the same
+  grammar revision.
 - Preserve existing parse coverage and editor behavior while improving node
   shape.
 - Keep the implementation small enough to verify with corpus tests and the
@@ -58,8 +61,8 @@ The grammar should expose these first-class nodes:
 - `import_statement`: self-closing `<import src="..." />`.
 - `include_statement`: self-closing `<include src="..." />`.
 - `block_element`: paired `<block>...</block>`.
-- `slot_element`: paired or self-closing `<slot ...>` when used as a slot
-  element.
+- `slot_element`: paired `<slot ...>...</slot>` and self-closing `<slot ... />`
+  when used as a slot element.
 
 Ordinary elements should remain generic for now:
 
@@ -87,6 +90,32 @@ Ordinary elements should remain generic for now:
 The grammar does not need to enforce required attributes in this phase. For
 example, malformed `<template>` or `<wxs>` tags can still parse if the current
 grammar can recover. The first requirement is stable node shape for valid WXML.
+
+Template definition versus usage is attribute-dependent. To keep this phase
+bounded, the grammar should introduce narrow attribute helpers for the
+distinguishing attributes instead of a complete attribute taxonomy:
+
+- `template_name_attribute` should match a `name` attribute on a template start
+  tag.
+- `template_is_attribute` should match an `is` attribute on a template start or
+  self-closing template tag.
+- other template attributes should continue to parse as ordinary `attribute`
+  nodes.
+
+Valid `<template name="...">...</template>` should prefer
+`template_definition`. Valid `<template is="...">...</template>` and
+`<template is="..." />` should prefer `template_usage`. Malformed templates
+without either distinguishing attribute may fall back to generic element parsing
+or existing recovery behavior; this phase does not need to classify them
+semantically.
+
+The same bounded approach applies to WXS:
+
+- `wxs_module_attribute` and `wxs_src_attribute` may be introduced if needed to
+  distinguish valid inline and external WXS forms.
+- inline WXS should require a paired tag shape.
+- external WXS should require a self-closing tag shape with a `src` attribute in
+  valid examples.
 
 ## Query Strategy
 
@@ -118,12 +147,17 @@ Required corpus coverage:
 - static template usage.
 - dynamic template usage with `is="{{...}}"`.
 - paired template usage with children.
+- malformed or non-semantic template fallback case, if the grammar cannot
+  classify it as a valid declaration or usage.
 - inline WXS module.
 - external self-closing WXS module.
 - import statement.
 - include statement.
 - paired block element.
-- slot element and normal `slot` attribute on a non-slot element.
+- paired slot element.
+- self-closing slot element.
+- normal `slot` attribute on a non-slot element, proving it does not parse as a
+  slot element.
 
 `fixtures/test.wxml` should continue to cover the same syntax surface and should
 be updated only if needed to exercise renamed nodes or new valid examples.
@@ -140,6 +174,22 @@ The implementation must also inspect parse output for representative examples
 to confirm semantic node names appear as intended. Passing queries alone is not
 enough if the grammar still hides core declarations under generic element nodes.
 
+Because Zed currently loads grammar source from a separate local git checkout,
+manual verification must first sync the edited vendored grammar into that
+checkout and pin `extension.toml` to the commit being tested. The accepted local
+development shape is:
+
+1. edit `grammar/tree-sitter-wxml/` in this repository,
+2. regenerate parser artifacts in that vendored directory,
+3. copy or apply the same grammar source changes into the local git checkout
+   used by `[grammars.wxml].repository`,
+4. commit that local checkout so the tested grammar has a concrete revision,
+5. update `[grammars.wxml].rev` to the local checkout commit,
+6. rebuild or reinstall the Zed dev extension.
+
+Manual Zed results are not valid evidence for this phase unless the log and
+manifest point at the grammar revision containing the current edits.
+
 Manual Zed verification remains useful after the grammar and query updates:
 
 - reinstall or rebuild the dev extension,
@@ -154,9 +204,15 @@ Manual Zed verification remains useful after the grammar and query updates:
 - Valid template usage parses as `template_usage`.
 - Inline WXS parses as `wxs_inline`.
 - External self-closing WXS parses as `wxs_external`.
+- Paired and self-closing slot elements parse as `slot_element`.
+- A normal `slot` attribute on another element remains an ordinary attribute.
 - Import and include statements keep explicit statement nodes.
 - `outline.scm` no longer needs a generic `element/self_closing_tag` predicate to
   discover external WXS modules.
+- `grammar.js`, `src/grammar.json`, `src/parser.c`, and
+  `src/node-types.json` are regenerated and consistent with the new node model.
+- Zed manual smoke testing uses a local grammar checkout and `rev` that contain
+  the implemented grammar changes.
 - Existing highlight, injection, text object, and snippet checks still pass via
   `scripts/verify-tree-sitter.sh`.
 - `fixtures/test.wxml` still parses successfully.
@@ -166,11 +222,15 @@ Manual Zed verification remains useful after the grammar and query updates:
 ## Implementation Order
 
 1. Add or adjust grammar rules for semantic declaration nodes.
-2. Regenerate parser artifacts if the repository workflow requires it.
+2. Regenerate committed parser artifacts: `src/parser.c`,
+   `src/node-types.json`, and `src/grammar.json`.
 3. Add or update corpus tests for each semantic node.
 4. Update Zed query files to consume the semantic nodes.
-5. Run the verification script and targeted parse inspections.
-6. Rebuild/reinstall the Zed dev extension for a manual smoke check.
+5. Sync the changed grammar into the local git checkout used by
+   `[grammars.wxml].repository`, commit that checkout, and update
+   `[grammars.wxml].rev` to that commit.
+6. Run the verification script and targeted parse inspections.
+7. Rebuild/reinstall the Zed dev extension for a manual smoke check.
 
 ## Risks
 
@@ -183,3 +243,6 @@ Manual Zed verification remains useful after the grammar and query updates:
   hard to express perfectly in Tree-sitter grammar rules. If a perfect split
   makes the grammar brittle, prefer stable valid-case node shape and document the
   recovery behavior for malformed tags.
+- Zed can silently test an older grammar if the vendored grammar and local git
+  checkout diverge. The implementation plan must treat checkout sync as a
+  verification prerequisite, not an optional manual step.
