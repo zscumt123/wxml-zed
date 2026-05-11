@@ -1,0 +1,14 @@
+==================
+Import
+==================
+
+<import src="./item.wxml" />
+
+---
+
+(document
+  (import_statement
+    (tag_name)
+    (attribute
+      (attribute_name)
+      (quoted_attribute_value))))

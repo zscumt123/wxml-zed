@@ -1,0 +1,42 @@
+==================
+Data binding
+==================
+
+<input model:value="{{inputValue}}" />
+<view data-id="{{item.id}}" data-name="{{item.name}}">Item</view>
+<text>{{message}}</text>
+
+---
+
+(document
+  (element
+    (self_closing_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))))
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression)))))
+    (text)
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name))))

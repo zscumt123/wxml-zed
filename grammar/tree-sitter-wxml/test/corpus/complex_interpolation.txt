@@ -1,0 +1,34 @@
+==================
+Complex interpolation
+==================
+
+<view>{{m.prefix}}{{age}}</view>
+<text>{{items[0].title}}</text>
+<text>{{user.getName()}}</text>
+
+---
+
+(document
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name))))

@@ -1,0 +1,27 @@
+==================
+Simple interpolation
+==================
+
+<text>{{name}}</text>
+<text>{{user.name}} - {{user.age}}</text>
+
+---
+
+(document
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name))
+    (interpolation
+      (expression))
+    (text)
+    (interpolation
+      (expression))
+    (end_tag
+      (tag_name))))

@@ -1,0 +1,48 @@
+==================
+Entities
+==================
+
+<view>
+  <text>HTML entities: &amp; &lt; &gt;</text>
+  <text>Numeric: &#65; &#123;</text>
+  <text title="Quote &quot;test&quot;">Mixed: A &amp; B</text>
+</view>
+
+---
+
+(document
+  (element
+    (start_tag
+      (tag_name))
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (entity)
+      (entity)
+      (entity)
+      (end_tag
+        (tag_name)))
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (entity)
+      (entity)
+      (end_tag
+        (tag_name)))
+    (element
+      (start_tag
+        (tag_name)
+        (attribute
+          (attribute_name)
+          (quoted_attribute_value
+            (entity)
+            (entity))))
+      (text)
+      (entity)
+      (text)
+      (end_tag
+        (tag_name)))
+    (end_tag
+      (tag_name))))
