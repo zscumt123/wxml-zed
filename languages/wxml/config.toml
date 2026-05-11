@@ -1,4 +1,4 @@
-name = "WeiXin Markup Language"
+name = "WXML"
 grammar = "wxml"
 path_suffixes = ["wxml"]
 autoclose_before = ">})"

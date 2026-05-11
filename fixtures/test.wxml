@@ -1,0 +1,100 @@
+<!-- This is a comment -->
+<!-- Multi-line comment
+     spanning multiple lines -->
+
+<!-- Conditional rendering -->
+<view wx:if="{{showFlag}}">Show content</view>
+<view wx:elif="{{!showFlag && list.length > 0}}">Alternative content</view>
+<view wx:else>Default content</view>
+
+<!-- block element: logical grouping without DOM node -->
+<block wx:if="{{condition}}">
+  <view>A</view>
+  <view>B</view>
+</block>
+
+<!-- List rendering, full form -->
+<view
+  wx:for="{{items}}"
+  wx:for-item="row"
+  wx:for-index="idx"
+  wx:key="id"
+  class="container"
+>
+  <text>{{idx}}: {{row.title}}</text>
+</view>
+
+<!-- List rendering, short form (default item/index names) -->
+<view wx:for="{{list}}" wx:key="*this">{{item}}</view>
+
+<!-- Model & data -->
+<input model:value="{{inputValue}}" />
+<view data-id="{{item.id}}" data-name="{{item.name}}">Item</view>
+
+<!-- Interpolation inside string attribute -->
+<view style="{{forceWidth ? `width: ${10 - 5}rpx` : ''}}" />
+<view class="card card-{{type}} {{active ? 'is-active' : ''}}">mixed</view>
+
+<!-- Plain interpolation in text -->
+<text>{{message}}</text>
+<text>Hello {{user.name}}, you have {{count}} new items.</text>
+
+<!-- Event binding: all six prefixes -->
+<button bindtap="onTap">bind no colon</button>
+<button bind:tap="onTap">bind with colon</button>
+<view catchtouchstart="onTouchStart">catch no colon</view>
+<view catch:touchstart="onTouchStart">catch with colon</view>
+<button mut-bind:tap="onMutTap">mutual bind</button>
+<view capture-bind:tap="onCaptureTap">capture-bind colon</view>
+<view capture-bindtap="onCaptureTap">capture-bind no colon</view>
+<view capture-catch:tap="onCaptureCatchTap">capture-catch colon</view>
+<view capture-catchtap="onCaptureCatchTap">capture-catch no colon</view>
+
+<!-- Generic component slot -->
+<my-component generic:GenericItem="custom-item" />
+
+<!-- Boolean / hidden attributes -->
+<button disabled hidden>Toggle</button>
+
+<!-- HTML entities -->
+<text>Price: &#36;100 &mdash; tax included &amp; free shipping&nbsp;today</text>
+
+<!-- Import / Include -->
+<import src="./item.wxml" />
+<include src="../common/header.wxml" />
+
+<!-- Templates: definition + static usage + dynamic usage -->
+<template name="userCard">
+  <view class="card">
+    <text>{{name}}</text>
+    <text>{{age}}</text>
+  </view>
+</template>
+
+<template is="userCard" data="{{...user}}" />
+<template is="layout" data="{{title: 'Main'}}">
+  <text slot="header">Header</text>
+  <text>Content</text>
+</template>
+
+<!-- Dynamic template is -->
+<template is="{{cond ? 'tplA' : 'tplB'}}" data="{{payload}}" />
+
+<!-- <slot> element vs slot attribute -->
+<slot name="header" />
+<view>
+  <text slot="footer">Footer text</text>
+</view>
+
+<!-- External wxs module -->
+<wxs module="utils" src="../common/utils.wxs" />
+
+<!-- Inline wxs module -->
+<wxs module="inline">
+  var double = function (x) { return x * 2; };
+  var greet = function (name) { return 'hi, ' + name; };
+  module.exports.double = double;
+  module.exports.greet = greet;
+</wxs>
+<view>2 * 7 = {{inline.double(7)}}</view>
+<view>{{inline.greet(user.name)}}</view>

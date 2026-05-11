@@ -1,11 +1,13 @@
-id = "wxml"
+id = "wxml-zed"
 name = "WXML"
 description = "WXML (WeiXin Markup Language) support for Zed."
-version = "0.1.0"
+version = "0.2.0"
 schema_version = 1
-authors = ["BlockLune <39331194+BlockLune@users.noreply.github.com>"]
-repository = "https://github.com/BlockLune/zed-wxml"
+authors = ["zscumt123", "wxml-zed contributors"]
+repository = "https://github.com/zscumt123/wxml-zed"
+
+snippets = ["./snippets/wxml.json"]
 
 [grammars.wxml]
-repository = "https://github.com/BlockLune/tree-sitter-wxml"
+repository = "file:///private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511"
 rev = "81bd97fa3bbc43516ad0e7ea5518d72651d954bf"

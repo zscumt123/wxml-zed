@@ -1,31 +1,44 @@
-(comment) @annotation
+; Outline: declarative / navigable items only
+; (template definitions, wxs modules, import/include file references)
 
-(element
-  (start_tag
-    (tag_name) @name)) @item
-
-(element
-  (self_closing_tag
-    (tag_name) @name)) @item
-
-(block_element
-  (block_start_tag
-    (tag_name) @name)) @item
-
-(slot_element
-  (slot_start_tag
-    (tag_name) @name)) @item
-
-(template_element
+; <template name="..."> ... </template>
+((template_element
   (template_start_tag
-    (tag_name) @name)) @item
+    (attribute
+      (attribute_name) @_n
+      [(attribute_value) (quoted_attribute_value)] @name))) @item
+ (#eq? @_n "name"))
 
-(wxs_element
+; <wxs module="..."> ... </wxs>  (inline wxs)
+((wxs_element
   (wxs_start_tag
-    (tag_name) @name)) @item
+    (attribute
+      (attribute_name) @_n
+      [(attribute_value) (quoted_attribute_value)] @name))) @item
+ (#eq? @_n "module"))
 
-(import_statement
-  (tag_name) @name) @item
+; <wxs module="..." src="..." />  (external wxs, parses as self-closing element)
+((element
+   (self_closing_tag
+     (tag_name) @_tag
+     (attribute
+       (attribute_name) @_n
+       [(attribute_value) (quoted_attribute_value)] @name))) @item
+ (#eq? @_tag "wxs")
+ (#eq? @_n "module"))
 
-(include_statement
-  (tag_name) @name) @item
+; <import src="..." />
+((import_statement
+   (attribute
+     (attribute_name) @_n
+     [(attribute_value) (quoted_attribute_value)] @name)) @item
+ (#eq? @_n "src"))
+
+; <include src="..." />
+((include_statement
+   (attribute
+     (attribute_name) @_n
+     [(attribute_value) (quoted_attribute_value)] @name)) @item
+ (#eq? @_n "src"))
+
+(comment) @annotation

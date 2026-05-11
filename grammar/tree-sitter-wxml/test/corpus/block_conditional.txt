@@ -1,0 +1,34 @@
+==================
+Block conditional
+==================
+
+<block wx:if="{{showFlag}}">
+  <view>Content 1</view>
+  <view>Content 2</view>
+</block>
+
+---
+
+(document
+  (block_element
+    (block_start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression)))))
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (end_tag
+        (tag_name)))
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (end_tag
+        (tag_name)))
+    (block_end_tag
+      (tag_name))))

@@ -1,0 +1,30 @@
+==================
+Comments
+==================
+
+<!-- This is a comment -->
+<view class="container">
+  <!-- Multi-line comment
+       spanning multiple lines -->
+  <text>Hello World</text>
+</view>
+
+---
+
+(document
+  (comment)
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (comment)
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (end_tag
+        (tag_name)))
+    (end_tag
+      (tag_name))))

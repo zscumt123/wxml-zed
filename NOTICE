@@ -1,0 +1,6 @@
+wxml-zed includes source code originally adapted from:
+
+- BlockLune/zed-wxml, used as the initial Zed extension baseline.
+- BlockLune/tree-sitter-wxml, used as the initial WXML Tree-sitter grammar seed.
+
+wxml-zed is independently maintained from this baseline onward. Vendored grammar source under grammar/tree-sitter-wxml is maintained as first-party project source in this repository and is not a git submodule.

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=62.4.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tree-sitter-wxml"
+description = "WXML (WeiXin Markup Language) grammar for tree-sitter"
+version = "0.1.1"
+keywords = ["incremental", "parsing", "tree-sitter", "wxml"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Compilers",
+  "Topic :: Text Processing :: Linguistic",
+  "Typing :: Typed",
+]
+authors = [{ name = "BlockLune", email = "39331194+BlockLune@users.noreply.github.com" }]
+requires-python = ">=3.10"
+license.text = "MIT"
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://github.com/blocklune/tree-sitter-wxml"
+Funding = "https://github.com/BlockLune"
+
+[project.optional-dependencies]
+core = ["tree-sitter~=0.24"]
+
+[tool.cibuildwheel]
+build = "cp310-*"
+build-frontend = "build"

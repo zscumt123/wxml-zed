@@ -1,0 +1,14 @@
+==================
+Include
+==================
+
+<include src="../common/header.wxml" />
+
+---
+
+(document
+  (include_statement
+    (tag_name)
+    (attribute
+      (attribute_name)
+      (quoted_attribute_value))))

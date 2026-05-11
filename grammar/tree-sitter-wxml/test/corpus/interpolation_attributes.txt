@@ -1,0 +1,46 @@
+==================
+Interpolation in attributes
+==================
+
+<view class="{{containerClass}}" hidden="{{!showFlag}}">
+  <text data-id="{{item.id}}">{{item.name}}</text>
+  <view style="{{forceWidth ? `width: ${10 - 5}rpx` : ''}}" />
+</view>
+
+---
+
+(document
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression)))))
+    (element
+      (start_tag
+        (tag_name)
+        (attribute
+          (attribute_name)
+          (quoted_attribute_value
+            (interpolation
+              (expression)))))
+      (interpolation
+        (expression))
+      (end_tag
+        (tag_name)))
+    (element
+        (self_closing_tag
+          (tag_name)
+          (attribute
+            (attribute_name)
+            (quoted_attribute_value
+              (interpolation (expression))))))
+    (end_tag
+      (tag_name))))

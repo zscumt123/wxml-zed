@@ -1,0 +1,38 @@
+==================
+Event binding
+==================
+
+<button bindtap="onTap">Click me</button>
+<view catchtouchstart="onTouchStart">Catch event</view>
+<button mut-bind:click="onMutClick">Mutual binding</button>
+
+---
+
+(document
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (text)
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+          (quoted_attribute_value)))
+    (text)
+    (end_tag
+      (tag_name)))
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (text)
+    (end_tag
+      (tag_name))))
