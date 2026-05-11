@@ -21,13 +21,27 @@
   (_)* @class.inside
   (slot_end_tag)) @class.around
 
-(template_element
-  (template_start_tag)
+(slot_element
+  (slot_self_closing_tag)) @class.around
+
+(template_definition
+  (template_definition_start_tag)
   (_)* @class.inside
   (template_end_tag)) @class.around
 
+(template_usage
+  (template_usage_start_tag)
+  (_)* @class.inside
+  (template_end_tag)) @class.around
+
+(template_usage
+  (template_usage_self_closing_tag)) @class.around
+
 ; <wxs> body — function-like (vaf/vif targets the JS body)
-(wxs_element
-  (wxs_start_tag)
+(wxs_inline
+  (wxs_inline_start_tag)
   (raw_text)? @function.inside
   (wxs_end_tag)) @function.around
+
+(wxs_external
+  (wxs_external_self_closing_tag)) @function.around

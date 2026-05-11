@@ -4,25 +4,35 @@ WXS external module
 
 <wxs module="m" src="./demo.wxs" />
 <wxs module="utils" src="../common/utils.wxs" />
+<wxs src="./reversed.wxs" module="reversed" />
 
 ---
 
 (document
-  (element
-    (self_closing_tag
+  (wxs_external
+    (wxs_external_self_closing_tag
       (tag_name)
-      (attribute
+      (wxs_module_attribute
         (attribute_name)
         (quoted_attribute_value))
-      (attribute
+      (wxs_src_attribute
         (attribute_name)
         (quoted_attribute_value))))
-  (element
-    (self_closing_tag
+  (wxs_external
+    (wxs_external_self_closing_tag
       (tag_name)
-      (attribute
+      (wxs_module_attribute
         (attribute_name)
         (quoted_attribute_value))
-      (attribute
+      (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value))))
+  (wxs_external
+    (wxs_external_self_closing_tag
+      (tag_name)
+      (wxs_src_attribute
+        (attribute_name)
+        (quoted_attribute_value))
+      (wxs_module_attribute
         (attribute_name)
         (quoted_attribute_value)))))

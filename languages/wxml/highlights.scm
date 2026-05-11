@@ -57,13 +57,10 @@
   (#match? @keyword "^(model:|generic:|data-)"))
 
 ; Special attribute names on declaration elements only
-; <template name="..." is="..."> → name/is as property
-((template_start_tag (attribute (attribute_name) @property))
-  (#any-of? @property "name" "is"))
-
-; <wxs module="..." src="..."> → module/src as property
-((wxs_start_tag (attribute (attribute_name) @property))
-  (#any-of? @property "module" "src"))
+(template_name_attribute (attribute_name) @property)
+(template_is_attribute (attribute_name) @property)
+(wxs_module_attribute (attribute_name) @property)
+(wxs_src_attribute (attribute_name) @property)
 
 ; <import src="..." /> → src as property
 ((import_statement (attribute (attribute_name) @property)

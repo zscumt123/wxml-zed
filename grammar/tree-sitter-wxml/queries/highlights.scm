@@ -41,13 +41,19 @@
 (include_statement) @preproc
 
 ; Template elements
-(template_element) @none
-(template_start_tag) @none
+(template_definition) @none
+(template_usage) @none
+(template_definition_start_tag) @none
+(template_usage_start_tag) @none
+(template_usage_self_closing_tag) @none
 (template_end_tag) @none
+(template_name_attribute) @none
+(template_is_attribute) @none
 
 ; Slot elements
 (slot_element) @none
 (slot_start_tag) @none
+(slot_self_closing_tag) @none
 (slot_end_tag) @none
 
 ; Block elements
@@ -56,9 +62,13 @@
 (block_end_tag) @none
 
 ; WXS elements (JavaScript modules)
-(wxs_element) @none
-(wxs_start_tag) @none
+(wxs_inline) @none
+(wxs_external) @none
+(wxs_inline_start_tag) @none
+(wxs_external_self_closing_tag) @none
 (wxs_end_tag) @none
+(wxs_module_attribute) @none
+(wxs_src_attribute) @none
 
 ; WeChat specific directive attributes
 ((attribute_name) @emphasis.strong

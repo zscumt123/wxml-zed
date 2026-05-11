@@ -3,6 +3,7 @@ Template usage
 ==================
 
 <template is="userCard" data="{{...user}}" />
+<template is="{{cond ? 'tplA' : 'tplB'}}" data="{{payload}}" />
 <template is="layout" data="{{title: 'Main'}}">
   <text slot="header">Header</text>
   <text>Content</text>
@@ -11,10 +12,10 @@ Template usage
 ---
 
 (document
-  (element
-    (self_closing_tag
+  (template_usage
+    (template_usage_self_closing_tag
       (tag_name)
-      (attribute
+      (template_is_attribute
         (attribute_name)
         (quoted_attribute_value))
       (attribute
@@ -22,10 +23,23 @@ Template usage
         (quoted_attribute_value
           (interpolation
             (expression))))))
-  (template_element
-    (template_start_tag
+  (template_usage
+    (template_usage_self_closing_tag
       (tag_name)
+      (template_is_attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))
       (attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (interpolation
+            (expression))))))
+  (template_usage
+    (template_usage_start_tag
+      (tag_name)
+      (template_is_attribute
         (attribute_name)
         (quoted_attribute_value))
       (attribute

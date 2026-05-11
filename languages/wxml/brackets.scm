@@ -5,5 +5,6 @@
 ((element (start_tag) @open (end_tag) @close) (#set! newline.only))
 ((block_element (block_start_tag) @open (block_end_tag) @close) (#set! newline.only))
 ((slot_element (slot_start_tag) @open (slot_end_tag) @close) (#set! newline.only))
-((template_element (template_start_tag) @open (template_end_tag) @close) (#set! newline.only))
-((wxs_element (wxs_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))
+((template_definition (template_definition_start_tag) @open (template_end_tag) @close) (#set! newline.only))
+((template_usage (template_usage_start_tag) @open (template_end_tag) @close) (#set! newline.only))
+((wxs_inline (wxs_inline_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))

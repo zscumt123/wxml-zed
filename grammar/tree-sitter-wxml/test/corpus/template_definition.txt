@@ -12,10 +12,10 @@ Template definition
 ---
 
 (document
-  (template_element
-    (template_start_tag
+  (template_definition
+    (template_definition_start_tag
       (tag_name)
-      (attribute
+      (template_name_attribute
         (attribute_name)
         (quoted_attribute_value)))
     (element

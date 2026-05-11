@@ -2,30 +2,22 @@
 ; (template definitions, wxs modules, import/include file references)
 
 ; <template name="..."> ... </template>
-((template_element
-  (template_start_tag
-    (attribute
-      (attribute_name) @_n
-      [(attribute_value) (quoted_attribute_value)] @name))) @item
- (#eq? @_n "name"))
+((template_definition
+  (template_definition_start_tag
+    (template_name_attribute
+      [(attribute_value) (quoted_attribute_value)] @name))) @item)
 
 ; <wxs module="..."> ... </wxs>  (inline wxs)
-((wxs_element
-  (wxs_start_tag
-    (attribute
-      (attribute_name) @_n
-      [(attribute_value) (quoted_attribute_value)] @name))) @item
- (#eq? @_n "module"))
+((wxs_inline
+  (wxs_inline_start_tag
+    (wxs_module_attribute
+      [(attribute_value) (quoted_attribute_value)] @name))) @item)
 
-; <wxs module="..." src="..." />  (external wxs, parses as self-closing element)
-((element
-   (self_closing_tag
-     (tag_name) @_tag
-     (attribute
-       (attribute_name) @_n
-       [(attribute_value) (quoted_attribute_value)] @name))) @item
- (#eq? @_tag "wxs")
- (#eq? @_n "module"))
+; <wxs module="..." src="..." />  (external wxs)
+((wxs_external
+  (wxs_external_self_closing_tag
+    (wxs_module_attribute
+      [(attribute_value) (quoted_attribute_value)] @name))) @item)
 
 ; <import src="..." />
 ((import_statement

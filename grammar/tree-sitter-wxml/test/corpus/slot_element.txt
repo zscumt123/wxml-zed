@@ -1,0 +1,34 @@
+==================
+Slot element
+==================
+
+<slot name="header"></slot>
+<slot name="footer" />
+<view slot="body">Body</view>
+
+---
+
+(document
+  (slot_element
+    (slot_start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (slot_end_tag
+      (tag_name)))
+  (slot_element
+    (slot_self_closing_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value))))
+  (element
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (quoted_attribute_value)))
+    (text)
+    (end_tag
+      (tag_name))))

@@ -13,10 +13,20 @@
   (slot_start_tag) @start
   (slot_end_tag)? @end) @indent
 
-(template_element
-  (template_start_tag) @start
+(slot_self_closing_tag "/>" @end) @indent
+
+(template_definition
+  (template_definition_start_tag) @start
   (template_end_tag)? @end) @indent
 
-(wxs_element
-  (wxs_start_tag) @start
+(template_usage
+  (template_usage_start_tag) @start
+  (template_end_tag)? @end) @indent
+
+(template_usage_self_closing_tag "/>" @end) @indent
+
+(wxs_inline
+  (wxs_inline_start_tag) @start
   (wxs_end_tag)? @end) @indent
+
+(wxs_external_self_closing_tag "/>" @end) @indent
