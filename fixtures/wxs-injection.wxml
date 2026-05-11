@@ -1,0 +1,14 @@
+<view>{{ user.name || "Guest" }}</view>
+
+<wxs module="math">
+  var double = function (x) { return x * 2; };
+  var meta = { label: "double" };
+  module.exports.double = double;
+  module.exports.meta = meta;
+</wxs>
+
+<view>{{ math.double(count) }}</view>
+
+<wxs src="./fallback-only.wxs">
+  var fallback = function () { return "fallback"; };
+</wxs>

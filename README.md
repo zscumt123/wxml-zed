@@ -76,9 +76,10 @@ formatting.
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
 
-Inline `wxs` content is highlighted as JavaScript. WXS is close enough for editor
-highlighting, but full WXS semantics would require a dedicated grammar or
-language-service layer.
+Inline `wxs` bodies and WXML interpolation expressions are injected as
+JavaScript for syntax highlighting only. The extension does not type-check WXS,
+resolve external `.wxs` files, validate WeChat WXS APIs, or provide WXS module
+completion. Those behaviors belong in a later language-service layer.
 
 ## Redistribution Status
 
