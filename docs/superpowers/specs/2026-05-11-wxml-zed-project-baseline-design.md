@@ -67,7 +67,11 @@ wxml-zed/
 - `repository` should point to this project's repository once it exists.
 - `version` should advance from the inherited `0.1.0` baseline.
 
-The grammar entry should ultimately point at a source that this project controls. During local development, the grammar source lives in `grammar/tree-sitter-wxml/`; before marketplace publishing, confirm the exact Zed packaging requirement for local versus remote grammar sources.
+`languages/wxml/config.toml` should use `name = "WXML"` and `grammar = "wxml"`. The language name matters because Zed scopes snippets by the lowercase language name, so `snippets/wxml.json` should map cleanly to the WXML language.
+
+During local development, the grammar entry must load the grammar source from this repository. Use a `file://` grammar repository URL pointing at `grammar/tree-sitter-wxml/` so Zed dev-extension installs exercise the vendored grammar rather than the old remote grammar.
+
+Before marketplace publishing, confirm whether the extension can keep using a controlled local grammar path from the extension package or must reference a public git repository and commit. If a public grammar repository is required, split or mirror `grammar/tree-sitter-wxml` at that point and pin the controlled revision.
 
 ## Grammar Strategy
 
@@ -143,22 +147,35 @@ Because the current working tree contains code derived from an existing public r
 
 The project should not present itself as an upstream fork. It should state that `wxml-zed` is independently maintained, while separately documenting any copied or adapted sources if needed.
 
-Before marketplace publishing, confirm that all included source has a clear redistributable license.
+Baseline license work is required, not deferred to marketplace publishing:
+
+- Use MIT for `wxml-zed`.
+- Preserve required copyright/provenance for copied or adapted source in `LICENSE`, `NOTICE`, or README.
+- For files that should no longer depend on inherited behavior, classify them as rewrites in the implementation plan and replace them deliberately.
+- Do not claim that the project has no relation to inherited code unless the affected files have been rewritten or provenance has been handled.
+
+Before marketplace publishing, re-check that all included extension and grammar source has a clear redistributable license.
 
 ## Implementation Sequence
 
-1. Normalize project identity and metadata for `wxml-zed`.
-2. Add `grammar/tree-sitter-wxml` as first-party source, not a submodule.
-3. Move the WXML fixture into `fixtures/`.
-4. Add or document local verification commands for grammar parse, corpus, and query checks.
-5. Adjust README to describe the independent project and current baseline.
-6. Only then start improving grammar node modeling and downstream Zed queries.
+1. Classify the current dirty working tree by file: adopt, rewrite, or defer. Do not silently mix unreviewed fork-oriented changes into the independent baseline.
+2. Normalize project identity and metadata for `wxml-zed`.
+3. Set the language name to `WXML` so language metadata, snippets, and future LSP mappings agree.
+4. Add `grammar/tree-sitter-wxml` as first-party source, not a submodule.
+5. Configure Zed dev-extension grammar loading to use the vendored grammar source.
+6. Move the WXML fixture into `fixtures/`.
+7. Add or document local verification commands for grammar parse, corpus, and query checks.
+8. Adjust README to describe the independent project and current baseline.
+9. Only then start improving grammar node modeling and downstream Zed queries.
 
 ## Acceptance Criteria
 
 - The repository clearly represents `wxml-zed` as an independent project.
 - The grammar source exists inside the repository without a git submodule.
+- Zed dev-extension installs load the vendored grammar rather than the old remote grammar.
+- `languages/wxml/config.toml` uses `name = "WXML"` and snippets are scoped accordingly.
 - Zed extension files remain loadable as a dev extension.
 - Fixtures and verification workflow are documented.
 - Existing uncommitted extension improvements are either reconciled into the baseline or deliberately deferred.
+- License and provenance handling is explicit for inherited or adapted files.
 - No LSP or marketplace publishing work is mixed into the baseline.
