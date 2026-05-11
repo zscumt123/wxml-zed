@@ -45,3 +45,10 @@ Recovery fix smoke check:
 - The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild.
 - `languages/wxml/outline.scm` query output included `./item.wxml`, `../common/header.wxml`, `userCard`, `utils`, and `inline`.
 - `languages/wxml/highlights.scm` query executed successfully against `fixtures/test.wxml`.
+
+WXS injection baseline smoke check:
+
+- Opened Zed's Extensions panel, searched for `wxml`, and clicked `Rebuild` on WXML v0.2.0.
+- Zed did not append a fresh grammar compile line for this query-only rebuild; the latest relevant successful compile remains `2026-05-11T19:07:43+08:00`, which reported `compiled grammar wxml` and `finished compiling extension`.
+- The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild attempt.
+- `scripts/verify-tree-sitter.sh` asserted injection captures for WXML interpolation, inline WXS raw text, and recovered WXS raw text.
