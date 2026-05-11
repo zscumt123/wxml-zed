@@ -1,0 +1,130 @@
+{
+  "view": {
+    "prefix": "view",
+    "body": ["<view class=\"$1\">", "  $0", "</view>"],
+    "description": "<view> container"
+  },
+  "text": {
+    "prefix": "text",
+    "body": "<text>$1</text>$0",
+    "description": "<text> element"
+  },
+  "image": {
+    "prefix": "image",
+    "body": "<image src=\"${1:url}\" mode=\"${2:scaleToFill}\" />$0",
+    "description": "<image> element"
+  },
+  "button": {
+    "prefix": "button",
+    "body": ["<button bindtap=\"${1:onTap}\">", "  $0", "</button>"],
+    "description": "<button> with tap handler"
+  },
+  "scroll-view": {
+    "prefix": "scroll-view",
+    "body": [
+      "<scroll-view scroll-y=\"${1:true}\" style=\"height: ${2:100vh};\">",
+      "  $0",
+      "</scroll-view>"
+    ],
+    "description": "scrollable container"
+  },
+  "input": {
+    "prefix": "input",
+    "body": "<input model:value=\"{{${1:value}}}\" placeholder=\"${2:placeholder}\" />$0",
+    "description": "<input> with two-way binding"
+  },
+  "wx:if": {
+    "prefix": "wxif",
+    "body": ["<view wx:if=\"{{${1:condition}}}\">", "  $0", "</view>"],
+    "description": "wx:if conditional"
+  },
+  "wx:if-elif-else": {
+    "prefix": "wxifelse",
+    "body": [
+      "<view wx:if=\"{{${1:cond1}}}\">$2</view>",
+      "<view wx:elif=\"{{${3:cond2}}}\">$4</view>",
+      "<view wx:else>$0</view>"
+    ],
+    "description": "if / elif / else chain"
+  },
+  "wx:for": {
+    "prefix": "wxfor",
+    "body": [
+      "<view wx:for=\"{{${1:list}}}\" wx:key=\"${2:id}\">",
+      "  $0",
+      "</view>"
+    ],
+    "description": "wx:for loop with key"
+  },
+  "wx:for full": {
+    "prefix": "wxforfull",
+    "body": [
+      "<view",
+      "  wx:for=\"{{${1:list}}}\"",
+      "  wx:for-item=\"${2:row}\"",
+      "  wx:for-index=\"${3:idx}\"",
+      "  wx:key=\"${4:id}\"",
+      ">",
+      "  $0",
+      "</view>"
+    ],
+    "description": "wx:for with item/index/key aliases"
+  },
+  "block": {
+    "prefix": "block",
+    "body": ["<block wx:if=\"{{${1:condition}}}\">", "  $0", "</block>"],
+    "description": "<block> logical wrapper"
+  },
+  "template definition": {
+    "prefix": "templatedef",
+    "body": ["<template name=\"${1:tplName}\">", "  $0", "</template>"],
+    "description": "define a <template>"
+  },
+  "template use": {
+    "prefix": "templateuse",
+    "body": "<template is=\"${1:tplName}\" data=\"{{${2:...payload}}}\" />$0",
+    "description": "use a <template>"
+  },
+  "wxs inline": {
+    "prefix": "wxsinline",
+    "body": [
+      "<wxs module=\"${1:m}\">",
+      "  var ${2:fn} = function (${3:x}) {",
+      "    return $0;",
+      "  };",
+      "  module.exports.${2:fn} = ${2:fn};",
+      "</wxs>"
+    ],
+    "description": "inline <wxs> module"
+  },
+  "wxs external": {
+    "prefix": "wxsext",
+    "body": "<wxs module=\"${1:m}\" src=\"${2:./util.wxs}\" />$0",
+    "description": "external <wxs> module"
+  },
+  "import": {
+    "prefix": "import",
+    "body": "<import src=\"${1:./template.wxml}\" />$0",
+    "description": "<import> a template file"
+  },
+  "include": {
+    "prefix": "include",
+    "body": "<include src=\"${1:./fragment.wxml}\" />$0",
+    "description": "<include> a fragment"
+  },
+  "bindtap": {
+    "prefix": "bindtap",
+    "body": "bindtap=\"${1:onTap}\"$0",
+    "description": "tap event binding"
+  },
+  "catchtap": {
+    "prefix": "catchtap",
+    "body": "catchtap=\"${1:onTap}\"$0",
+    "description": "tap event binding without bubble"
+  },
+  "data-": {
+    "prefix": "dataset",
+    "body": "data-${1:name}=\"{{${2:value}}}\"$0",
+    "description": "dataset attribute"
+  }
+}
