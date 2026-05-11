@@ -25,3 +25,9 @@ Semantic grammar baseline smoke setup:
 - Synced `grammar/tree-sitter-wxml/` into `/private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511`.
 - Committed the local grammar checkout at `00e5168d456b8960d31533b9587802d73e7a0989`.
 - Updated `extension.toml` to pin `[grammars.wxml].rev` to that commit before rebuilding the dev extension.
+
+Semantic grammar baseline smoke check:
+
+- Rebuilt WXML v0.2.0 from Zed's Extensions panel.
+- Zed log at `2026-05-11T18:46:54+08:00` reported `compiled grammar wxml` and `finished compiling extension`.
+- The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild.
