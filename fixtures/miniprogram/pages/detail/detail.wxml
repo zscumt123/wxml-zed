@@ -1,0 +1,3 @@
+<view class="detail">
+  <text>{{title}}</text>
+</view>

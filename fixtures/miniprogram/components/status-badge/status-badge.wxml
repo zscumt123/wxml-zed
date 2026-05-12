@@ -1,0 +1,3 @@
+<view class="status status-{{status}}">
+  <text>{{status}}</text>
+</view>

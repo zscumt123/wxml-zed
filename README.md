@@ -23,6 +23,7 @@ git submodule.
 | Basic tag editing through bracket matching, autoclose pairs, comments, and snippets | Yes |
 | Tree-sitter parse/query verification script | Yes |
 | Pre-LSP dependency and symbol model extractor | Yes |
+| Pre-LSP project graph extractor for local mini program fixtures | Yes |
 | LSP diagnostics, cross-file navigation, and component resolution | Planned |
 
 ## Install
@@ -46,7 +47,8 @@ scripts/verify-tree-sitter.sh
 The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
-baseline snippet keys plus the pre-LSP dependency and symbol model.
+baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
+models.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -100,6 +102,12 @@ custom component candidates. It does not validate file existence, read
 `usingComponents`, resolve dynamic template expressions, or provide LSP
 behavior.
 
+`scripts/extract-wxml-project-graph.mjs` emits a deterministic JSON graph for a
+single mini program project root. It reads `app.json`, page and component JSON
+files, local relative `usingComponents`, and the existing WXML symbol model. It
+does not resolve npm components, plugin components, `subPackages`, diagnostics,
+watch mode, LSP behavior, or editor navigation.
+
 ## Redistribution Status
 
 This repository includes provenance notes in `NOTICE`. The current baseline is
@@ -116,6 +124,7 @@ clean-room equivalents.
 - `grammar/tree-sitter-wxml/`: vendored grammar source.
 - `fixtures/test.wxml`: syntax coverage fixture.
 - `scripts/extract-wxml-symbols.mjs`: pre-LSP static dependency/symbol extractor.
+- `scripts/extract-wxml-project-graph.mjs`: pre-LSP mini program project graph extractor.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 

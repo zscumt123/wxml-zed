@@ -14,9 +14,12 @@ REAL_WORLD_TEMPLATES="$REAL_WORLD_DIR/templates.wxml"
 REAL_WORLD_RECOVERY="$REAL_WORLD_DIR/edge-recovery.wxml"
 CACHE_DIR="${NPM_CONFIG_CACHE:-/private/tmp/npm-cache}"
 SYMBOL_MODEL="/tmp/wxml-zed-symbols.json"
+PROJECT_GRAPH="/tmp/wxml-zed-project-graph.json"
+MINIPROGRAM_DIR="$ROOT_DIR/fixtures/miniprogram"
 
 export HOME="${WXML_ZED_HOME:-/private/tmp}"
 export npm_config_cache="$CACHE_DIR"
+mkdir -p "$HOME/.cache/tree-sitter/lock" "$npm_config_cache"
 
 count_matches() {
   rg -c "$1" "$2" || true
@@ -225,6 +228,97 @@ for (const tag of ["view", "text", "button", "image", "scroll-view", "input"]) {
   assert(!componentCandidates.has(tag), `Builtin tag leaked into component candidates: ${tag}`);
 }
 ' "$SYMBOL_MODEL"
+
+node "$ROOT_DIR/scripts/extract-wxml-project-graph.mjs" "$MINIPROGRAM_DIR" >"$PROJECT_GRAPH"
+node -e '
+const fs = require("fs");
+const graph = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function hasPage(name) {
+  return graph.pages.some((page) => page.name === name);
+}
+
+function hasConfig(path, kind) {
+  return graph.configs.some((config) => config.path === path && config.kind === kind);
+}
+
+function hasResolvedComponent(owner, tag, target) {
+  return graph.usingComponents.some((component) => (
+    component.owner === owner &&
+    component.tag === tag &&
+    component.target === target &&
+    component.resolved === true
+  ));
+}
+
+function hasUnresolvedComponent(owner, tag, reason) {
+  return graph.unresolved.some((entry) => (
+    entry.kind === "component" &&
+    entry.owner === owner &&
+    entry.tag === tag &&
+    entry.reason === reason
+  ));
+}
+
+function wxml(path) {
+  const entry = graph.wxml.find((file) => file.path === path);
+  assert(entry, `Missing WXML graph entry: ${path}`);
+  return entry;
+}
+
+function hasDependency(file, kind, normalized) {
+  return file.dependencies.some((dependency) => dependency.kind === kind && dependency.normalized === normalized);
+}
+
+assert(graph.version === 1, "Unexpected project graph version");
+assert(graph.root === "fixtures/miniprogram", "Unexpected project graph root");
+assert(hasPage("pages/home/home"), "Missing home page");
+assert(hasPage("pages/detail/detail"), "Missing detail page");
+
+assert(hasConfig("fixtures/miniprogram/app.json", "app"), "Missing app config");
+assert(hasConfig("fixtures/miniprogram/pages/home/home.json", "page"), "Missing home page config");
+assert(hasConfig("fixtures/miniprogram/pages/detail/detail.json", "page"), "Missing detail page config");
+assert(hasConfig("fixtures/miniprogram/components/user-card/user-card.json", "component"), "Missing user-card config");
+assert(hasConfig("fixtures/miniprogram/components/status-badge/status-badge.json", "component"), "Missing status-badge config");
+
+assert(hasResolvedComponent(
+  "fixtures/miniprogram/pages/home/home.wxml",
+  "user-card",
+  "fixtures/miniprogram/components/user-card/user-card.wxml",
+), "Missing resolved user-card component");
+assert(hasResolvedComponent(
+  "fixtures/miniprogram/components/user-card/user-card.wxml",
+  "status-badge",
+  "fixtures/miniprogram/components/status-badge/status-badge.wxml",
+), "Missing resolved status-badge component");
+assert(hasUnresolvedComponent(
+  "fixtures/miniprogram/pages/home/home.wxml",
+  "missing-card",
+  "missing-file",
+), "Missing unresolved missing-card component");
+
+const home = wxml("fixtures/miniprogram/pages/home/home.wxml");
+wxml("fixtures/miniprogram/pages/detail/detail.wxml");
+wxml("fixtures/miniprogram/components/user-card/user-card.wxml");
+wxml("fixtures/miniprogram/components/status-badge/status-badge.wxml");
+wxml("fixtures/miniprogram/shared/header.wxml");
+wxml("fixtures/miniprogram/templates/common.wxml");
+
+assert(hasDependency(home, "import", "fixtures/miniprogram/templates/common.wxml"), "Missing common template import dependency");
+assert(hasDependency(home, "include", "fixtures/miniprogram/shared/header.wxml"), "Missing shared header include dependency");
+assert(hasDependency(home, "wxs", "fixtures/miniprogram/utils/format.wxs"), "Missing format wxs dependency");
+assert(home.references.some((reference) => reference.kind === "template" && reference.name === "loadingRow"), "Missing loadingRow template reference");
+assert(home.components.some((component) => component.tag === "user-card"), "Missing user-card component candidate");
+for (const tag of ["view", "text"]) {
+  assert(!home.components.some((component) => component.tag === tag), `Builtin tag leaked into project graph component candidates: ${tag}`);
+}
+' "$PROJECT_GRAPH"
 
 node -e '
 const fs = require("fs");

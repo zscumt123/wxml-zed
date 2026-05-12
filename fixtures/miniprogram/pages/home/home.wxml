@@ -1,0 +1,20 @@
+<import src="../../templates/common.wxml" />
+<include src="../../shared/header.wxml" />
+<wxs module="format" src="../../utils/format.wxs" />
+
+<view class="home {{theme}}">
+  <template is="loadingRow" data="{{message: 'Loading users'}}" />
+
+  <user-card
+    wx:for="{{users}}"
+    wx:key="id"
+    user="{{item}}"
+    bind:select="handleSelect"
+  />
+
+  <missing-card reason="{{emptyReason}}" />
+
+  <view class="total">
+    {{format.price(total)}}
+  </view>
+</view>
