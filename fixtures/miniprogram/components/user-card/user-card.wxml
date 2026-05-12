@@ -1,0 +1,5 @@
+<view class="user-card {{user.active ? 'active' : ''}}">
+  <text class="name">{{user.name}}</text>
+  <status-badge status="{{user.status}}" />
+  <slot name="extra"></slot>
+</view>

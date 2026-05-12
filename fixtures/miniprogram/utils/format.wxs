@@ -1,0 +1,7 @@
+function price(value) {
+  return "$" + value;
+}
+
+module.exports = {
+  price: price
+};

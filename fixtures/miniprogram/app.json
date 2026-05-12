@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/detail/detail"
+  ],
+  "window": {
+    "navigationBarTitleText": "WXML Fixture"
+  }
+}
