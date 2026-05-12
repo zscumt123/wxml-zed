@@ -1,0 +1,30 @@
+<!-- tag editing baseline fixture -->
+<view class="card {{state}}">
+  <text>{{title}}</text>
+  <image src="{{avatar}}" />
+  <block wx:if="{{visible}}">
+    <slot name="header"><text>Header</text></slot>
+    <slot name="footer" />
+  </block>
+</view>
+
+<template name="itemCard">
+  <view class="item">{{item.name}}</view>
+</template>
+
+<template is="itemCard" data="{{item}}">
+  <view>fallback {{item.name}}</view>
+</template>
+
+<template>
+  <text>anonymous fallback</text>
+</template>
+
+<wxs module="tools">
+  var label = function (value) { return value || ""; };
+  module.exports.label = label;
+</wxs>
+
+<wxs src="./legacy.wxs">
+  var recovered = true;
+</wxs>
