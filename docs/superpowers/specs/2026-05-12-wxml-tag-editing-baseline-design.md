@@ -97,7 +97,9 @@ Preferred captures:
 ((slot_element (slot_start_tag) @open (slot_end_tag) @close) (#set! newline.only))
 ((template_definition (template_definition_start_tag) @open (template_end_tag) @close) (#set! newline.only))
 ((template_usage (template_usage_start_tag) @open (template_end_tag) @close) (#set! newline.only))
+((template_fallback (template_fallback_start_tag) @open (template_end_tag) @close) (#set! newline.only))
 ((wxs_inline (wxs_inline_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))
+((wxs_fallback (wxs_fallback_start_tag) @open (wxs_end_tag) @close) (#set! newline.only))
 ```
 
 The implementation may add explicit interpolation and comment bracket captures
@@ -117,8 +119,10 @@ small and include:
 - a `block` pair,
 - a `slot` pair and self-closing `slot`,
 - a `template name` pair,
-- a paired `template is` fallback body,
+- a paired `template is` body,
+- a paired `template` fallback body without `name` or `is`,
 - an inline `wxs` pair,
+- a recovered paired `wxs` body that parses as `wxs_fallback`,
 - at least one interpolation in text,
 - at least one interpolation in an attribute,
 - a WXML comment.
@@ -139,9 +143,13 @@ Required assertions:
 - Query output includes captures for `slot_element`.
 - Query output includes captures for paired `template_definition`.
 - Query output includes captures for paired `template_usage`.
+- Query output includes captures for paired `template_fallback`.
 - Query output includes captures for `wxs_inline`.
+- Query output includes captures for `wxs_fallback`.
 - The focused fixture parses without grammar errors.
 - Snippet JSON remains valid.
+- Snippet assertions prove the required baseline snippets still exist with the
+  expected prefixes.
 
 The script should prefer concrete `rg` assertions over only checking exit code.
 If implementation adds interpolation or comment bracket captures, it must also
@@ -164,9 +172,28 @@ baseline should explicitly cover these categories:
   `wxsext`, `import`, and `include`.
 
 If a snippet is changed, `scripts/verify-tree-sitter.sh` must continue parsing
-`snippets/wxml.json` as JSON. This phase does not need to add a custom generic
-wrap-selection snippet unless Zed's native snippet behavior can be verified
-against selected text.
+`snippets/wxml.json` as JSON. It must also assert that the baseline snippet
+keys and prefixes still exist:
+
+| Key | Prefix |
+| --- | --- |
+| `view` | `view` |
+| `text` | `text` |
+| `button` | `button` |
+| `wx:if` | `wxif` |
+| `wx:for` | `wxfor` |
+| `block` | `block` |
+| `template definition` | `templatedef` |
+| `wxs inline` | `wxsinline` |
+| `image` | `image` |
+| `input` | `input` |
+| `template use` | `templateuse` |
+| `wxs external` | `wxsext` |
+| `import` | `import` |
+| `include` | `include` |
+
+This phase does not need to add a custom generic wrap-selection snippet unless
+Zed's native snippet behavior can be verified against selected text.
 
 ### Documentation
 
@@ -209,8 +236,8 @@ truth for this phase.
   asserted by `scripts/verify-tree-sitter.sh`.
 - `config.toml` keeps the existing WXML autoclose and comment behavior unless a
   verified improvement replaces it.
-- Snippet JSON remains valid and README accurately describes snippet-based tag
-  insertion.
+- Snippet JSON remains valid, required snippet key/prefix pairs are asserted,
+  and README accurately describes snippet-based tag insertion.
 - The full `scripts/verify-tree-sitter.sh` check passes.
 - Zed dev extension smoke shows WXML still loads without new grammar/query
   errors.
