@@ -49,6 +49,7 @@ Recovery fix smoke check:
 WXS injection baseline smoke check:
 
 - Opened Zed's Extensions panel, searched for `wxml`, and clicked `Rebuild` on WXML v0.2.0.
-- Zed did not append a fresh grammar compile line for this query-only rebuild; the latest relevant successful compile remains `2026-05-11T19:07:43+08:00`, which reported `compiled grammar wxml` and `finished compiling extension`.
+- Zed did not append a fresh grammar compile line for this query-only update; no new WXML grammar or query errors appeared after the rebuild attempt.
+- The installed dev extension path is a symlink to `/Users/zs/Desktop/study/wxml-zed`, so Zed reads the updated `languages/wxml/injections.scm` from this checkout.
 - The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild attempt.
 - `scripts/verify-tree-sitter.sh` asserted injection captures for WXML interpolation, inline WXS raw text, and recovered WXS raw text.

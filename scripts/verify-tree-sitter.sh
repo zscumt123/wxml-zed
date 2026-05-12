@@ -26,6 +26,8 @@ if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
   test "$(rg -c 'capture: .*injection\.content' /tmp/wxml-zed-wxs-injections-query.out)" -ge 4
   rg -n 'text: ` user\.name \|\| "Guest" `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
   rg -n 'text: ` math\.double\(count\) `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
+  rg -n 'capture: injection\.content, start: \(3, 2\), end: \(7, 0\)' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
+  rg -n 'capture: injection\.content, start: \(12, 2\), end: \(13, 0\)' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
   rg -n '\(wxs_inline' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
   rg -n '\(wxs_fallback' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
   test "$(rg -c '\(raw_text' /tmp/wxml-zed-wxs-injection-parse.out)" -ge 2
