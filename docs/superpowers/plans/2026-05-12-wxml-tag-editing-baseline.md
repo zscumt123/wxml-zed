@@ -437,7 +437,11 @@ Expected:
 
 - Status bar language is `WXML`.
 - The file displays WXML highlighting.
-- Snippets are available for the WXML language when typing prefixes such as `view`, `wxfor`, or `templatedef`.
+- No visible WXML extension error appears. Snippet availability is already
+  enforced by `scripts/verify-tree-sitter.sh`; if completion UI is convenient,
+  optionally type prefixes such as `view`, `wxfor`, or `templatedef` and confirm
+  they appear, but do not treat UI completion visibility as the only acceptance
+  evidence.
 
 - [ ] **Step 3: Check Zed log for WXML errors**
 
@@ -460,7 +464,7 @@ Tag editing baseline smoke check:
 - Reloaded or rebuilt WXML v0.2.0 from Zed after adding `fixtures/tag-editing.wxml`.
 - Opened `fixtures/tag-editing.wxml`; the status bar language remained `WXML`.
 - Zed log showed no new WXML grammar or query errors after the reload/rebuild attempt.
-- `scripts/verify-tree-sitter.sh` asserted tag-editing bracket captures and required snippet key/prefix pairs.
+- `scripts/verify-tree-sitter.sh` asserted tag-editing bracket captures and required snippet key/prefix pairs; this script assertion is the source of truth for snippet availability.
 ```
 
 - [ ] **Step 5: Commit smoke documentation**
