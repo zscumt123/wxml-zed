@@ -1,0 +1,30 @@
+<template name="loadingRow">
+  <view class="loading-row">
+    <text>{{message}}</text>
+  </view>
+</template>
+
+<template name="compactFooter">
+  <view class="footer compact">
+    <text>{{summary}}</text>
+  </view>
+</template>
+
+<template name="fullFooter">
+  <view class="footer full">
+    <text>{{summary}}</text>
+    <button bindtap="onFooterTap">More</button>
+  </view>
+</template>
+
+<template is="compactFooter" data="{{summary: 'Static'}}" />
+
+<template is="{{expanded ? 'fullFooter' : 'compactFooter'}}" data="{{...footer}}">
+  <view slot="extra">
+    <text>{{footer.note}}</text>
+  </view>
+</template>
+
+<template>
+  <text>fallback {{label}}</text>
+</template>

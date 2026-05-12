@@ -1,0 +1,26 @@
+<view class="profile-card {{state}}" data-component-id="{{id}}">
+  <slot name="header">
+    <text>{{title}}</text>
+  </slot>
+
+  <block wx:if="{{loading}}">
+    <loading-spinner size="small" />
+  </block>
+  <block wx:elif="{{user}}">
+    <image class="avatar" src="{{user.avatar}}" mode="aspectFill" lazy-load />
+    <view class="body" catch:tap="onBodyTap" data-id="{{user.id}}">
+      <text class="name">{{user.name}}</text>
+      <text class="meta">{{user.city || 'Unknown'}}</text>
+      <status-badge value="{{user.status}}" bindchange="onStatusChange" />
+    </view>
+  </block>
+  <block wx:else>
+    <empty-state title="Missing user" bindretry="onRetry" />
+  </block>
+
+  <slot name="footer" />
+  <view slot="actions">
+    <button bindtap="onConfirm" data-id="{{id}}">Confirm</button>
+    <button catchtap="onCancel" hidden="{{readonly}}">Cancel</button>
+  </view>
+</view>

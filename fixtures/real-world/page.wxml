@@ -1,0 +1,44 @@
+<import src="./templates.wxml" />
+<include src="./shared/header.wxml" />
+<wxs module="format" src="./utils/format.wxs" />
+
+<view class="page page-{{theme}}" data-page-id="{{pageId}}">
+  <page-meta root-font-size="{{fontSize}}" />
+  <navigation-bar title="{{title}}" loading="{{loading}}" />
+
+  <scroll-view
+    scroll-y
+    class="feed {{loading ? 'is-loading' : ''}}"
+    bindscrolltolower="loadMore"
+    capture-bind:touchstart="onCaptureStart"
+  >
+    <block wx:if="{{loading}}">
+      <template is="loadingRow" data="{{message: 'Loading'}}" />
+    </block>
+    <block wx:elif="{{items.length}}">
+      <user-card
+        wx:for="{{items}}"
+        wx:for-item="user"
+        wx:for-index="idx"
+        wx:key="id"
+        id="user-{{user.id}}"
+        class="card {{user.active ? 'active' : ''}}"
+        data-id="{{user.id}}"
+        generic:Badge="status-badge"
+        bind:select="onSelectUser"
+        catchtap="onCardTap"
+        mut-bind:expanded="onExpandedChange"
+      >
+        <price-row slot="footer" value="{{format.price(user.price)}}" />
+      </user-card>
+    </block>
+    <empty-state wx:else title="No users" bindretry="reload" />
+  </scroll-view>
+
+  <input model:value="{{keyword}}" placeholder="Search {{title}}" confirm-type="search" />
+  <button disabled="{{loading}}" open-type="share" capture-catchtap="onShareTap">
+    Share &amp; refresh &#36;{{total}}
+  </button>
+
+  <template is="{{useCompact ? 'compactFooter' : 'fullFooter'}}" data="{{...footer}}" />
+</view>

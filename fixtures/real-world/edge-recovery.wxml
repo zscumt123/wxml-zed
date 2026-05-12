@@ -1,0 +1,9 @@
+<wxs src="./fallback.wxs">
+  var fallback = function () { return "recover"; };
+</wxs>
+
+<view class="editing">
+  <text>{{unfinished</text>
+  <user-card data-id="{{id}}">
+    <text>Still useful</text>
+  </user-card-mismatch>
