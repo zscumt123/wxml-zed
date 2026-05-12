@@ -13,6 +13,7 @@ REAL_WORLD_COMPONENT="$REAL_WORLD_DIR/component.wxml"
 REAL_WORLD_TEMPLATES="$REAL_WORLD_DIR/templates.wxml"
 REAL_WORLD_RECOVERY="$REAL_WORLD_DIR/edge-recovery.wxml"
 CACHE_DIR="${NPM_CONFIG_CACHE:-/private/tmp/npm-cache}"
+SYMBOL_MODEL="/tmp/wxml-zed-symbols.json"
 
 export HOME="${WXML_ZED_HOME:-/private/tmp}"
 export npm_config_cache="$CACHE_DIR"
@@ -157,6 +158,73 @@ rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-real-world-component-brackets
 rg -n 'text: `<block wx:if="\{\{loading\}\}">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
 assert_count_ge 'capture: [0-9]+ - open' /tmp/wxml-zed-real-world-component-brackets-query.out 8
 assert_count_ge 'capture: [0-9]+ - close' /tmp/wxml-zed-real-world-component-brackets-query.out 8
+
+node "$ROOT_DIR/scripts/extract-wxml-symbols.mjs" "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORLD_TEMPLATES" >"$SYMBOL_MODEL"
+node -e '
+const fs = require("fs");
+const model = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function file(relativePath) {
+  const found = model.files.find((entry) => entry.path === relativePath);
+  assert(found, `Missing model file: ${relativePath}`);
+  return found;
+}
+
+function hasDependency(fileModel, kind, value, normalized, moduleName) {
+  return fileModel.dependencies.some((dependency) => (
+    dependency.kind === kind &&
+    dependency.value === value &&
+    dependency.normalized === normalized &&
+    (moduleName === undefined || dependency.module === moduleName)
+  ));
+}
+
+function hasSymbol(fileModel, kind, name) {
+  return fileModel.symbols.some((symbol) => symbol.kind === kind && symbol.name === name);
+}
+
+function hasStaticReference(fileModel, name) {
+  return fileModel.references.some((reference) => !reference.dynamic && reference.name === name);
+}
+
+function hasDynamicReference(fileModel, text) {
+  return fileModel.references.some((reference) => reference.dynamic && reference.raw.includes(text));
+}
+
+assert(model.version === 1, "Unexpected WXML symbol model version");
+
+const page = file("fixtures/real-world/page.wxml");
+const component = file("fixtures/real-world/component.wxml");
+const templates = file("fixtures/real-world/templates.wxml");
+
+assert(hasDependency(page, "import", "./templates.wxml", "fixtures/real-world/templates.wxml"), "Missing page import dependency");
+assert(hasDependency(page, "include", "./shared/header.wxml", "fixtures/real-world/shared/header.wxml"), "Missing page include dependency");
+assert(hasDependency(page, "wxs", "./utils/format.wxs", "fixtures/real-world/utils/format.wxs", "format"), "Missing page wxs dependency");
+assert(hasSymbol(page, "wxs", "format"), "Missing external wxs module symbol");
+
+for (const name of ["loadingRow", "compactFooter", "fullFooter"]) {
+  assert(hasSymbol(templates, "template", name), `Missing template symbol: ${name}`);
+}
+
+assert(hasStaticReference(page, "loadingRow"), "Missing static template reference");
+assert(hasDynamicReference(page, "useCompact ?"), "Missing dynamic template reference");
+assert(hasStaticReference(templates, "compactFooter"), "Missing nested static template reference");
+assert(hasDynamicReference(templates, "expanded ?"), "Missing nested dynamic template reference");
+
+const componentCandidates = new Set([...page.components, ...component.components, ...templates.components].map((entry) => entry.tag));
+for (const tag of ["user-card", "price-row", "empty-state", "loading-spinner", "status-badge"]) {
+  assert(componentCandidates.has(tag), `Missing component candidate: ${tag}`);
+}
+for (const tag of ["view", "text", "button", "image", "scroll-view", "input"]) {
+  assert(!componentCandidates.has(tag), `Builtin tag leaked into component candidates: ${tag}`);
+}
+' "$SYMBOL_MODEL"
 
 node -e '
 const fs = require("fs");

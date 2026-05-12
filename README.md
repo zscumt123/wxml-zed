@@ -22,6 +22,7 @@ git submodule.
 | WXML snippets | Yes |
 | Basic tag editing through bracket matching, autoclose pairs, comments, and snippets | Yes |
 | Tree-sitter parse/query verification script | Yes |
+| Pre-LSP dependency and symbol model extractor | Yes |
 | LSP diagnostics, cross-file navigation, and component resolution | Planned |
 
 ## Install
@@ -45,7 +46,7 @@ scripts/verify-tree-sitter.sh
 The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
-baseline snippet keys.
+baseline snippet keys plus the pre-LSP dependency and symbol model.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -93,6 +94,12 @@ The `fixtures/real-world/` files are compatibility fixtures for representative
 WXML syntax and query behavior. They do not imply project-level understanding,
 component registration validation, cross-file navigation, or diagnostics.
 
+`scripts/extract-wxml-symbols.mjs` emits a deterministic JSON model for static
+WXML dependencies, template symbols, template references, WXS modules, and
+custom component candidates. It does not validate file existence, read
+`usingComponents`, resolve dynamic template expressions, or provide LSP
+behavior.
+
 ## Redistribution Status
 
 This repository includes provenance notes in `NOTICE`. The current baseline is
@@ -108,6 +115,7 @@ clean-room equivalents.
 - `languages/wxml/`: language config and Tree-sitter query files.
 - `grammar/tree-sitter-wxml/`: vendored grammar source.
 - `fixtures/test.wxml`: syntax coverage fixture.
+- `scripts/extract-wxml-symbols.mjs`: pre-LSP static dependency/symbol extractor.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 
