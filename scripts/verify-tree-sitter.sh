@@ -6,6 +6,7 @@ GRAMMAR_DIR="$ROOT_DIR/grammar/tree-sitter-wxml"
 FIXTURE="$ROOT_DIR/fixtures/test.wxml"
 INJECTION_FIXTURE="$ROOT_DIR/fixtures/wxs-injection.wxml"
 TAG_EDITING_FIXTURE="$ROOT_DIR/fixtures/tag-editing.wxml"
+BRACKETS_QUERY="$ROOT_DIR/languages/wxml/brackets.scm"
 CACHE_DIR="${NPM_CONFIG_CACHE:-/private/tmp/npm-cache}"
 
 export HOME="${WXML_ZED_HOME:-/private/tmp}"
@@ -37,33 +38,35 @@ fi
 if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
   npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$FIXTURE" >/tmp/wxml-zed-indents-query.out
 fi
-if [ -f "$ROOT_DIR/languages/wxml/brackets.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/brackets.scm" "$FIXTURE" >/tmp/wxml-zed-brackets-query.out
-  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-parse.out
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/brackets.scm" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-brackets-query.out
-
-  rg -n '\(element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(block_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(slot_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(template_definition' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(template_usage' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(template_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(wxs_inline' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(wxs_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  rg -n '\(comment' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-  test "$(rg -c '\(interpolation' /tmp/wxml-zed-tag-editing-parse.out)" -ge 4
-
-  rg -n 'text: `<view class="card \{\{state\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<block wx:if="\{\{visible\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<template name="itemCard">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<template is="itemCard" data="\{\{item\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<template>`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<wxs module="tools">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  rg -n 'text: `<wxs src="./legacy\.wxs">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-  test "$(rg -c 'capture: [0-9]+ - open' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
-  test "$(rg -c 'capture: [0-9]+ - close' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
+if [ ! -f "$BRACKETS_QUERY" ]; then
+  echo "Missing required WXML bracket query: $BRACKETS_QUERY" >&2
+  exit 1
 fi
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$FIXTURE" >/tmp/wxml-zed-brackets-query.out
+npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-parse.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-brackets-query.out
+
+rg -n '\(element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(block_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(slot_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(template_definition' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(template_usage' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(template_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(wxs_inline' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(wxs_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+rg -n '\(comment' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
+test "$(rg -c '\(interpolation' /tmp/wxml-zed-tag-editing-parse.out)" -ge 4
+
+rg -n 'text: `<view class="card \{\{state\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<block wx:if="\{\{visible\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template name="itemCard">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template is="itemCard" data="\{\{item\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template>`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<wxs module="tools">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<wxs src="./legacy\.wxs">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
+test "$(rg -c 'capture: [0-9]+ - open' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
+test "$(rg -c 'capture: [0-9]+ - close' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
 
 node -e '
 const fs = require("fs");
