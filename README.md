@@ -20,6 +20,7 @@ git submodule.
 | Outline entries for template definitions, WXS modules, imports, and includes | Yes |
 | Vim text objects for elements, comments, and WXS bodies | Yes |
 | WXML snippets | Yes |
+| Basic tag editing through bracket matching, autoclose pairs, comments, and snippets | Yes |
 | Tree-sitter parse/query verification script | Yes |
 | LSP diagnostics, cross-file navigation, and component resolution | Planned |
 
@@ -42,7 +43,8 @@ scripts/verify-tree-sitter.sh
 ```
 
 The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
-the highlight, outline, and text object queries, and checks snippet JSON syntax.
+the highlight, outline, text object, injection, and bracket queries, checks the
+focused WXS and tag-editing fixtures, and asserts baseline snippet keys.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -64,8 +66,8 @@ When changing queries or snippets:
 1. Edit files under `languages/wxml/` or `snippets/`.
 2. Run `scripts/verify-tree-sitter.sh`.
 3. In Zed, run `zed: reload extensions` or reinstall the dev extension.
-4. Open `fixtures/test.wxml` and inspect highlighting, outline, snippets, and
-   text object behavior.
+4. Open `fixtures/test.wxml` and `fixtures/tag-editing.wxml` and inspect
+   highlighting, outline, snippets, text objects, and basic tag editing behavior.
 
 ## Scope
 
@@ -80,6 +82,10 @@ Inline `wxs` bodies and WXML interpolation expressions are injected as
 JavaScript for syntax highlighting only. The extension does not type-check WXS,
 resolve external `.wxs` files, validate WeChat WXS APIs, or provide WXS module
 completion. Those behaviors belong in a later language-service layer.
+
+Basic tag editing support is provided through Zed's language config, bracket
+queries, comments, and snippets. The extension does not provide semantic end-tag
+insertion, paired-tag rename, Emmet expansion, or selection wrapping.
 
 ## Redistribution Status
 
