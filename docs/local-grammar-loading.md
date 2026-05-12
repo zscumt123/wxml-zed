@@ -60,3 +60,10 @@ Tag editing baseline smoke check:
 - The status bar language remained `WXML`, and WXML highlighting rendered in the editor.
 - Zed log showed no new WXML grammar or query errors after opening the fixture.
 - `scripts/verify-tree-sitter.sh` asserted tag-editing bracket captures and required snippet key/prefix pairs; this script assertion is the source of truth for snippet availability.
+
+Real-world compatibility baseline smoke check:
+
+- Opened `fixtures/real-world/page.wxml` and `fixtures/real-world/component.wxml` in Zed after adding the fixture set.
+- The status bar language remained `WXML`, and WXML highlighting rendered in the editor.
+- Zed log showed no new WXML grammar or query errors after opening the fixtures.
+- `scripts/verify-tree-sitter.sh` parsed all real-world fixtures and asserted representative parse, outline, injection, highlight, bracket, and snippet contracts.
