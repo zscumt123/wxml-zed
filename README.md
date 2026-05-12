@@ -44,7 +44,8 @@ scripts/verify-tree-sitter.sh
 
 The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
-focused WXS and tag-editing fixtures, and asserts baseline snippet keys.
+focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
+baseline snippet keys.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -66,8 +67,9 @@ When changing queries or snippets:
 1. Edit files under `languages/wxml/` or `snippets/`.
 2. Run `scripts/verify-tree-sitter.sh`.
 3. In Zed, run `zed: reload extensions` or reinstall the dev extension.
-4. Open `fixtures/test.wxml` and `fixtures/tag-editing.wxml` and inspect
-   highlighting, outline, snippets, text objects, and basic tag editing behavior.
+4. Open `fixtures/test.wxml`, `fixtures/tag-editing.wxml`, and the files under
+   `fixtures/real-world/`; inspect highlighting, outline, snippets, text
+   objects, injection behavior, and basic tag editing behavior.
 
 ## Scope
 
@@ -86,6 +88,10 @@ completion. Those behaviors belong in a later language-service layer.
 Basic tag editing support is provided through Zed's language config, bracket
 queries, comments, and snippets. The extension does not provide semantic end-tag
 insertion, paired-tag rename, Emmet expansion, or selection wrapping.
+
+The `fixtures/real-world/` files are compatibility fixtures for representative
+WXML syntax and query behavior. They do not imply project-level understanding,
+component registration validation, cross-file navigation, or diagnostics.
 
 ## Redistribution Status
 
