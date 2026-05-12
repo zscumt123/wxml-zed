@@ -19,6 +19,7 @@ MINIPROGRAM_DIR="$ROOT_DIR/fixtures/miniprogram"
 
 export HOME="${WXML_ZED_HOME:-/private/tmp}"
 export npm_config_cache="$CACHE_DIR"
+mkdir -p "$HOME/.cache/tree-sitter/lock" "$npm_config_cache"
 
 count_matches() {
   rg -c "$1" "$2" || true

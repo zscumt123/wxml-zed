@@ -67,6 +67,11 @@ function stripQuoted(value) {
 }
 
 function runTreeSitterCst(filePath) {
+  const toolHome = process.env.WXML_ZED_HOME || "/private/tmp";
+  const npmCache = process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache";
+  fs.mkdirSync(path.join(toolHome, ".cache/tree-sitter/lock"), { recursive: true });
+  fs.mkdirSync(npmCache, { recursive: true });
+
   return execFileSync(
     "npx",
     ["tree-sitter-cli", "parse", "--grammar-path", GRAMMAR_DIR, "--cst", filePath],
@@ -75,8 +80,8 @@ function runTreeSitterCst(filePath) {
       encoding: "utf8",
       env: {
         ...process.env,
-        HOME: process.env.WXML_ZED_HOME || "/private/tmp",
-        npm_config_cache: process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache",
+        HOME: toolHome,
+        npm_config_cache: npmCache,
       },
       stdio: ["ignore", "pipe", "inherit"],
     },
