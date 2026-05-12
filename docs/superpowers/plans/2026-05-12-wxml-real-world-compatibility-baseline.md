@@ -193,7 +193,7 @@ Expected:
 
 - The first three commands exit 0.
 - `page.wxml`, `component.wxml`, and `templates.wxml` parse without `ERROR` nodes.
-- `edge-recovery.wxml` may exit non-zero because Tree-sitter returns failure when the parse tree contains `ERROR`; its output should still print high-level nodes such as `element` or `wxs_fallback`.
+- `edge-recovery.wxml` may exit non-zero because Tree-sitter returns failure when the parse tree contains `ERROR`; its output should still print useful surviving nodes such as `wxs_fallback`, `raw_text`, or `interpolation`.
 
 - [ ] **Step 7: Commit fixtures**
 
@@ -285,9 +285,9 @@ test "$(rg -c '\(ERROR' /tmp/wxml-zed-real-world-templates-parse.out)" -eq 0
 After valid-fixture assertions, add:
 
 ```bash
-rg -n '\(element' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
 rg -n '\(wxs_fallback' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
 rg -n '\(raw_text' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
+rg -n '\(interpolation' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
 test "$(rg -c '\(ERROR' /tmp/wxml-zed-real-world-recovery-parse.out)" -ge 1
 ```
 
