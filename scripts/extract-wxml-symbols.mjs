@@ -2,8 +2,9 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = process.cwd();
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAMMAR_DIR = path.join(ROOT, "grammar/tree-sitter-wxml");
 
 const BUILTIN_TAGS = new Set([
