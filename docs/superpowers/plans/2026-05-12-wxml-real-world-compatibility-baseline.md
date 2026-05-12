@@ -316,7 +316,8 @@ rg -n 'text: `theme`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/n
 rg -n 'text: `loading \? .is-loading. : ..`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
 rg -n 'text: `format\.price\(user\.price\)`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
 rg -n 'text: `useCompact \? .compactFooter. : .fullFooter.`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
-rg -n 'text: ` var fallback = function \(\) \{ return "recover"; \};`' /tmp/wxml-zed-real-world-recovery-injections-query.out >/dev/null
+rg -n 'capture: injection\.content' /tmp/wxml-zed-real-world-recovery-injections-query.out >/dev/null
+test "$(rg -c 'capture: injection\.content' /tmp/wxml-zed-real-world-recovery-injections-query.out)" -ge 1
 
 rg -n 'text: `<view class="profile-card \{\{state\}\}" data-component-id="\{\{id\}\}">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
 rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
@@ -347,7 +348,7 @@ Run the relevant command from the failure. Example for injection:
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli query --grammar-path grammar/tree-sitter-wxml languages/wxml/injections.scm fixtures/real-world/page.wxml
 ```
 
-Expected: query output contains equivalent captures for the same expressions. If Tree-sitter escapes quote text differently than the planned `rg` pattern, update the `rg` pattern only; do not weaken the contract to an exit-code-only check.
+Expected: query output contains equivalent captures for the same expressions. If Tree-sitter escapes quote text differently than the planned `rg` pattern, update the `rg` pattern only; do not weaken the contract to an exit-code-only check. For multiline WXS `raw_text`, assert `capture: injection.content` and keep the parse-output `wxs_fallback`/`raw_text` checks as the content contract, because Tree-sitter query output may omit `text:` for multiline captures.
 
 - [ ] **Step 8: Commit verification hardening**
 
