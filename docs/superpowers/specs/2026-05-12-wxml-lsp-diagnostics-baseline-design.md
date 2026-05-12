@@ -93,12 +93,22 @@ launches `node` with an absolute path to the server script:
 node <extension-root>/server/wxml-lsp.mjs
 ```
 
+For this local prototype, `<extension-root>` is the Rust crate directory from
+`env!("CARGO_MANIFEST_DIR")`. `src/lib.rs` should construct the server script
+path with:
+
+```text
+PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("server/wxml-lsp.mjs")
+```
+
+and pass that path as the first argument to `node`. The implementation must not
+leave `<extension-root>` as a placeholder or depend on the language server
+process being launched from the extension directory.
+
 The Rust glue should find `node` through the worktree environment, following the
 same pattern as Zed language server examples that use `worktree.which(...)` and
-`worktree.shell_env()`. It should not depend on the language server process
-being launched with the extension directory as its current working directory.
-The Node server should locate the extension root from its own script path via
-`import.meta.url`.
+`worktree.shell_env()`. The Node server should locate the extension root from
+its own script path via `import.meta.url`.
 
 This baseline may require `node` to exist on the user's `PATH`. That is
 acceptable for a local prototype and must be documented.
@@ -123,6 +133,21 @@ Supported requests/notifications:
 - `textDocument/didOpen`
 - `textDocument/didSave`
 
+The `initialize` result must advertise the synchronization capability needed for
+Zed to send the events this prototype depends on:
+
+```json
+{
+  "capabilities": {
+    "textDocumentSync": {
+      "openClose": true,
+      "change": 0,
+      "save": true
+    }
+  }
+}
+```
+
 The server should publish diagnostics with:
 
 ```text
@@ -134,20 +159,28 @@ is enough for this phase.
 
 ### Project Graph Loading
 
-The Node server should locate the project root from one of these sources, in
+The Node server should record initialization roots from these sources, in
 priority order:
 
 1. `initialize.params.rootUri`
 2. `initialize.params.workspaceFolders[0].uri`
 3. Current process working directory
 
-For this baseline, the project root is expected to be the mini program root or a
-directory containing `app.json`.
+For each `didOpen` or `didSave` diagnostics run, the server should resolve the
+mini program project root in this order:
+
+1. Walk upward from the current document path and use the nearest ancestor
+   directory that contains `app.json`.
+2. Use the first initialization root that directly contains `app.json`.
+
+This document-first lookup is required so diagnostics still work when Zed opens
+the extension repository root while the mini program fixture lives under
+`fixtures/miniprogram`.
 
 The server should build the project graph by invoking:
 
 ```text
-node <extension-root>/scripts/extract-wxml-project-graph.mjs <project-root>
+node <extension-root>/scripts/extract-wxml-project-graph.mjs <mini-program-root>
 ```
 
 The graph may be rebuilt on `didOpen` and `didSave`. That is acceptable for the
@@ -155,8 +188,11 @@ small prototype, but the server must not rebuild on every text change because
 this graph path shells out to the current project graph extractor and
 Tree-sitter CLI.
 
-If graph extraction fails, the server should publish no diagnostics and log the
-error to stderr. It should not crash the LSP process.
+If no mini program root can be resolved for a document, graph extraction fails,
+or the graph has no entry for the document, the server should publish an empty
+diagnostics array for that document and log the reason to stderr. It should not
+crash the LSP process. Publishing an empty array is required so Zed clears stale
+diagnostics after a file or project graph changes.
 
 ### Diagnostic Rule
 
@@ -199,7 +235,9 @@ produce diagnostics in this phase.
 ### URI and Path Rules
 
 - Convert `file://` URIs to absolute paths.
-- Convert absolute paths to repository-relative graph paths before lookup.
+- Convert absolute paths to the POSIX graph path convention emitted by
+  `scripts/extract-wxml-project-graph.mjs` before lookup. In this prototype,
+  that means paths relative to the extension repository root.
 - Use POSIX separators in graph paths.
 - Support only local file URIs.
 - Non-file URIs produce no diagnostics.
@@ -216,7 +254,8 @@ The harness should:
 
 1. Spawn `node server/wxml-lsp.mjs` with cwd set to the repository root.
 2. Send `initialize` with:
-   - `rootUri` pointing to `fixtures/miniprogram`
+   - `rootUri` pointing to the repository root
+   - `workspaceFolders[0].uri` pointing to the repository root
    - `capabilities.textDocument.publishDiagnostics.relatedInformation = false`
 3. Send `initialized`.
 4. Send `textDocument/didOpen` for
@@ -227,11 +266,23 @@ The harness should:
 8. Send `shutdown`.
 9. Send `exit`.
 
+Expected diagnostic range for the fixture is the full `<missing-card ... />`
+element range in zero-based LSP coordinates:
+
+```json
+{
+  "start": { "line": 14, "character": 2 },
+  "end": { "line": 14, "character": 43 }
+}
+```
+
 The harness should fail if:
 
 - No diagnostics arrive.
 - More than one diagnostic arrives for the home page.
 - The diagnostic is not attached to `missing-card`.
+- The diagnostic range is not exactly the expected fixture range above.
+- The server only works when `rootUri` is already the mini program root.
 - The LSP process exits unexpectedly.
 
 ## Verification Contract
@@ -291,7 +342,8 @@ README should document:
 - `Cargo.toml` and `src/lib.rs` provide minimal Zed extension glue.
 - `server/wxml-lsp.mjs` starts as a stdio LSP server.
 - Opening `fixtures/miniprogram/pages/home/home.wxml` through the harness
-  produces exactly one missing component diagnostic for `missing-card`.
+  produces exactly one missing component diagnostic for `missing-card` even
+  though the harness initializes the LSP with the repository root.
 - `scripts/verify-lsp-diagnostics.mjs` passes.
 - `scripts/verify-tree-sitter.sh` runs the LSP diagnostics harness and passes.
 - README documents the LSP prototype boundary and Node requirement.

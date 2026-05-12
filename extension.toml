@@ -8,6 +8,13 @@ repository = "https://github.com/zscumt123/wxml-zed"
 
 snippets = ["./snippets/wxml.json"]
 
+[language_servers.wxml-lsp]
+name = "WXML LSP"
+languages = ["WXML"]
+
+[language_servers.wxml-lsp.language_ids]
+WXML = "wxml"
+
 [grammars.wxml]
 repository = "file:///private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511"
 rev = "fa31bef18059aacecc00a580463a6422c8a70fea"

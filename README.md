@@ -24,7 +24,8 @@ git submodule.
 | Tree-sitter parse/query verification script | Yes |
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for local mini program fixtures | Yes |
-| LSP diagnostics, cross-file navigation, and component resolution | Planned |
+| Prototype LSP diagnostics for missing local `usingComponents` | Yes |
+| Cross-file navigation and full component resolution | Planned |
 
 ## Install
 
@@ -38,7 +39,7 @@ as a local development extension:
 
 ## Develop
 
-Run the Tree-sitter checks from the repository root:
+Run the local verification checks from the repository root:
 
 ```bash
 scripts/verify-tree-sitter.sh
@@ -48,7 +49,13 @@ The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
-models.
+models. It also starts the prototype WXML language server over stdio and verifies
+the missing local component diagnostic for
+`fixtures/miniprogram/pages/home/home.wxml`.
+
+The prototype LSP requires `node` on `PATH`. The Zed extension glue launches the
+Node stdio server through `language_server_command`; it does not package a Node
+runtime.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -76,9 +83,11 @@ When changing queries or snippets:
 
 ## Scope
 
-This baseline is syntax-level editor support. It intentionally does not provide
-diagnostics, symbol indexing, component/template go-to-definition, or WXML-aware
-formatting.
+This baseline is syntax-level editor support plus one narrow prototype
+diagnostic. It intentionally does not provide symbol indexing,
+component/template go-to-definition, completion, hover, document symbols,
+semantic tokens, code actions, formatting, file watching, npm/plugin component
+resolution, `subPackages`, or production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -105,8 +114,14 @@ behavior.
 `scripts/extract-wxml-project-graph.mjs` emits a deterministic JSON graph for a
 single mini program project root. It reads `app.json`, page and component JSON
 files, local relative `usingComponents`, and the existing WXML symbol model. It
-does not resolve npm components, plugin components, `subPackages`, diagnostics,
-watch mode, LSP behavior, or editor navigation.
+does not resolve npm components, plugin components, `subPackages`, watch mode,
+or editor navigation.
+
+`server/wxml-lsp.mjs` is a minimal stdio LSP prototype. Its only diagnostic rule
+reports local `usingComponents` entries that resolve to a missing file and are
+also used as custom component tags in the current WXML file. For the baseline
+fixture this reports `missing-card` in `pages/home/home.wxml`. It rebuilds the
+project graph on open/save only; it does not parse every keystroke.
 
 ## Redistribution Status
 
@@ -119,12 +134,17 @@ clean-room equivalents.
 
 ## Project Layout
 
-- `extension.toml`: Zed extension metadata and grammar registration.
+- `extension.toml`: Zed extension metadata, grammar registration, snippets, and
+  WXML LSP registration.
+- `Cargo.toml` and `src/lib.rs`: minimal Zed Rust extension glue for launching
+  the Node LSP prototype.
 - `languages/wxml/`: language config and Tree-sitter query files.
 - `grammar/tree-sitter-wxml/`: vendored grammar source.
 - `fixtures/test.wxml`: syntax coverage fixture.
 - `scripts/extract-wxml-symbols.mjs`: pre-LSP static dependency/symbol extractor.
 - `scripts/extract-wxml-project-graph.mjs`: pre-LSP mini program project graph extractor.
+- `server/wxml-lsp.mjs`: prototype stdio language server.
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP diagnostics harness.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 

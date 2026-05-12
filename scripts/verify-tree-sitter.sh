@@ -350,4 +350,6 @@ for (const [key, prefix] of Object.entries(required)) {
 }
 ' "$ROOT_DIR/snippets/wxml.json"
 
+node "$ROOT_DIR/scripts/verify-lsp-diagnostics.mjs"
+
 echo "wxml-zed tree-sitter verification passed"
