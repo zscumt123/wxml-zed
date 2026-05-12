@@ -53,3 +53,10 @@ WXS injection baseline smoke check:
 - The installed dev extension path is a symlink to `/Users/zs/Desktop/study/wxml-zed`, so Zed reads the updated `languages/wxml/injections.scm` from this checkout.
 - The open `.wxml` file remained recognized as `WXML` in the status bar after the rebuild attempt.
 - `scripts/verify-tree-sitter.sh` asserted injection captures for WXML interpolation, inline WXS raw text, and recovered WXS raw text.
+
+Tag editing baseline smoke check:
+
+- Opened `fixtures/tag-editing.wxml` in Zed after adding the focused tag-editing fixture.
+- The status bar language remained `WXML`, and WXML highlighting rendered in the editor.
+- Zed log showed no new WXML grammar or query errors after opening the fixture.
+- `scripts/verify-tree-sitter.sh` asserted tag-editing bracket captures and required snippet key/prefix pairs; this script assertion is the source of truth for snippet availability.
