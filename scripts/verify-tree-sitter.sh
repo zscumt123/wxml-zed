@@ -65,6 +65,34 @@ if [ -f "$ROOT_DIR/languages/wxml/brackets.scm" ]; then
   test "$(rg -c 'capture: [0-9]+ - close' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
 fi
 
-node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$ROOT_DIR/snippets/wxml.json"
+node -e '
+const fs = require("fs");
+const snippets = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const required = {
+  "view": "view",
+  "text": "text",
+  "button": "button",
+  "wx:if": "wxif",
+  "wx:for": "wxfor",
+  "block": "block",
+  "template definition": "templatedef",
+  "wxs inline": "wxsinline",
+  "image": "image",
+  "input": "input",
+  "template use": "templateuse",
+  "wxs external": "wxsext",
+  "import": "import",
+  "include": "include",
+};
+for (const [key, prefix] of Object.entries(required)) {
+  const snippet = snippets[key];
+  if (!snippet) {
+    throw new Error(`Missing WXML snippet: ${key}`);
+  }
+  if (snippet.prefix !== prefix) {
+    throw new Error(`WXML snippet ${key} prefix ${snippet.prefix} !== ${prefix}`);
+  }
+}
+' "$ROOT_DIR/snippets/wxml.json"
 
 echo "wxml-zed tree-sitter verification passed"
