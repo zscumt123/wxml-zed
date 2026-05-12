@@ -186,14 +186,14 @@ Run:
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/real-world/page.wxml
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/real-world/component.wxml
 NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/real-world/templates.wxml
-NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/real-world/edge-recovery.wxml
+NPM_CONFIG_CACHE=/private/tmp/npm-cache HOME=/private/tmp npx tree-sitter-cli parse --grammar-path grammar/tree-sitter-wxml fixtures/real-world/edge-recovery.wxml || true
 ```
 
 Expected:
 
-- Each command exits 0.
+- The first three commands exit 0.
 - `page.wxml`, `component.wxml`, and `templates.wxml` parse without `ERROR` nodes.
-- `edge-recovery.wxml` may include `ERROR` nodes but still prints high-level nodes such as `element` or `wxs_fallback`.
+- `edge-recovery.wxml` may exit non-zero because Tree-sitter returns failure when the parse tree contains `ERROR`; its output should still print high-level nodes such as `element` or `wxs_fallback`.
 
 - [ ] **Step 7: Commit fixtures**
 
@@ -237,9 +237,10 @@ REAL_WORLD_RECOVERY="$REAL_WORLD_DIR/edge-recovery.wxml"
 In `scripts/verify-tree-sitter.sh`, after the existing tag-editing bracket assertions and before the `node -e` snippet assertion block, add:
 
 ```bash
-for real_world_fixture in "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORLD_TEMPLATES" "$REAL_WORLD_RECOVERY"; do
+for real_world_fixture in "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORLD_TEMPLATES"; do
   npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$real_world_fixture" >/tmp/wxml-zed-real-world-$(basename "$real_world_fixture" .wxml)-parse.out
 done
+npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$REAL_WORLD_RECOVERY" >/tmp/wxml-zed-real-world-recovery-parse.out || true
 
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-highlights-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-outline-query.out
