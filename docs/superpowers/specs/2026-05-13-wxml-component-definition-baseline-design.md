@@ -102,13 +102,15 @@ diagnostics:
    contain `app.json`.
 
 The server should answer from the latest cached graph when possible. If the root
-has no cached graph, or a graph build is already running for that root, the
-server should wait for the current/latest build and then answer. If no graph can
-be built, respond with `null`.
+has no cached graph and no graph build is running, the definition request should
+trigger a graph build for that root and wait for it. If a graph build is already
+running for that root, the definition request should wait for the current/latest
+build and then answer. If no graph can be built, respond with `null`.
 
 The request handler must not block the JSON-RPC message loop. Waiting for graph
 availability should be implemented with Promises attached to the existing async
-build path.
+build path. Definition requests must not rely on diagnostics having already
+opened or built the graph.
 
 ### Graph Build Waiters
 
@@ -127,6 +129,10 @@ the failure to `null`; either behavior is acceptable as long as
 If a stale build completes and queues a newer rebuild, do not resolve waiters
 with stale graph data. Waiters should resolve only when the latest queued build
 finishes or fails.
+
+Register a waiter before triggering a graph build for a definition request. This
+prevents a fast graph build from completing before the request has subscribed to
+the result.
 
 ### Definition Resolution
 
@@ -216,7 +222,19 @@ Required scenarios:
      `home.wxml`.
    - Assert result is `null`.
 
-5. Existing diagnostics scenarios still pass:
+5. Built-in tag returns null:
+   - Request definition on the `<view>` tag in `home.wxml`.
+   - Assert result is `null`.
+
+6. Definition can build the graph:
+   - Start a fresh server.
+   - Initialize at repository root.
+   - Request definition for `<user-card>` before waiting for any diagnostics
+     publication.
+   - Assert the target URI is
+     `fixtures/miniprogram/components/user-card/user-card.wxml`.
+
+7. Existing diagnostics scenarios still pass:
    - Repository root initialization.
    - Mini program root initialization.
    - Clean component diagnostics.
@@ -257,6 +275,9 @@ Unexpected implementation errors should be logged to stderr with the existing
   `components/status-badge/status-badge.wxml`.
 - `textDocument/definition` on `<missing-card>` returns `null`.
 - `textDocument/definition` outside a component candidate returns `null`.
+- `textDocument/definition` on a built-in `<view>` tag returns `null`.
+- `textDocument/definition` can trigger graph construction when no cached graph
+  exists yet.
 - Existing diagnostics behavior still passes the current harness.
 - README documents the new navigation boundary without claiming unsupported
   navigation features.
