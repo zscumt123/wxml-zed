@@ -514,6 +514,8 @@ Add these functions before the `scenarios` array:
 ```javascript
 async function testHomeDocumentSymbols() {
   await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before document symbols");
     const result = await client.documentSymbols(HOME_WXML);
     assertHomeDocumentSymbols(result);
   });
@@ -818,7 +820,22 @@ diagnostics, resolved local component go-to-definition, and flat document
 symbols for WXML declaration/dependency entries.
 ```
 
-- [ ] **Step 4: Update README LSP paragraph**
+- [ ] **Step 4: Update README high-level scope sentence**
+
+Replace the `Scope` section's first paragraph with:
+
+```markdown
+This baseline is syntax-level editor support plus narrow prototype LSP behavior:
+missing local component diagnostics, go-to-definition for resolved local WXML
+component tags, and flat document symbols for WXML declaration/dependency
+entries. It intentionally does not provide symbol indexing,
+template/import/include/WXS navigation, completion, hover, nested structural
+document symbols, semantic tokens, code actions, formatting, file watching,
+npm/plugin component resolution, `componentGenerics`, `subPackages`, or
+production Node runtime packaging.
+```
+
+- [ ] **Step 5: Update README LSP paragraph**
 
 In the `Scope` section, update the `server/wxml-lsp.mjs` paragraph to include the language-service boundary and document symbol limits:
 
@@ -841,7 +858,7 @@ symbols, template/import/include/WXS navigation, npm/plugin component
 navigation, or `componentGenerics` support.
 ```
 
-- [ ] **Step 5: Add project layout entry**
+- [ ] **Step 6: Add project layout entry**
 
 In `Project Layout`, add:
 
@@ -850,17 +867,31 @@ In `Project Layout`, add:
 - `scripts/verify-wxml-language-service.mjs`: direct verification for the WXML language-service boundary.
 ```
 
-- [ ] **Step 6: Check README wording**
+- [ ] **Step 7: Update LSP harness project layout entry**
+
+In `Project Layout`, replace:
+
+```markdown
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP diagnostics harness.
+```
+
+with:
+
+```markdown
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, and document symbols.
+```
+
+- [ ] **Step 8: Check README wording**
 
 Run:
 
 ```bash
-rg -n "language-service|document symbols|document-symbol|nested structural|component usage|verify-wxml-language-service" README.md
+rg -n "language-service|document symbols|document-symbol|nested structural|component usage|verify-wxml-language-service|protocol-level LSP harness" README.md
 ```
 
-Expected: matches show the new capability, boundary, verification script, and exclusions.
+Expected: matches show the new capability, boundary, verification script, harness description, and exclusions. There must be no sentence claiming document symbols are entirely unsupported.
 
-- [ ] **Step 7: Run full verification**
+- [ ] **Step 9: Run full verification**
 
 Run:
 
@@ -874,7 +905,7 @@ Expected: exit code 0 and final output includes:
 wxml-zed tree-sitter verification passed
 ```
 
-- [ ] **Step 8: Commit docs and verification integration**
+- [ ] **Step 10: Commit docs and verification integration**
 
 ```bash
 git add scripts/verify-tree-sitter.sh README.md
