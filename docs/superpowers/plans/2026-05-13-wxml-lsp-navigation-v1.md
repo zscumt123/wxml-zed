@@ -647,10 +647,10 @@ Run:
 
 ```bash
 rg -n "dependencyTargetForDefinition|dependencyDefinitionForPosition|isInsideGraphRoot|fs.existsSync" server/wxml-language-service.mjs
-rg -n "dependencyTargetForDefinition|dependencyDefinitionForPosition|isInsideGraphRoot|fs.existsSync" server/wxml-lsp.mjs
+rg -n "dependencyTargetForDefinition|dependencyDefinitionForPosition|isInsideGraphRoot" server/wxml-lsp.mjs
 ```
 
-Expected: first command finds the dependency navigation helpers in `server/wxml-language-service.mjs`; second command has no matches because the LSP host must not contain dependency navigation business logic.
+Expected: first command finds the dependency navigation helpers and WXS existence check in `server/wxml-language-service.mjs`; second command exits 1 with no matches because the LSP host must not contain dependency navigation business logic. `server/wxml-lsp.mjs` already uses `fs.existsSync` for mini-program root discovery, so do not use a broad `fs.existsSync` search as the host boundary check.
 
 - [ ] **Step 6: Review branch diff**
 
