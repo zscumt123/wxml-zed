@@ -53,9 +53,12 @@ models. It also starts the prototype WXML language server over stdio and verifie
 the missing local component diagnostic for
 `fixtures/miniprogram/pages/home/home.wxml`.
 
-The prototype LSP requires `node` on `PATH`. The Zed extension glue launches the
-Node stdio server through `language_server_command`; it does not package a Node
-runtime.
+The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
+through `language_server_command`; this extension does not package a Node
+runtime. The server builds the mini program project graph asynchronously on
+open/save, caches the latest graph by mini program root, and coalesces repeated
+same-root diagnostic requests so graph extraction does not block the LSP message
+loop.
 
 For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
 this local git checkout:
@@ -71,6 +74,17 @@ recreate a local git checkout of the grammar at the pinned revision and update
 `extension.toml` accordingly. The vendored grammar under
 `grammar/tree-sitter-wxml/` remains the first-party source baseline for this
 repository. See `docs/local-grammar-loading.md` for the observed Zed behavior.
+
+For local WXML LSP development:
+
+- If the worktree opens in Restricted Mode, trust the worktree before expecting
+  `wxml-lsp` diagnostics. Zed will not start the language server for an
+  untrusted worktree.
+- If changes to `server/wxml-lsp.mjs` do not appear immediately, run
+  `zed: reload extensions`; if an old server process is still active, restart
+  Zed.
+- LSP diagnostics currently run on open/save only. There is no file watcher and
+  no per-keystroke graph rebuild.
 
 When changing queries or snippets:
 
@@ -120,8 +134,9 @@ or editor navigation.
 `server/wxml-lsp.mjs` is a minimal stdio LSP prototype. Its only diagnostic rule
 reports local `usingComponents` entries that resolve to a missing file and are
 also used as custom component tags in the current WXML file. For the baseline
-fixture this reports `missing-card` in `pages/home/home.wxml`. It rebuilds the
-project graph on open/save only; it does not parse every keystroke.
+fixture this reports `missing-card` in `pages/home/home.wxml`. It uses an async
+per-root graph build queue and cached graph state. Diagnostics still run on
+open/save only; there is no file watching or incremental parsing.
 
 ## Redistribution Status
 

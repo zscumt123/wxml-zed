@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,10 @@ const WARNING = 2;
 let buffer = Buffer.alloc(0);
 let shutdownRequested = false;
 let rootCandidates = [];
+const openDocuments = new Map();
+const graphsByRoot = new Map();
+const buildStateByRoot = new Map();
+const pendingDiagnosticsByRoot = new Map();
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join(path.posix.sep);
@@ -61,6 +65,61 @@ function logDiagnosticError(message) {
   process.stderr.write(`[wxml-lsp] ${message}\n`);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function appendCounterEvent(projectRoot, event) {
+  const counterFile = process.env.WXML_ZED_LSP_GRAPH_COUNTER_FILE;
+  if (!counterFile) return;
+
+  const line = `${JSON.stringify({
+    event,
+    projectRoot,
+    time: new Date().toISOString(),
+    pid: process.pid,
+  })}\n`;
+
+  try {
+    fs.appendFileSync(counterFile, line, "utf8");
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function graphExtractorEnv() {
+  return {
+    ...process.env,
+    HOME: process.env.WXML_ZED_HOME || "/private/tmp",
+    npm_config_cache: process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache",
+  };
+}
+
+function stateForRoot(projectRoot) {
+  let state = buildStateByRoot.get(projectRoot);
+  if (!state) {
+    state = {
+      running: false,
+      queued: false,
+      activeGeneration: 0,
+      latestGeneration: 0,
+    };
+    buildStateByRoot.set(projectRoot, state);
+  }
+  return state;
+}
+
+function pendingForRoot(projectRoot) {
+  let pending = pendingDiagnosticsByRoot.get(projectRoot);
+  if (!pending) {
+    pending = new Map();
+    pendingDiagnosticsByRoot.set(projectRoot, pending);
+  }
+  return pending;
+}
+
 function parentDirs(startDir) {
   const dirs = [];
   let current = path.resolve(startDir);
@@ -89,18 +148,33 @@ function resolveMiniProgramRoot(documentPath) {
   return undefined;
 }
 
-function buildProjectGraph(projectRoot) {
-  const output = execFileSync(process.execPath, [GRAPH_EXTRACTOR, projectRoot], {
-    cwd: EXTENSION_ROOT,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      HOME: process.env.WXML_ZED_HOME || "/private/tmp",
-      npm_config_cache: process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  return JSON.parse(output);
+async function buildProjectGraph(projectRoot) {
+  const delayMs = Number(process.env.WXML_ZED_LSP_GRAPH_DELAY_MS || 0);
+  if (Number.isFinite(delayMs) && delayMs > 0) {
+    await sleep(delayMs);
+  }
+
+  appendCounterEvent(projectRoot, "start");
+  try {
+    const output = await new Promise((resolve, reject) => {
+      execFile(process.execPath, [GRAPH_EXTRACTOR, projectRoot], {
+        cwd: EXTENSION_ROOT,
+        encoding: "utf8",
+        env: graphExtractorEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+      }, (error, stdout, stderr) => {
+        if (error) {
+          error.message = stderr ? `${error.message}\n${stderr}` : error.message;
+          reject(error);
+          return;
+        }
+        resolve(stdout);
+      });
+    });
+    return JSON.parse(output);
+  } finally {
+    appendCounterEvent(projectRoot, "end");
+  }
 }
 
 function rangeFromSymbolRange(range) {
@@ -144,26 +218,83 @@ function diagnosticsForDocument(graph, documentPath) {
     });
 }
 
-function runDiagnostics(uri) {
+function publishPendingDiagnostics(projectRoot, diagnosticsForUri) {
+  const pending = pendingForRoot(projectRoot);
+  for (const [uri] of pending) {
+    const document = openDocuments.get(uri);
+    if (!document) continue;
+    publishDiagnostics(uri, diagnosticsForUri(uri, document.path));
+  }
+  pending.clear();
+}
+
+async function runGraphBuild(projectRoot) {
+  const state = stateForRoot(projectRoot);
+  if (state.running) {
+    state.queued = true;
+    return;
+  }
+
+  state.running = true;
+  state.queued = false;
+  state.activeGeneration = state.latestGeneration;
+  const activeGeneration = state.activeGeneration;
+
+  try {
+    const graph = await buildProjectGraph(projectRoot);
+    if (activeGeneration === state.latestGeneration) {
+      graphsByRoot.set(projectRoot, graph);
+      publishPendingDiagnostics(projectRoot, (_uri, documentPath) => (
+        diagnosticsForDocument(graph, documentPath)
+      ));
+    } else {
+      state.queued = true;
+    }
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+    if (activeGeneration === state.latestGeneration) {
+      publishPendingDiagnostics(projectRoot, () => []);
+    } else {
+      state.queued = true;
+    }
+  } finally {
+    state.running = false;
+    state.activeGeneration = 0;
+    if (state.queued) {
+      queueMicrotask(() => {
+        runGraphBuild(projectRoot);
+      });
+    }
+  }
+}
+
+function scheduleDiagnostics(uri) {
   const documentPath = fileUriToPath(uri);
   if (!documentPath) {
     return;
   }
 
-  try {
-    const projectRoot = resolveMiniProgramRoot(documentPath);
-    if (!projectRoot) {
-      logDiagnosticError(`No app.json found for ${documentPath}`);
-      publishDiagnostics(uri, []);
-      return;
-    }
+  openDocuments.set(uri, { path: documentPath });
 
-    const graph = buildProjectGraph(projectRoot);
-    publishDiagnostics(uri, diagnosticsForDocument(graph, documentPath));
-  } catch (error) {
-    logDiagnosticError(error instanceof Error ? error.message : String(error));
+  const projectRoot = resolveMiniProgramRoot(documentPath);
+  if (!projectRoot) {
+    logDiagnosticError(`No app.json found for ${documentPath}`);
     publishDiagnostics(uri, []);
+    return;
   }
+
+  const state = stateForRoot(projectRoot);
+  state.latestGeneration += 1;
+  pendingForRoot(projectRoot).set(uri, state.latestGeneration);
+  runGraphBuild(projectRoot);
+}
+
+function closeDocument(uri) {
+  openDocuments.delete(uri);
+  for (const pending of pendingDiagnosticsByRoot.values()) {
+    pending.delete(uri);
+  }
+  publishDiagnostics(uri, []);
 }
 
 function initialize(params) {
@@ -205,11 +336,15 @@ function handleMessage(message) {
       break;
 
     case "textDocument/didOpen":
-      runDiagnostics(message.params?.textDocument?.uri);
+      scheduleDiagnostics(message.params?.textDocument?.uri);
       break;
 
     case "textDocument/didSave":
-      runDiagnostics(message.params?.textDocument?.uri);
+      scheduleDiagnostics(message.params?.textDocument?.uri);
+      break;
+
+    case "textDocument/didClose":
+      closeDocument(message.params?.textDocument?.uri);
       break;
 
     default:
