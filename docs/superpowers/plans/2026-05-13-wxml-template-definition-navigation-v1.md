@@ -12,7 +12,7 @@
 
 ## File Structure
 
-- Modify `scripts/verify-wxml-language-service.mjs`: add direct service tests for static template definition, precise template range, synthetic non-zero range, dynamic template null, missing template null, and duplicate template null.
+- Modify `scripts/verify-wxml-language-service.mjs`: add direct service tests for static template definition, precise template range, synthetic non-zero range, dynamic template null, missing template null, duplicate template null, and non-template position null.
 - Modify `server/wxml-language-service.mjs`: extend `getDefinition()` with template reference lookup after dependency lookup.
 - Modify `scripts/verify-lsp-diagnostics.mjs`: add protocol-level `textDocument/definition` scenario for static template usage with precise target range.
 - Modify `README.md`: update capability and scope wording from "template navigation planned" to "static unique template definition navigation supported; dynamic and visibility-rule navigation unsupported."
@@ -244,7 +244,25 @@ function assertDuplicateTemplateDefinitionReturnsNull(graph) {
 }
 ```
 
-- [ ] **Step 6: Call the new tests**
+- [ ] **Step 6: Add direct non-template position regression test**
+
+Add this function after `assertDuplicateTemplateDefinitionReturnsNull(graph)`:
+
+```javascript
+function assertNonTemplateDefinitionReturnsNull(graph) {
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 3, character: 0 },
+    extensionRoot: ROOT,
+  });
+  assertNullLocation(location, "non-template definition");
+}
+```
+
+This keeps the direct language-service coverage aligned with the design requirement that positions outside component, dependency, and template ranges return `null`.
+
+- [ ] **Step 7: Call the new tests**
 
 At the bottom of `scripts/verify-wxml-language-service.mjs`, call the new assertions immediately after `assertExternalWxsDefinition(graph)`:
 
@@ -254,9 +272,10 @@ assertTemplateDefinitionUsesSymbolRange(graph);
 assertDynamicTemplateDefinitionReturnsNull(graph);
 assertMissingTemplateDefinitionReturnsNull(graph);
 assertDuplicateTemplateDefinitionReturnsNull(graph);
+assertNonTemplateDefinitionReturnsNull(graph);
 ```
 
-- [ ] **Step 7: Run the direct service verification and confirm red failure**
+- [ ] **Step 8: Run the direct service verification and confirm red failure**
 
 Run:
 
@@ -266,12 +285,9 @@ node scripts/verify-wxml-language-service.mjs
 
 Expected: FAIL. The first valid failure should be for `static template definition: expected definition location`, because `getDefinition()` does not yet inspect `fileModel.references`.
 
-- [ ] **Step 8: Commit the failing direct service tests**
+- [ ] **Step 9: Keep the failing direct service test changes uncommitted**
 
-```bash
-git add scripts/verify-wxml-language-service.mjs
-git commit -m "test: add wxml template definition verification"
-```
+Do not commit the red test-only state. Leave the modified `scripts/verify-wxml-language-service.mjs` in the working tree and continue directly to Task 2 so the next commit contains both the failing tests and the implementation that makes them pass.
 
 ## Task 2: Implement Template Definition Lookup in the Language Service
 
@@ -390,11 +406,11 @@ node --check scripts/verify-wxml-language-service.mjs
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Commit the implementation**
+- [ ] **Step 6: Commit the implementation and direct service tests**
 
 ```bash
 git add server/wxml-language-service.mjs scripts/verify-wxml-language-service.mjs
-git commit -m "feat: add wxml template definitions"
+git commit -m "feat: add wxml template definition navigation"
 ```
 
 ## Task 3: Add Protocol-Level Template Definition Coverage
