@@ -139,6 +139,21 @@ async function testDefinitionBuildsGraphWithoutPriorDiagnostics() {
     assertLocationTarget(result, USER_CARD_WXML);
   });
 }
+
+async function testDefinitionBuildDoesNotBlockRequestLoop() {
+  await withClient({
+    rootPath: ROOT,
+    env: {
+      WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+    },
+  }, async (client) => {
+    const definitionPromise = client.definition(HOME_WXML, { line: 7, character: 3 });
+    const id = client.request("workspace/symbol", { query: "user-card" });
+    const response = await client.waitForResponse(id);
+    assert(response.error?.code === -32601, `Expected responsive -32601, got ${JSON.stringify(response)}`);
+    assertLocationTarget(await definitionPromise, USER_CARD_WXML);
+  });
+}
 ```
 
 The positions are zero-based:
@@ -148,6 +163,8 @@ The positions are zero-based:
 - `{ line: 14, character: 3 }` is inside `<missing-card` in `home.wxml`.
 - `{ line: 4, character: 3 }` is inside the built-in `<view` tag in `home.wxml`.
 - `{ line: 3, character: 0 }` is a blank line in `home.wxml`.
+- The delayed graph build scenario proves a definition-triggered graph build
+  does not block unrelated request handling.
 
 - [ ] **Step 6: Register the definition scenarios**
 
@@ -160,6 +177,7 @@ Add these entries near the start of the `scenarios` array, before the existing d
 ["non-component definition returns null", testNonComponentDefinitionReturnsNull],
 ["builtin definition returns null", testBuiltinDefinitionReturnsNull],
 ["definition builds graph without prior diagnostics", testDefinitionBuildsGraphWithoutPriorDiagnostics],
+["definition build does not block request loop", testDefinitionBuildDoesNotBlockRequestLoop],
 ```
 
 - [ ] **Step 7: Run the harness and confirm it fails before implementation**
@@ -647,7 +665,7 @@ Summarize:
 Implemented WXML component definition baseline:
 - textDocument/definition for resolved local WXML component tags
 - graph waiters so definition can trigger/wait for graph builds
-- harness coverage for user-card, nested status-badge, missing component, built-in tag, non-component position, and no-prior-diagnostics graph build
+- harness coverage for user-card, nested status-badge, missing component, built-in tag, non-component position, no-prior-diagnostics graph build, and definition request-loop responsiveness
 - README scope update
 
 Verification:
