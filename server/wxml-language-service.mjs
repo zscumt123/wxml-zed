@@ -81,6 +81,13 @@ function locationForGraphPath(graphPath, extensionRoot) {
   };
 }
 
+function locationForGraphPathWithRange(graphPath, range, extensionRoot) {
+  return {
+    uri: pathToFileURL(absolutePathForGraphPath(graphPath, extensionRoot)).href,
+    range: rangeFromSymbolRange(range),
+  };
+}
+
 function isInsideGraphRoot(graphPath, graphRoot) {
   const relative = path.posix.relative(graphRoot, graphPath);
   return relative === "" || (!relative.startsWith("..") && !path.posix.isAbsolute(relative));
@@ -138,6 +145,39 @@ function dependencyDefinitionForPosition({ graph, documentGraphPath, fileModel, 
   return locationForGraphPath(target, extensionRoot);
 }
 
+function templateDefinitionsForName(graph, name) {
+  const matches = [];
+  for (const fileModel of graph.wxml) {
+    for (const symbol of fileModel.symbols) {
+      if (symbol.kind === "template" && symbol.name === name) {
+        matches.push({ fileModel, symbol });
+      }
+    }
+  }
+  return matches;
+}
+
+function templateDefinitionForPosition({ graph, fileModel, position, extensionRoot }) {
+  const reference = fileModel.references.find((entry) => (
+    entry.kind === "template" &&
+    entry.dynamic === false &&
+    typeof entry.name === "string" &&
+    entry.name.length > 0 &&
+    containsPosition(entry.range, position)
+  ));
+  if (!reference) {
+    return null;
+  }
+
+  const matches = templateDefinitionsForName(graph, reference.name);
+  if (matches.length !== 1) {
+    return null;
+  }
+
+  const match = matches[0];
+  return locationForGraphPathWithRange(match.fileModel.path, match.symbol.range, extensionRoot);
+}
+
 export function getDiagnostics({ graph, documentPath, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
@@ -187,9 +227,19 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
     }
   }
 
-  return dependencyDefinitionForPosition({
+  const dependencyDefinition = dependencyDefinitionForPosition({
     graph,
     documentGraphPath,
+    fileModel,
+    position,
+    extensionRoot,
+  });
+  if (dependencyDefinition) {
+    return dependencyDefinition;
+  }
+
+  return templateDefinitionForPosition({
+    graph,
     fileModel,
     position,
     extensionRoot,
