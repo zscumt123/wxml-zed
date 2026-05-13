@@ -25,7 +25,8 @@ git submodule.
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for local mini program fixtures | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
-| Cross-file navigation and full component resolution | Planned |
+| Prototype go-to-definition for local WXML components | Yes |
+| Cross-file navigation beyond local components and full component resolution | Planned |
 
 ## Install
 
@@ -97,11 +98,13 @@ When changing queries or snippets:
 
 ## Scope
 
-This baseline is syntax-level editor support plus one narrow prototype
-diagnostic. It intentionally does not provide symbol indexing,
-component/template go-to-definition, completion, hover, document symbols,
+This baseline is syntax-level editor support plus narrow prototype LSP behavior:
+missing local component diagnostics and go-to-definition for resolved local WXML
+component tags. It intentionally does not provide symbol indexing,
+template/import/include/WXS navigation, completion, hover, document symbols,
 semantic tokens, code actions, formatting, file watching, npm/plugin component
-resolution, `subPackages`, or production Node runtime packaging.
+resolution, `componentGenerics`, `subPackages`, or production Node runtime
+packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -131,12 +134,16 @@ files, local relative `usingComponents`, and the existing WXML symbol model. It
 does not resolve npm components, plugin components, `subPackages`, watch mode,
 or editor navigation.
 
-`server/wxml-lsp.mjs` is a minimal stdio LSP prototype. Its only diagnostic rule
-reports local `usingComponents` entries that resolve to a missing file and are
-also used as custom component tags in the current WXML file. For the baseline
-fixture this reports `missing-card` in `pages/home/home.wxml`. It uses an async
-per-root graph build queue and cached graph state. Diagnostics still run on
-open/save only; there is no file watching or incremental parsing.
+`server/wxml-lsp.mjs` is a minimal stdio LSP prototype. It reports local
+`usingComponents` entries that resolve to a missing file and are also used as
+custom component tags in the current WXML file. It also supports
+go-to-definition from resolved local custom component tags to their target
+`.wxml` files. For the baseline fixture this reports `missing-card` in
+`pages/home/home.wxml` and resolves `<user-card>` to
+`components/user-card/user-card.wxml`. It uses an async per-root graph build
+queue and cached graph state. Diagnostics still run on open/save only; there is
+no file watching, incremental parsing, template/import/include/WXS navigation,
+npm/plugin component navigation, or `componentGenerics` support.
 
 ## Redistribution Status
 
