@@ -59,7 +59,7 @@ Unsupported cases return `null`:
 - Missing `normalized`.
 - Dynamic or interpolated `src`.
 - Non-relative `src`.
-- Dependency target outside the current project root as represented by the graph.
+- Dependency target outside the mini-program root represented by `graph.root`.
 - Dependency target missing from disk or unresolved by the graph.
 - Inline `<wxs module="...">...</wxs>` because it is a local symbol, not a file dependency.
 
@@ -89,8 +89,11 @@ The language service may infer resolution from:
 
 - `dependency.normalized` for candidate dependency target path.
 - `graph.wxml[].path` for known WXML targets.
-- File existence under `extensionRoot` for supported non-WXML targets such as `.wxs`.
+- `graph.root` for the mini-program root boundary that every dependency target must stay inside.
+- File existence under `extensionRoot` for supported non-WXML targets such as `.wxs`, after the `graph.root` boundary check.
 - `graph.unresolved` entries to avoid returning locations for known unresolved WXML dependencies.
+
+The graph builder currently records unresolved WXML dependencies, but it does not record unresolved WXS dependencies. The language service therefore owns WXS target validation: a WXS target must have `dependency.normalized`, end in `.wxs`, resolve under `graph.root`, and exist on disk before `getDefinition()` may return a location.
 
 The service must not shell out or rebuild the graph. It consumes the graph passed by the LSP host or direct tests.
 
@@ -102,7 +105,10 @@ Direct language-service verification must cover:
 - `import` definition resolves to `fixtures/miniprogram/templates/common.wxml`.
 - `include` definition resolves to `fixtures/miniprogram/shared/header.wxml`.
 - External `wxs` definition resolves to `fixtures/miniprogram/utils/format.wxs`.
-- Missing, unsupported, or non-dependency positions return `null`.
+- Missing WXML dependency positions return `null`.
+- Missing WXS dependency positions return `null`.
+- Outside-root WXS dependency positions return `null`.
+- Unsupported or non-dependency positions return `null`.
 
 Protocol-level LSP verification must cover the same success paths through `textDocument/definition`:
 
