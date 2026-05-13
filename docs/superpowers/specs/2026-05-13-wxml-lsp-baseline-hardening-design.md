@@ -86,8 +86,13 @@ framework:
 rootCandidates: string[]
 openDocuments: Map<uri, { path: string }>
 graphsByRoot: Map<projectRoot, graph>
-buildStateByRoot: Map<projectRoot, { running: boolean, queued: boolean }>
-pendingDiagnosticsByRoot: Map<projectRoot, Set<uri>>
+buildStateByRoot: Map<projectRoot, {
+  running: boolean,
+  queued: boolean,
+  activeGeneration: number,
+  latestGeneration: number
+}>
+pendingDiagnosticsByRoot: Map<projectRoot, Map<uri, generation>>
 ```
 
 Only `openDocuments` and diagnostics scheduling are LSP state. The project graph
@@ -113,16 +118,26 @@ cwd = <extension-root>
 
 For each mini program root:
 
-1. If no build is running, start one.
-2. If a build is already running, mark the root as queued.
-3. Add the requesting document URI to that root's pending diagnostics set.
-4. When the build finishes, store the graph in `graphsByRoot` and publish
-   diagnostics for all pending open documents under that root.
-5. If a queued rebuild was requested while the first build was running, start
-   one more build after publishing the first result.
+1. Increment the root's `latestGeneration`.
+2. Add the requesting document URI to that root's pending diagnostics map with
+   the new generation.
+3. If no build is running, start one and capture the current
+   `latestGeneration` as the build's `activeGeneration`.
+4. If a build is already running, mark the root as queued.
+5. When a build finishes, compare its `activeGeneration` with the root's
+   current `latestGeneration`.
+6. If the completed build is stale because a newer request arrived while it was
+   running, do not publish diagnostics from that graph. Start one queued rebuild
+   using the latest generation.
+7. If the completed build is current, store the graph in `graphsByRoot` and
+   publish diagnostics only for pending open documents whose requested
+   generation is less than or equal to the completed generation.
+8. If a new request arrives after publishing starts, it belongs to a later
+   generation and must be handled by a later build.
 
 This keeps the server responsive and avoids launching redundant graph builds
-for repeated `didOpen` or `didSave` events.
+for repeated `didOpen` or `didSave` events. It also prevents stale diagnostics
+from being republished after a save fixes the underlying project graph.
 
 ### Diagnostic Scheduling
 
@@ -226,6 +241,17 @@ Required scenarios:
    - Send a harmless unsupported request such as `workspace/symbol`.
    - Assert the response error code is `-32601`.
 
+7. Coalesced async build behavior:
+   - Run the server with a test-only graph extractor delay or counter enabled by
+     environment variables.
+   - Send rapid repeated `didOpen` and `didSave` events for files under the same
+     mini program root.
+   - Assert no more than one extractor process for that root is running at the
+     same time.
+   - While a delayed graph build is running, send an unsupported request and
+     assert the `-32601` response arrives before diagnostics. This proves graph
+     extraction no longer blocks the JSON-RPC message loop.
+
 The harness must avoid mutating tracked fixtures. Temporary projects should be
 created under `/private/tmp` and cleaned up at the end of the run.
 
@@ -269,7 +295,13 @@ root's build state.
 - The LSP harness verifies repository-root and mini-program-root initialization.
 - The harness verifies clean-file diagnostics, didClose clearing, didSave
   refresh, and unsupported request errors.
+- The harness verifies that rapid same-root diagnostics requests are coalesced
+  without concurrent extractor processes.
+- The harness verifies that the server can answer an unsupported request while
+  a delayed graph build is running.
 - `server/wxml-lsp.mjs` no longer uses `execFileSync` for graph builds.
+- Stale graph generations are not allowed to publish diagnostics after a newer
+  graph request has arrived.
 - Diagnostics are not republished for closed documents after async graph builds
   complete.
 - README documents Zed worktree trust and reload or restart notes for local LSP
