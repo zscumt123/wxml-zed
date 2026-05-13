@@ -11,6 +11,7 @@ const MINIPROGRAM_ROOT = path.join(ROOT, "fixtures/miniprogram");
 const HOME_WXML = path.join(MINIPROGRAM_ROOT, "pages/home/home.wxml");
 const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 const STATUS_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/status-badge/status-badge.wxml");
+const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
 const TIMEOUT_MS = 30_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
@@ -107,6 +108,57 @@ function assertNullDefinition(result, label) {
   assert(result === null, `${label}: expected null definition, got ${JSON.stringify(result)}`);
 }
 
+function assertDeepEqual(actual, expected, label) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  assert(actualJson === expectedJson, `${label}: expected ${expectedJson}, got ${actualJson}`);
+}
+
+function assertHomeDocumentSymbols(symbols) {
+  assert(Array.isArray(symbols), `Expected document symbols array, got ${JSON.stringify(symbols)}`);
+  assert(symbols.length === 3, `Expected 3 home document symbols, got ${symbols.length}: ${JSON.stringify(symbols)}`);
+  assertDeepEqual(
+    symbols.map((symbol) => [symbol.name, symbol.kind, symbol.detail]),
+    [
+      ["fixtures/miniprogram/templates/common.wxml", 1, "import"],
+      ["fixtures/miniprogram/shared/header.wxml", 1, "include"],
+      ["format", 2, "wxs"],
+    ],
+    "home document symbol identity/order",
+  );
+  assertDeepEqual(
+    symbols.map((symbol) => symbol.range),
+    [
+      { start: { line: 0, character: 0 }, end: { line: 0, character: 44 } },
+      { start: { line: 1, character: 0 }, end: { line: 1, character: 42 } },
+      { start: { line: 2, character: 0 }, end: { line: 2, character: 52 } },
+    ],
+    "home document symbol ranges",
+  );
+  assertDeepEqual(
+    symbols.map((symbol) => symbol.selectionRange),
+    symbols.map((symbol) => symbol.range),
+    "home document symbol selection ranges",
+  );
+  assert(symbols.filter((symbol) => symbol.detail?.startsWith("wxs")).length === 1, "Expected one WXS symbol");
+}
+
+function assertTemplateDocumentSymbols(symbols) {
+  assert(Array.isArray(symbols), `Expected document symbols array, got ${JSON.stringify(symbols)}`);
+  assert(symbols.length === 1, `Expected one template symbol, got ${symbols.length}: ${JSON.stringify(symbols)}`);
+  assertDeepEqual(
+    symbols[0],
+    {
+      name: "loadingRow",
+      kind: 12,
+      detail: "template",
+      range: { start: { line: 0, character: 0 }, end: { line: 4, character: 11 } },
+      selectionRange: { start: { line: 0, character: 0 }, end: { line: 4, character: 11 } },
+    },
+    "template document symbol",
+  );
+}
+
 class LspClient {
   constructor({ rootPath, env = {} }) {
     this.rootPath = rootPath;
@@ -183,6 +235,17 @@ class LspClient {
     const response = await this.waitForResponse(id);
     if (response.error) {
       throw new Error(`Definition request failed: ${JSON.stringify(response.error)}`);
+    }
+    return response.result;
+  }
+
+  async documentSymbols(filePath) {
+    const id = this.request("textDocument/documentSymbol", {
+      textDocument: { uri: pathToFileURL(filePath).href },
+    });
+    const response = await this.waitForResponse(id);
+    if (response.error) {
+      throw new Error(`Document symbol request failed: ${JSON.stringify(response.error)}`);
     }
     return response.result;
   }
@@ -264,6 +327,7 @@ class LspClient {
     assert(response.result?.capabilities?.textDocumentSync?.save === true, "save sync not advertised");
     assert(response.result?.capabilities?.textDocumentSync?.change === 0, "incremental sync should be disabled");
     assert(response.result?.capabilities?.definitionProvider === true, "definitionProvider not advertised");
+    assert(response.result?.capabilities?.documentSymbolProvider === true, "documentSymbolProvider not advertised");
     this.send("initialized", {});
   }
 
@@ -472,6 +536,51 @@ async function testDefinitionBuildDoesNotBlockRequestLoop() {
   });
 }
 
+async function testHomeDocumentSymbols() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before document symbols");
+    const result = await client.documentSymbols(HOME_WXML);
+    assertHomeDocumentSymbols(result);
+  });
+}
+
+async function testTemplateDocumentSymbols() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const result = await client.documentSymbols(COMMON_WXML);
+    assertTemplateDocumentSymbols(result);
+  });
+}
+
+async function testComponentUsageDocumentSymbolsExcluded() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const result = await client.documentSymbols(USER_CARD_WXML);
+    assertDeepEqual(result, [], "component usage document symbols");
+  });
+}
+
+async function testDocumentSymbolsBuildGraphWithoutPriorDiagnostics() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const result = await client.documentSymbols(HOME_WXML);
+    assertHomeDocumentSymbols(result);
+  });
+}
+
+async function testDocumentSymbolsBuildDoesNotBlockRequestLoop() {
+  await withClient({
+    rootPath: ROOT,
+    env: {
+      WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+    },
+  }, async (client) => {
+    const symbolsPromise = client.documentSymbols(HOME_WXML);
+    const id = client.request("workspace/symbol", { query: "format" });
+    const response = await client.waitForResponse(id);
+    assert(response.error?.code === -32601, `Expected responsive -32601, got ${JSON.stringify(response)}`);
+    assertHomeDocumentSymbols(await symbolsPromise);
+  });
+}
+
 async function testRepositoryRootInitialization() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -609,6 +718,11 @@ const scenarios = [
   ["builtin definition returns null", testBuiltinDefinitionReturnsNull],
   ["definition builds graph without prior diagnostics", testDefinitionBuildsGraphWithoutPriorDiagnostics],
   ["definition build does not block request loop", testDefinitionBuildDoesNotBlockRequestLoop],
+  ["home document symbols", testHomeDocumentSymbols],
+  ["template document symbols", testTemplateDocumentSymbols],
+  ["component usage document symbols excluded", testComponentUsageDocumentSymbolsExcluded],
+  ["document symbols build graph without prior diagnostics", testDocumentSymbolsBuildGraphWithoutPriorDiagnostics],
+  ["document symbols build does not block request loop", testDocumentSymbolsBuildDoesNotBlockRequestLoop],
   ["repository root initialization", testRepositoryRootInitialization],
   ["mini program root initialization", testMiniProgramRootInitialization],
   ["clean component file", testCleanComponentFile],
