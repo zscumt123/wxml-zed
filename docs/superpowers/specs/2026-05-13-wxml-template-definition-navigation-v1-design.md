@@ -85,7 +85,7 @@ Implementation shape:
 - Add a template definition lookup after dependency lookup.
 - Use existing `containsPosition()` against template reference ranges.
 - Return a `Location` pointing at the WXML file that owns the unique matching template symbol.
-- Use the existing zero range target convention for file-level definition locations in this prototype.
+- Use `rangeFromSymbolRange(symbol.range)` for the returned template definition range. Template definitions already have precise ranges in the symbol model, so this feature must not use the existing zero-range file target convention used by component and dependency file jumps.
 
 `server/wxml-lsp.mjs` should not change for this feature. It already delegates definition requests to `getDefinition()` after building or retrieving the graph.
 
@@ -96,6 +96,8 @@ Direct language-service verification must cover:
 - Existing component definition still resolves.
 - Existing import/include/external WXS definitions still resolve.
 - Static `<template is="loadingRow">` resolves to `fixtures/miniprogram/templates/common.wxml`.
+- The returned static template definition range is the template symbol range: `{ start: { line: 0, character: 0 }, end: { line: 4, character: 11 } }`.
+- A synthetic graph case with a matching template symbol on a non-zero line returns that non-zero symbol range, proving template navigation does not fall back to the zero-range file target convention.
 - Dynamic template references return `null`.
 - Missing template references return `null`.
 - Duplicate template definitions return `null`.
@@ -104,6 +106,7 @@ Direct language-service verification must cover:
 Protocol-level LSP verification must cover:
 
 - Static template definition navigation through `textDocument/definition`.
+- The protocol response range for the static template definition equals `{ start: { line: 0, character: 0 }, end: { line: 4, character: 11 } }`.
 - Existing component and dependency definition scenarios remain green.
 
 The total verification script must continue to pass:
