@@ -103,12 +103,12 @@ When changing queries or snippets:
 
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
 missing local component diagnostics, go-to-definition for resolved local WXML
-component tags, and flat document symbols for WXML declaration/dependency
-entries. It intentionally does not provide symbol indexing,
-template/import/include/WXS navigation, completion, hover, nested structural
-document symbols, semantic tokens, code actions, formatting, file watching,
-npm/plugin component resolution, `componentGenerics`, `subPackages`, or
-production Node runtime packaging.
+component tags, go-to-definition for WXML import/include and external WXS file
+dependencies, and flat document symbols for WXML declaration/dependency entries.
+It intentionally does not provide symbol indexing, template navigation,
+completion, hover, nested structural document symbols, semantic tokens, code
+actions, formatting, file watching, npm/plugin component resolution,
+`componentGenerics`, `subPackages`, or production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -144,16 +144,19 @@ project graph into diagnostics, definitions, and document symbols without
 owning JSON-RPC IO or graph scheduling. The LSP reports local `usingComponents`
 entries that resolve to a missing file and are also used as custom component
 tags in the current WXML file. It supports go-to-definition from resolved local
-custom component tags to their target `.wxml` files, and returns a flat
+custom component tags to their target `.wxml` files, from WXML
+`import`/`include` declarations to their target `.wxml` files, and from external
+WXS declarations to their target `.wxs` files. It also returns a flat
 document-symbol list for WXML declaration/dependency entries such as template
 definitions, WXS modules, imports, and includes. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
-`components/user-card/user-card.wxml`, and returns document symbols for the
-`import`, `include`, and `wxs` entries in `pages/home/home.wxml`. Diagnostics
-still run on open/save only; there is no file watching, incremental parsing,
-nested structural document symbols, component usage symbols, JSON document
-symbols, template/import/include/WXS navigation, npm/plugin component
-navigation, or `componentGenerics` support.
+`components/user-card/user-card.wxml`, resolves the top-level `import`,
+`include`, and external `wxs` declarations to their target files, and returns
+document symbols for those dependency entries. Diagnostics still run on
+open/save only; there is no file watching, incremental parsing, nested
+structural document symbols, component usage symbols, JSON document symbols,
+template navigation, npm/plugin component navigation, or `componentGenerics`
+support.
 
 ## Redistribution Status
 
