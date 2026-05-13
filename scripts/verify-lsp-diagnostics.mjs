@@ -106,6 +106,13 @@ function assertLocationTarget(result, targetPath) {
   );
 }
 
+function assertLocation(result, targetPath, expectedRange, label) {
+  assert(result, `${label}: expected definition location`);
+  assert(!Array.isArray(result), `${label}: expected single Location, got array ${JSON.stringify(result)}`);
+  assert(result.uri === pathToFileURL(targetPath).href, `${label}: unexpected URI ${JSON.stringify(result)}`);
+  assertDeepEqual(result.range, expectedRange, `${label} range`);
+}
+
 function assertNullDefinition(result, label) {
   assert(result === null, `${label}: expected null definition, got ${JSON.stringify(result)}`);
 }
@@ -507,6 +514,20 @@ async function testExternalWxsDefinition() {
   });
 }
 
+async function testStaticTemplateDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before template definition");
+    const result = await client.definition(HOME_WXML, { line: 5, character: 4 });
+    assertLocation(
+      result,
+      COMMON_WXML,
+      { start: { line: 0, character: 0 }, end: { line: 4, character: 11 } },
+      "static template definition",
+    );
+  });
+}
+
 async function testNestedComponentDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(USER_CARD_WXML);
@@ -744,6 +765,7 @@ const scenarios = [
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
+  ["static template definition", testStaticTemplateDefinition],
   ["nested component definition", testNestedComponentDefinition],
   ["missing component definition returns null", testMissingComponentDefinitionReturnsNull],
   ["non-component definition returns null", testNonComponentDefinitionReturnsNull],
