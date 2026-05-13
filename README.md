@@ -25,10 +25,10 @@ git submodule.
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for local mini program fixtures | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
-| Prototype go-to-definition for local WXML components, import/include dependencies, and external WXS files | Yes |
+| Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and static templates | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
-| Template, npm/plugin component, and full component resolution navigation | Planned |
+| Dynamic template, template visibility-rule, npm/plugin component, and full component resolution navigation | Planned |
 
 ## Install
 
@@ -54,9 +54,9 @@ focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
 models. It also verifies the pure WXML language-service mapping layer and starts
 the prototype WXML language server over stdio to verify missing local component
-diagnostics, go-to-definition for resolved local components plus WXML
-import/include and external WXS dependencies, and flat document symbols for WXML
-declaration/dependency entries.
+diagnostics, go-to-definition for resolved local components, WXML
+import/include dependencies, external WXS dependencies, and static template
+definitions, plus flat document symbols for WXML declaration/dependency entries.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -105,8 +105,10 @@ When changing queries or snippets:
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
 missing local component diagnostics, go-to-definition for resolved local WXML
 component tags, go-to-definition for WXML import/include and external WXS file
-dependencies, and flat document symbols for WXML declaration/dependency entries.
-It intentionally does not provide symbol indexing, template navigation,
+dependencies, go-to-definition for static template usages with unique matching
+definitions, and flat document symbols for WXML declaration/dependency entries.
+It intentionally does not provide symbol indexing, dynamic template navigation,
+template visibility-rule navigation,
 completion, hover, nested structural document symbols, semantic tokens, code
 actions, formatting, file watching, npm/plugin component resolution,
 `componentGenerics`, `subPackages`, or production Node runtime packaging.
@@ -149,16 +151,19 @@ entries that resolve to a missing file and are also used as custom component
 tags in the current WXML file. It supports go-to-definition from resolved local
 custom component tags to their target `.wxml` files, from WXML
 `import`/`include` declarations to their target `.wxml` files, and from external
-WXS declarations to their target `.wxs` files. It also returns a flat
-document-symbol list for WXML declaration/dependency entries such as template
-definitions, WXS modules, imports, and includes. For the baseline fixture this
+WXS declarations to their target `.wxs` files, and from static template usages
+to unique matching template definitions. It also returns a flat document-symbol
+list for WXML declaration/dependency entries such as template definitions, WXS
+modules, imports, and includes. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
 `components/user-card/user-card.wxml`, resolves the top-level `import`,
-`include`, and external `wxs` declarations to their target files, and returns
+`include`, and external `wxs` declarations to their target files, resolves the
+static `loadingRow` template usage to `templates/common.wxml`, and returns
 document symbols for those dependency entries. Diagnostics still run on
 open/save only; there is no file watching, incremental parsing, nested
 structural document symbols, component usage symbols, JSON document symbols,
-template navigation, npm/plugin component navigation, or `componentGenerics`
+dynamic template navigation, template visibility-rule navigation, npm/plugin
+component navigation, or `componentGenerics`
 support.
 
 ## Redistribution Status
