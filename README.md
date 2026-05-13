@@ -25,10 +25,10 @@ git submodule.
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for local mini program fixtures | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
-| Prototype go-to-definition for local WXML components | Yes |
+| Prototype go-to-definition for local WXML components, import/include dependencies, and external WXS files | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
-| Cross-file navigation beyond local components and full component resolution | Planned |
+| Template, npm/plugin component, and full component resolution navigation | Planned |
 
 ## Install
 
@@ -54,8 +54,9 @@ focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
 models. It also verifies the pure WXML language-service mapping layer and starts
 the prototype WXML language server over stdio to verify missing local component
-diagnostics, resolved local component go-to-definition, and flat document
-symbols for WXML declaration/dependency entries.
+diagnostics, go-to-definition for resolved local components plus WXML
+import/include and external WXS dependencies, and flat document symbols for WXML
+declaration/dependency entries.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -114,9 +115,11 @@ Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
 
 Inline `wxs` bodies and WXML interpolation expressions are injected as
-JavaScript for syntax highlighting only. The extension does not type-check WXS,
-resolve external `.wxs` files, validate WeChat WXS APIs, or provide WXS module
-completion. Those behaviors belong in a later language-service layer.
+JavaScript for syntax highlighting only. The extension can navigate from
+external WXS declarations to resolved local `.wxs` files, but it does not
+type-check WXS, validate WeChat WXS APIs, resolve WXS module APIs, or provide
+WXS module completion. Those behaviors belong in a later language-service
+layer.
 
 Basic tag editing support is provided through Zed's language config, bracket
 queries, comments, and snippets. The extension does not provide semantic end-tag
