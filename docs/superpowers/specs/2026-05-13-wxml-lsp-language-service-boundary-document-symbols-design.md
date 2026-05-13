@@ -122,6 +122,11 @@ and are better handled later once we decide whether document symbols should
 represent structure, dependencies, or both. They can still power completion,
 definition, and diagnostics through the same language-service boundary.
 
+For this slice, document symbols represent declaration and dependency entry
+points, not the WXML DOM structure. If we later want a structural outline, that
+should be designed as a separate nested-symbol feature instead of being mixed
+into this baseline.
+
 ## Document Symbol Mapping
 
 Return LSP `DocumentSymbol` objects.
@@ -186,9 +191,12 @@ Required protocol scenarios:
    - import `fixtures/miniprogram/templates/common.wxml`
    - include `fixtures/miniprogram/shared/header.wxml`
    - wxs module `format`
+   It must assert source order, `name`, `kind`, `detail`, `range`, and
+   `selectionRange`. The expected order is import, include, then wxs.
 3. `textDocument/documentSymbol` for
    `fixtures/miniprogram/templates/common.wxml` returns template symbol
-   `loadingRow`.
+   `loadingRow`. It must assert `name`, `kind`, `detail`, `range`, and
+   `selectionRange`.
 4. `textDocument/documentSymbol` for
    `fixtures/miniprogram/components/user-card/user-card.wxml` returns `[]`.
    This proves component usages are intentionally excluded from the baseline.
@@ -197,13 +205,24 @@ Required protocol scenarios:
    document symbol request with `WXML_ZED_LSP_GRAPH_DELAY_MS=250`, immediately
    send `workspace/symbol`, assert the existing `-32601` response arrives, then
    assert document symbols eventually resolve.
-7. Existing diagnostics and definition scenarios still pass after moving logic
+7. A WXS element represented in both `fileModel.symbols[]` and
+   `fileModel.dependencies[]` produces one document symbol, not a duplicate.
+8. Existing diagnostics and definition scenarios still pass after moving logic
    behind the language service.
 
-Service-level tests are optional for this slice. The important acceptance check
-is that protocol behavior remains proven through the existing harness. If the
-implementation adds a small direct Node assertion script for
-`server/wxml-language-service.mjs`, that is acceptable, but not required.
+Required service-level scenarios:
+
+1. Directly import `server/wxml-language-service.mjs` from a Node verification
+   script or focused test harness.
+2. Call `getDiagnostics`, `getDefinition`, and `getDocumentSymbols` with fixture
+   graph data.
+3. Assert the same pure outputs as the protocol harness for missing component
+   diagnostics, resolved component definition, scoped document symbols, and
+   no duplicate WXS symbols.
+
+These direct tests are required because this slice is primarily validating the
+language-service boundary. The protocol harness still verifies stdio behavior,
+capability advertisement, graph waiting, and request-loop responsiveness.
 
 ## README Updates
 
@@ -253,6 +272,8 @@ model concepts over time.
 
 - `server/wxml-language-service.mjs` exists and contains WXML feature mapping
   logic for diagnostics, definition, and document symbols.
+- Direct service-level tests cover diagnostics, definition, document symbols,
+  and WXS symbol de-duplication without starting the LSP server.
 - `server/wxml-lsp.mjs` keeps protocol, lifecycle, graph scheduling, and request
   dispatch responsibilities, and delegates WXML feature answers to the language
   service.
