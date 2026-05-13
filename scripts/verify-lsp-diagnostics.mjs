@@ -10,6 +10,7 @@ const SERVER = path.join(ROOT, "server/wxml-lsp.mjs");
 const MINIPROGRAM_ROOT = path.join(ROOT, "fixtures/miniprogram");
 const HOME_WXML = path.join(MINIPROGRAM_ROOT, "pages/home/home.wxml");
 const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
+const STATUS_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/status-badge/status-badge.wxml");
 const TIMEOUT_MS = 30_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
@@ -88,6 +89,24 @@ function assertMissingCardDiagnostic(diagnostic, sourceFile) {
   );
 }
 
+function assertLocationTarget(result, targetPath) {
+  assert(result, `Expected definition location for ${targetPath}`);
+  assert(!Array.isArray(result), `Expected single Location, got array: ${JSON.stringify(result)}`);
+  assert(result.uri === pathToFileURL(targetPath).href, `Unexpected definition URI: ${JSON.stringify(result)}`);
+  const expectedRange = {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 0 },
+  };
+  assert(
+    JSON.stringify(result.range) === JSON.stringify(expectedRange),
+    `Unexpected definition range: ${JSON.stringify(result.range)}`,
+  );
+}
+
+function assertNullDefinition(result, label) {
+  assert(result === null, `${label}: expected null definition, got ${JSON.stringify(result)}`);
+}
+
 class LspClient {
   constructor({ rootPath, env = {} }) {
     this.rootPath = rootPath;
@@ -154,6 +173,18 @@ class LspClient {
     this.nextId += 1;
     this.send(method, params, id);
     return id;
+  }
+
+  async definition(filePath, position) {
+    const id = this.request("textDocument/definition", {
+      textDocument: { uri: pathToFileURL(filePath).href },
+      position,
+    });
+    const response = await this.waitForResponse(id);
+    if (response.error) {
+      throw new Error(`Definition request failed: ${JSON.stringify(response.error)}`);
+    }
+    return response.result;
   }
 
   waitFor(predicate, label) {
@@ -232,6 +263,7 @@ class LspClient {
     assert(response.result?.capabilities?.textDocumentSync?.openClose === true, "openClose sync not advertised");
     assert(response.result?.capabilities?.textDocumentSync?.save === true, "save sync not advertised");
     assert(response.result?.capabilities?.textDocumentSync?.change === 0, "incremental sync should be disabled");
+    assert(response.result?.capabilities?.definitionProvider === true, "definitionProvider not advertised");
     this.send("initialized", {});
   }
 
@@ -373,6 +405,73 @@ async function assertNoLaterNonEmptyDiagnostics(client, uri, cursor, label, opti
   );
 }
 
+async function testHomeComponentDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before definition");
+    const result = await client.definition(HOME_WXML, { line: 7, character: 3 });
+    assertLocationTarget(result, USER_CARD_WXML);
+  });
+}
+
+async function testNestedComponentDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(USER_CARD_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 0, "user-card diagnostics before definition");
+    const result = await client.definition(USER_CARD_WXML, { line: 2, character: 3 });
+    assertLocationTarget(result, STATUS_BADGE_WXML);
+  });
+}
+
+async function testMissingComponentDefinitionReturnsNull() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "missing-card diagnostics before definition");
+    const result = await client.definition(HOME_WXML, { line: 14, character: 3 });
+    assertNullDefinition(result, "missing-card definition");
+  });
+}
+
+async function testNonComponentDefinitionReturnsNull() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before non-component definition");
+    const result = await client.definition(HOME_WXML, { line: 3, character: 0 });
+    assertNullDefinition(result, "blank line definition");
+  });
+}
+
+async function testBuiltinDefinitionReturnsNull() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before builtin definition");
+    const result = await client.definition(HOME_WXML, { line: 4, character: 3 });
+    assertNullDefinition(result, "builtin view definition");
+  });
+}
+
+async function testDefinitionBuildsGraphWithoutPriorDiagnostics() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const result = await client.definition(HOME_WXML, { line: 7, character: 3 });
+    assertLocationTarget(result, USER_CARD_WXML);
+  });
+}
+
+async function testDefinitionBuildDoesNotBlockRequestLoop() {
+  await withClient({
+    rootPath: ROOT,
+    env: {
+      WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+    },
+  }, async (client) => {
+    const definitionPromise = client.definition(HOME_WXML, { line: 7, character: 3 });
+    const id = client.request("workspace/symbol", { query: "user-card" });
+    const response = await client.waitForResponse(id);
+    assert(response.error?.code === -32601, `Expected responsive -32601, got ${JSON.stringify(response)}`);
+    assertLocationTarget(await definitionPromise, USER_CARD_WXML);
+  });
+}
+
 async function testRepositoryRootInitialization() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -503,6 +602,13 @@ async function testAsyncCoalescingAndResponsiveness() {
 }
 
 const scenarios = [
+  ["home component definition", testHomeComponentDefinition],
+  ["nested component definition", testNestedComponentDefinition],
+  ["missing component definition returns null", testMissingComponentDefinitionReturnsNull],
+  ["non-component definition returns null", testNonComponentDefinitionReturnsNull],
+  ["builtin definition returns null", testBuiltinDefinitionReturnsNull],
+  ["definition builds graph without prior diagnostics", testDefinitionBuildsGraphWithoutPriorDiagnostics],
+  ["definition build does not block request loop", testDefinitionBuildDoesNotBlockRequestLoop],
   ["repository root initialization", testRepositoryRootInitialization],
   ["mini program root initialization", testMiniProgramRootInitialization],
   ["clean component file", testCleanComponentFile],
