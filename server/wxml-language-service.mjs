@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -80,6 +81,63 @@ function locationForGraphPath(graphPath, extensionRoot) {
   };
 }
 
+function isInsideGraphRoot(graphPath, graphRoot) {
+  const relative = path.posix.relative(graphRoot, graphPath);
+  return relative === "" || (!relative.startsWith("..") && !path.posix.isAbsolute(relative));
+}
+
+function hasUnresolvedWxmlDependency(graph, owner, dependency) {
+  return graph.unresolved.some((entry) => (
+    entry.kind === "wxml-dependency" &&
+    entry.owner === owner &&
+    entry.target === dependency.normalized
+  ));
+}
+
+function isKnownWxmlTarget(graph, target) {
+  return graph.wxml.some((entry) => entry.path === target);
+}
+
+function isExistingWxsTarget(target, extensionRoot) {
+  return fs.existsSync(absolutePathForGraphPath(target, extensionRoot));
+}
+
+function dependencyTargetForDefinition(graph, owner, dependency, extensionRoot) {
+  if (!dependency.normalized) {
+    return undefined;
+  }
+  if (!isInsideGraphRoot(dependency.normalized, graph.root)) {
+    return undefined;
+  }
+
+  if ((dependency.kind === "import" || dependency.kind === "include") && dependency.normalized.endsWith(".wxml")) {
+    if (hasUnresolvedWxmlDependency(graph, owner, dependency)) {
+      return undefined;
+    }
+    return isKnownWxmlTarget(graph, dependency.normalized) ? dependency.normalized : undefined;
+  }
+
+  if (dependency.kind === "wxs" && dependency.normalized.endsWith(".wxs")) {
+    return isExistingWxsTarget(dependency.normalized, extensionRoot) ? dependency.normalized : undefined;
+  }
+
+  return undefined;
+}
+
+function dependencyDefinitionForPosition({ graph, documentGraphPath, fileModel, position, extensionRoot }) {
+  const dependency = fileModel.dependencies.find((entry) => containsPosition(entry.range, position));
+  if (!dependency) {
+    return null;
+  }
+
+  const target = dependencyTargetForDefinition(graph, documentGraphPath, dependency, extensionRoot);
+  if (!target) {
+    return null;
+  }
+
+  return locationForGraphPath(target, extensionRoot);
+}
+
 export function getDiagnostics({ graph, documentPath, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
@@ -117,21 +175,25 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
   }
 
   const component = fileModel.components.find((entry) => containsPosition(entry.range, position));
-  if (!component) {
-    return null;
+  if (component) {
+    const usingComponent = graph.usingComponents.find((entry) => (
+      entry.owner === documentGraphPath &&
+      entry.tag === component.tag &&
+      entry.resolved === true &&
+      entry.target
+    ));
+    if (usingComponent) {
+      return locationForGraphPath(usingComponent.target, extensionRoot);
+    }
   }
 
-  const usingComponent = graph.usingComponents.find((entry) => (
-    entry.owner === documentGraphPath &&
-    entry.tag === component.tag &&
-    entry.resolved === true &&
-    entry.target
-  ));
-  if (!usingComponent) {
-    return null;
-  }
-
-  return locationForGraphPath(usingComponent.target, extensionRoot);
+  return dependencyDefinitionForPosition({
+    graph,
+    documentGraphPath,
+    fileModel,
+    position,
+    extensionRoot,
+  });
 }
 
 function documentSymbol(name, kind, detail, range) {
