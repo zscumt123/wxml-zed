@@ -2,7 +2,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const EXTENSION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAPH_EXTRACTOR = path.join(EXTENSION_ROOT, "scripts/extract-wxml-project-graph.mjs");
@@ -15,6 +15,7 @@ const openDocuments = new Map();
 const graphsByRoot = new Map();
 const buildStateByRoot = new Map();
 const pendingDiagnosticsByRoot = new Map();
+const graphWaitersByRoot = new Map();
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join(path.posix.sep);
@@ -120,6 +121,30 @@ function pendingForRoot(projectRoot) {
   return pending;
 }
 
+function waitersForRoot(projectRoot) {
+  let waiters = graphWaitersByRoot.get(projectRoot);
+  if (!waiters) {
+    waiters = new Set();
+    graphWaitersByRoot.set(projectRoot, waiters);
+  }
+  return waiters;
+}
+
+function waitForGraph(projectRoot) {
+  return new Promise((resolve) => {
+    waitersForRoot(projectRoot).add(resolve);
+  });
+}
+
+function resolveGraphWaiters(projectRoot, graph) {
+  const waiters = graphWaitersByRoot.get(projectRoot);
+  if (!waiters) return;
+  graphWaitersByRoot.delete(projectRoot);
+  for (const resolve of waiters) {
+    resolve(graph);
+  }
+}
+
 function parentDirs(startDir) {
   const dirs = [];
   let current = path.resolve(startDir);
@@ -190,6 +215,49 @@ function rangeFromSymbolRange(range) {
   };
 }
 
+const ZERO_RANGE = {
+  start: { line: 0, character: 0 },
+  end: { line: 0, character: 0 },
+};
+
+function isPositionBefore(position, boundary) {
+  return (
+    position.line < boundary.line ||
+    (position.line === boundary.line && position.character < boundary.character)
+  );
+}
+
+function isPositionAtOrAfter(position, boundary) {
+  return (
+    position.line > boundary.line ||
+    (position.line === boundary.line && position.character >= boundary.character)
+  );
+}
+
+function symbolPointToLsp(point) {
+  return {
+    line: point.row,
+    character: point.column,
+  };
+}
+
+function containsPosition(range, position) {
+  const start = symbolPointToLsp(range.start);
+  const end = symbolPointToLsp(range.end);
+  return isPositionAtOrAfter(position, start) && isPositionBefore(position, end);
+}
+
+function absolutePathForGraphPath(graphPath) {
+  return path.resolve(EXTENSION_ROOT, graphPath);
+}
+
+function locationForGraphPath(graphPath) {
+  return {
+    uri: pathToFileURL(absolutePathForGraphPath(graphPath)).href,
+    range: ZERO_RANGE,
+  };
+}
+
 function diagnosticsForDocument(graph, documentPath) {
   const documentGraphPath = graphPathForAbsolute(documentPath);
   const fileModel = graph.wxml.find((entry) => entry.path === documentGraphPath);
@@ -216,6 +284,36 @@ function diagnosticsForDocument(graph, documentPath) {
         message: `Missing local component "${entry.tag}": ${entry.value}`,
       };
     });
+}
+
+function definitionForDocument(graph, documentPath, position) {
+  if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
+    return null;
+  }
+
+  const documentGraphPath = graphPathForAbsolute(documentPath);
+  const fileModel = graph.wxml.find((entry) => entry.path === documentGraphPath);
+  if (!fileModel) {
+    logDiagnosticError(`No WXML graph entry for ${documentGraphPath}`);
+    return null;
+  }
+
+  const component = fileModel.components.find((entry) => containsPosition(entry.range, position));
+  if (!component) {
+    return null;
+  }
+
+  const usingComponent = graph.usingComponents.find((entry) => (
+    entry.owner === documentGraphPath &&
+    entry.tag === component.tag &&
+    entry.resolved === true &&
+    entry.target
+  ));
+  if (!usingComponent) {
+    return null;
+  }
+
+  return locationForGraphPath(usingComponent.target);
 }
 
 function publishPendingDiagnostics(projectRoot, diagnosticsForUri) {
@@ -247,6 +345,7 @@ async function runGraphBuild(projectRoot) {
       publishPendingDiagnostics(projectRoot, (_uri, documentPath) => (
         diagnosticsForDocument(graph, documentPath)
       ));
+      resolveGraphWaiters(projectRoot, graph);
     } else {
       state.queued = true;
     }
@@ -254,6 +353,7 @@ async function runGraphBuild(projectRoot) {
     logDiagnosticError(error instanceof Error ? error.message : String(error));
     if (activeGeneration === state.latestGeneration) {
       publishPendingDiagnostics(projectRoot, () => []);
+      resolveGraphWaiters(projectRoot, undefined);
     } else {
       state.queued = true;
     }
@@ -266,6 +366,27 @@ async function runGraphBuild(projectRoot) {
       });
     }
   }
+}
+
+function hasStableCachedGraph(projectRoot) {
+  const state = stateForRoot(projectRoot);
+  return graphsByRoot.has(projectRoot) && !state.running && !state.queued;
+}
+
+function ensureGraphForRequest(projectRoot) {
+  if (hasStableCachedGraph(projectRoot)) {
+    return Promise.resolve(graphsByRoot.get(projectRoot));
+  }
+
+  const graphPromise = waitForGraph(projectRoot);
+  const state = stateForRoot(projectRoot);
+  if (!state.running) {
+    if (!state.queued) {
+      state.latestGeneration += 1;
+    }
+    runGraphBuild(projectRoot);
+  }
+  return graphPromise;
 }
 
 function scheduleDiagnostics(uri) {
@@ -297,6 +418,35 @@ function closeDocument(uri) {
   publishDiagnostics(uri, []);
 }
 
+async function definitionForRequest(params) {
+  const documentPath = fileUriToPath(params?.textDocument?.uri);
+  if (!documentPath) {
+    return null;
+  }
+
+  const projectRoot = resolveMiniProgramRoot(documentPath);
+  if (!projectRoot) {
+    logDiagnosticError(`No app.json found for ${documentPath}`);
+    return null;
+  }
+
+  const graph = await ensureGraphForRequest(projectRoot);
+  if (!graph) {
+    return null;
+  }
+
+  return definitionForDocument(graph, documentPath, params?.position);
+}
+
+async function handleDefinitionRequest(id, params) {
+  try {
+    respond(id, await definitionForRequest(params));
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+    respond(id, null);
+  }
+}
+
 function initialize(params) {
   rootCandidates = [
     fileUriToPath(params?.rootUri),
@@ -313,6 +463,7 @@ function initialize(params) {
         change: 0,
         save: true,
       },
+      definitionProvider: true,
     },
   };
 }
@@ -345,6 +496,10 @@ function handleMessage(message) {
 
     case "textDocument/didClose":
       closeDocument(message.params?.textDocument?.uri);
+      break;
+
+    case "textDocument/definition":
+      handleDefinitionRequest(message.id, message.params);
       break;
 
     default:
