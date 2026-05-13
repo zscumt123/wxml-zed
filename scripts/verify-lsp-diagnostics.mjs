@@ -12,6 +12,8 @@ const HOME_WXML = path.join(MINIPROGRAM_ROOT, "pages/home/home.wxml");
 const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 const STATUS_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/status-badge/status-badge.wxml");
 const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
+const HEADER_WXML = path.join(MINIPROGRAM_ROOT, "shared/header.wxml");
+const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const TIMEOUT_MS = 30_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
@@ -478,6 +480,33 @@ async function testHomeComponentDefinition() {
   });
 }
 
+async function testImportDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before import definition");
+    const result = await client.definition(HOME_WXML, { line: 0, character: 2 });
+    assertLocationTarget(result, COMMON_WXML);
+  });
+}
+
+async function testIncludeDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before include definition");
+    const result = await client.definition(HOME_WXML, { line: 1, character: 2 });
+    assertLocationTarget(result, HEADER_WXML);
+  });
+}
+
+async function testExternalWxsDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before wxs definition");
+    const result = await client.definition(HOME_WXML, { line: 2, character: 2 });
+    assertLocationTarget(result, FORMAT_WXS);
+  });
+}
+
 async function testNestedComponentDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(USER_CARD_WXML);
@@ -712,6 +741,9 @@ async function testAsyncCoalescingAndResponsiveness() {
 
 const scenarios = [
   ["home component definition", testHomeComponentDefinition],
+  ["import definition", testImportDefinition],
+  ["include definition", testIncludeDefinition],
+  ["external wxs definition", testExternalWxsDefinition],
   ["nested component definition", testNestedComponentDefinition],
   ["missing component definition returns null", testMissingComponentDefinitionReturnsNull],
   ["non-component definition returns null", testNonComponentDefinitionReturnsNull],
