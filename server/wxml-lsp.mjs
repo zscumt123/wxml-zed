@@ -2,11 +2,16 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import {
+  getDefinition,
+  getDiagnostics,
+  getDocumentSymbols,
+} from "./wxml-language-service.mjs";
 
 const EXTENSION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAPH_EXTRACTOR = path.join(EXTENSION_ROOT, "scripts/extract-wxml-project-graph.mjs");
-const WARNING = 2;
 
 let buffer = Buffer.alloc(0);
 let shutdownRequested = false;
@@ -16,14 +21,6 @@ const graphsByRoot = new Map();
 const buildStateByRoot = new Map();
 const pendingDiagnosticsByRoot = new Map();
 const graphWaitersByRoot = new Map();
-
-function toPosix(filePath) {
-  return filePath.split(path.sep).join(path.posix.sep);
-}
-
-function graphPathForAbsolute(filePath) {
-  return toPosix(path.relative(EXTENSION_ROOT, path.resolve(filePath)));
-}
 
 function fileUriToPath(uri) {
   if (!uri || !uri.startsWith("file://")) return undefined;
@@ -202,120 +199,6 @@ async function buildProjectGraph(projectRoot) {
   }
 }
 
-function rangeFromSymbolRange(range) {
-  return {
-    start: {
-      line: range.start.row,
-      character: range.start.column,
-    },
-    end: {
-      line: range.end.row,
-      character: range.end.column,
-    },
-  };
-}
-
-const ZERO_RANGE = {
-  start: { line: 0, character: 0 },
-  end: { line: 0, character: 0 },
-};
-
-function isPositionBefore(position, boundary) {
-  return (
-    position.line < boundary.line ||
-    (position.line === boundary.line && position.character < boundary.character)
-  );
-}
-
-function isPositionAtOrAfter(position, boundary) {
-  return (
-    position.line > boundary.line ||
-    (position.line === boundary.line && position.character >= boundary.character)
-  );
-}
-
-function symbolPointToLsp(point) {
-  return {
-    line: point.row,
-    character: point.column,
-  };
-}
-
-function containsPosition(range, position) {
-  const start = symbolPointToLsp(range.start);
-  const end = symbolPointToLsp(range.end);
-  return isPositionAtOrAfter(position, start) && isPositionBefore(position, end);
-}
-
-function absolutePathForGraphPath(graphPath) {
-  return path.resolve(EXTENSION_ROOT, graphPath);
-}
-
-function locationForGraphPath(graphPath) {
-  return {
-    uri: pathToFileURL(absolutePathForGraphPath(graphPath)).href,
-    range: ZERO_RANGE,
-  };
-}
-
-function diagnosticsForDocument(graph, documentPath) {
-  const documentGraphPath = graphPathForAbsolute(documentPath);
-  const fileModel = graph.wxml.find((entry) => entry.path === documentGraphPath);
-  if (!fileModel) {
-    logDiagnosticError(`No WXML graph entry for ${documentGraphPath}`);
-    return [];
-  }
-
-  const usedComponents = new Map(fileModel.components.map((component) => [component.tag, component]));
-  return graph.unresolved
-    .filter((entry) => (
-      entry.kind === "component" &&
-      entry.owner === documentGraphPath &&
-      entry.reason === "missing-file" &&
-      usedComponents.has(entry.tag)
-    ))
-    .map((entry) => {
-      const component = usedComponents.get(entry.tag);
-      return {
-        range: rangeFromSymbolRange(component.range),
-        severity: WARNING,
-        source: "wxml-zed",
-        code: "missing-local-component",
-        message: `Missing local component "${entry.tag}": ${entry.value}`,
-      };
-    });
-}
-
-function definitionForDocument(graph, documentPath, position) {
-  if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
-    return null;
-  }
-
-  const documentGraphPath = graphPathForAbsolute(documentPath);
-  const fileModel = graph.wxml.find((entry) => entry.path === documentGraphPath);
-  if (!fileModel) {
-    logDiagnosticError(`No WXML graph entry for ${documentGraphPath}`);
-    return null;
-  }
-
-  const component = fileModel.components.find((entry) => containsPosition(entry.range, position));
-  if (!component) {
-    return null;
-  }
-
-  const usingComponent = graph.usingComponents.find((entry) => (
-    entry.owner === documentGraphPath &&
-    entry.tag === component.tag &&
-    entry.resolved === true &&
-    entry.target
-  ));
-  if (!usingComponent) {
-    return null;
-  }
-
-  return locationForGraphPath(usingComponent.target);
-}
-
 function publishPendingDiagnostics(projectRoot, diagnosticsForUri) {
   const pending = pendingForRoot(projectRoot);
   for (const [uri] of pending) {
@@ -343,7 +226,7 @@ async function runGraphBuild(projectRoot) {
     if (activeGeneration === state.latestGeneration) {
       graphsByRoot.set(projectRoot, graph);
       publishPendingDiagnostics(projectRoot, (_uri, documentPath) => (
-        diagnosticsForDocument(graph, documentPath)
+        getDiagnostics({ graph, documentPath, extensionRoot: EXTENSION_ROOT })
       ));
       resolveGraphWaiters(projectRoot, graph);
     } else {
@@ -435,7 +318,12 @@ async function definitionForRequest(params) {
     return null;
   }
 
-  return definitionForDocument(graph, documentPath, params?.position);
+  return getDefinition({
+    graph,
+    documentPath,
+    position: params?.position,
+    extensionRoot: EXTENSION_ROOT,
+  });
 }
 
 async function handleDefinitionRequest(id, params) {
@@ -444,6 +332,39 @@ async function handleDefinitionRequest(id, params) {
   } catch (error) {
     logDiagnosticError(error instanceof Error ? error.message : String(error));
     respond(id, null);
+  }
+}
+
+async function documentSymbolsForRequest(params) {
+  const documentPath = fileUriToPath(params?.textDocument?.uri);
+  if (!documentPath) {
+    return [];
+  }
+
+  const projectRoot = resolveMiniProgramRoot(documentPath);
+  if (!projectRoot) {
+    logDiagnosticError(`No app.json found for ${documentPath}`);
+    return [];
+  }
+
+  const graph = await ensureGraphForRequest(projectRoot);
+  if (!graph) {
+    return [];
+  }
+
+  return getDocumentSymbols({
+    graph,
+    documentPath,
+    extensionRoot: EXTENSION_ROOT,
+  });
+}
+
+async function handleDocumentSymbolRequest(id, params) {
+  try {
+    respond(id, await documentSymbolsForRequest(params));
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+    respond(id, []);
   }
 }
 
@@ -464,6 +385,7 @@ function initialize(params) {
         save: true,
       },
       definitionProvider: true,
+      documentSymbolProvider: true,
     },
   };
 }
@@ -500,6 +422,10 @@ function handleMessage(message) {
 
     case "textDocument/definition":
       handleDefinitionRequest(message.id, message.params);
+      break;
+
+    case "textDocument/documentSymbol":
+      handleDocumentSymbolRequest(message.id, message.params);
       break;
 
     default:
