@@ -572,8 +572,8 @@ The unsupported sentence must still include npm/plugin component navigation and 
 Run:
 
 ```bash
-rg -n "go-to-definition|import`/`include|external WXS|template navigation" README.md
-rg -n "template/import/include/WXS navigation" README.md
+rg -n 'go-to-definition|import`/`include|external WXS|template navigation' README.md
+rg -n 'template/import/include/WXS navigation' README.md
 ```
 
 Expected: the first command finds the new supported wording. The second command exits 1 with no matches, proving the old unsupported wording was removed.
