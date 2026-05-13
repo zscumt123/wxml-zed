@@ -26,6 +26,8 @@ git submodule.
 | Pre-LSP project graph extractor for local mini program fixtures | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
 | Prototype go-to-definition for local WXML components | Yes |
+| Internal WXML language-service boundary for LSP features | Yes |
+| Prototype LSP document symbols for WXML declarations and dependencies | Yes |
 | Cross-file navigation beyond local components and full component resolution | Planned |
 
 ## Install
@@ -50,9 +52,10 @@ The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
-models. It also starts the prototype WXML language server over stdio and verifies
-the missing local component diagnostic for
-`fixtures/miniprogram/pages/home/home.wxml`.
+models. It also verifies the pure WXML language-service mapping layer and starts
+the prototype WXML language server over stdio to verify missing local component
+diagnostics, resolved local component go-to-definition, and flat document
+symbols for WXML declaration/dependency entries.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -99,12 +102,13 @@ When changing queries or snippets:
 ## Scope
 
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
-missing local component diagnostics and go-to-definition for resolved local WXML
-component tags. It intentionally does not provide symbol indexing,
-template/import/include/WXS navigation, completion, hover, document symbols,
-semantic tokens, code actions, formatting, file watching, npm/plugin component
-resolution, `componentGenerics`, `subPackages`, or production Node runtime
-packaging.
+missing local component diagnostics, go-to-definition for resolved local WXML
+component tags, and flat document symbols for WXML declaration/dependency
+entries. It intentionally does not provide symbol indexing,
+template/import/include/WXS navigation, completion, hover, nested structural
+document symbols, semantic tokens, code actions, formatting, file watching,
+npm/plugin component resolution, `componentGenerics`, `subPackages`, or
+production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -134,16 +138,22 @@ files, local relative `usingComponents`, and the existing WXML symbol model. It
 does not resolve npm components, plugin components, `subPackages`, watch mode,
 or editor navigation.
 
-`server/wxml-lsp.mjs` is a minimal stdio LSP prototype. It reports local
-`usingComponents` entries that resolve to a missing file and are also used as
-custom component tags in the current WXML file. It also supports
-go-to-definition from resolved local custom component tags to their target
-`.wxml` files. For the baseline fixture this reports `missing-card` in
-`pages/home/home.wxml` and resolves `<user-card>` to
-`components/user-card/user-card.wxml`. It uses an async per-root graph build
-queue and cached graph state. Diagnostics still run on open/save only; there is
-no file watching, incremental parsing, template/import/include/WXS navigation,
-npm/plugin component navigation, or `componentGenerics` support.
+`server/wxml-lsp.mjs` is a minimal stdio LSP prototype and protocol host. WXML
+feature mapping lives in `server/wxml-language-service.mjs`, which converts the
+project graph into diagnostics, definitions, and document symbols without
+owning JSON-RPC IO or graph scheduling. The LSP reports local `usingComponents`
+entries that resolve to a missing file and are also used as custom component
+tags in the current WXML file. It supports go-to-definition from resolved local
+custom component tags to their target `.wxml` files, and returns a flat
+document-symbol list for WXML declaration/dependency entries such as template
+definitions, WXS modules, imports, and includes. For the baseline fixture this
+reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
+`components/user-card/user-card.wxml`, and returns document symbols for the
+`import`, `include`, and `wxs` entries in `pages/home/home.wxml`. Diagnostics
+still run on open/save only; there is no file watching, incremental parsing,
+nested structural document symbols, component usage symbols, JSON document
+symbols, template/import/include/WXS navigation, npm/plugin component
+navigation, or `componentGenerics` support.
 
 ## Redistribution Status
 
@@ -166,7 +176,9 @@ clean-room equivalents.
 - `scripts/extract-wxml-symbols.mjs`: pre-LSP static dependency/symbol extractor.
 - `scripts/extract-wxml-project-graph.mjs`: pre-LSP mini program project graph extractor.
 - `server/wxml-lsp.mjs`: prototype stdio language server.
-- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP diagnostics harness.
+- `server/wxml-language-service.mjs`: pure graph-to-LSP feature mapping for the Node LSP prototype.
+- `scripts/verify-wxml-language-service.mjs`: direct verification for the WXML language-service boundary.
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, and document symbols.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 
