@@ -51,6 +51,8 @@ Included:
 
 - Add fixture coverage for a global component declared in `app.json`.
 - Add fixture coverage for at least one subpackage page.
+- Support local root-absolute component paths that start with `/`, resolving
+  them relative to the mini program project root.
 - Expand global `app.json` components into effective per-owner
   `usingComponents` entries so existing language-service lookup can keep using
   the current `owner + tag` contract.
@@ -88,7 +90,7 @@ fixtures/miniprogram/
 Required fixture behavior:
 
 - `app.json` declares global `usingComponents`:
-  - `global-badge` -> `./components/global-badge/global-badge`
+  - `global-badge` -> `/components/global-badge/global-badge`
 - `app.json` declares a subpackage:
   - `root`: `packages/shop`
   - `pages`: `[ "pages/list/list" ]`
@@ -97,8 +99,10 @@ Required fixture behavior:
   `usingComponents: {}`.
 - `pages/home/home.json` declares a local `usingComponents` override:
   - `global-badge` -> `../../components/local-badge/local-badge`
-- `pages/home/home.wxml` uses `<global-badge />` so tests can prove local config
-  overrides the app-global component for that owner.
+- `pages/home/home.wxml` uses `<global-badge />` immediately after
+  `<missing-card reason="{{emptyReason}}" />` so tests can prove local config
+  overrides the app-global component for that owner without changing the
+  existing `missing-card` diagnostic range.
 
 ## Graph Semantics
 
@@ -133,6 +137,9 @@ Rules:
   `pages` is not an array.
 - For each valid subpackage entry, join `root` and each string page entry with
   POSIX-style `/`.
+- Collect pages in this order: top-level `pages`, `subPackages`, then
+  `subpackages`.
+- De-duplicate by root-prefixed page `name`; the first occurrence wins.
 - Missing subpackage page WXML or JSON files should be recorded as existing
   page unresolved entries using the same `kind: "page"` and
   `reason: "missing-file"` convention.
@@ -146,7 +153,7 @@ one concrete WXML owner:
 {
   "owner": "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
   "tag": "global-badge",
-  "value": "./components/global-badge/global-badge",
+  "value": "/components/global-badge/global-badge",
   "target": "fixtures/miniprogram/components/global-badge/global-badge.wxml",
   "config": "fixtures/miniprogram/components/global-badge/global-badge.json",
   "resolved": true
@@ -163,6 +170,10 @@ Rules:
 - Resolve each effective entry against the config file that declared it:
   - app-global entries resolve relative to `app.json`;
   - owner-local entries resolve relative to the owner JSON file.
+- Local relative values beginning with `./` or `../` continue to resolve
+  relative to the declaring JSON file.
+- Local root-absolute values beginning with `/` resolve relative to the mini
+  program project root.
 - Emit only the effective entry for each `owner + tag`.
 - Preserve the existing unresolved behavior:
   - unsupported non-local values produce `resolved: false` and
