@@ -14,6 +14,8 @@ const STATUS_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/status-badge/s
 const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
 const HEADER_WXML = path.join(MINIPROGRAM_ROOT, "shared/header.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
+const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
+const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
 const TIMEOUT_MS = 30_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
@@ -647,6 +649,22 @@ async function testMiniProgramRootInitialization() {
   });
 }
 
+async function testSubpackageGlobalComponentDiagnosticsClean() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(SHOP_LIST_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 0, "shop list diagnostics");
+  });
+}
+
+async function testSubpackageGlobalComponentDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(SHOP_LIST_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 0, "shop list diagnostics before definition");
+    const result = await client.definition(SHOP_LIST_WXML, { line: 1, character: 3 });
+    assertLocationTarget(result, GLOBAL_BADGE_WXML);
+  });
+}
+
 async function testCleanComponentFile() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(USER_CARD_WXML);
@@ -779,6 +797,8 @@ const scenarios = [
   ["document symbols build does not block request loop", testDocumentSymbolsBuildDoesNotBlockRequestLoop],
   ["repository root initialization", testRepositoryRootInitialization],
   ["mini program root initialization", testMiniProgramRootInitialization],
+  ["subpackage global component diagnostics clean", testSubpackageGlobalComponentDiagnosticsClean],
+  ["subpackage global component definition", testSubpackageGlobalComponentDefinition],
   ["clean component file", testCleanComponentFile],
   ["didClose clears diagnostics", testDidCloseClearsDiagnostics],
   ["didSave refresh clears fixed component", testDidSaveRefreshClearsFixedComponent],
