@@ -17,6 +17,9 @@ const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-ca
 const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
 const HEADER_WXML = path.join(MINIPROGRAM_ROOT, "shared/header.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
+const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
+const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
+const LOCAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/local-badge/local-badge.wxml");
 const USER_CARD_TARGET = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 
 function assert(condition, message) {
@@ -62,6 +65,11 @@ function assertMissingCardDiagnostic(graph) {
   );
 }
 
+function assertShopListDiagnosticsClean(graph) {
+  const diagnostics = getDiagnostics({ graph, documentPath: SHOP_LIST_WXML, extensionRoot: ROOT });
+  assertDeepEqual(diagnostics, [], "shop list diagnostics");
+}
+
 function assertLocationTarget(location, targetPath, label) {
   assert(location, `${label}: expected definition location`);
   assert(location.uri === pathToFileURL(targetPath).href, `${label}: unexpected URI ${JSON.stringify(location)}`);
@@ -90,6 +98,26 @@ function assertDefinition(graph) {
     extensionRoot: ROOT,
   });
   assertLocationTarget(location, USER_CARD_TARGET, "user-card definition");
+}
+
+function assertGlobalBadgeDefinition(graph) {
+  const location = getDefinition({
+    graph,
+    documentPath: SHOP_LIST_WXML,
+    position: { line: 1, character: 3 },
+    extensionRoot: ROOT,
+  });
+  assertLocationTarget(location, GLOBAL_BADGE_WXML, "global-badge definition");
+}
+
+function assertLocalBadgeOverrideDefinition(graph) {
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 15, character: 3 },
+    extensionRoot: ROOT,
+  });
+  assertLocationTarget(location, LOCAL_BADGE_WXML, "local global-badge override definition");
 }
 
 function assertImportDefinition(graph) {
@@ -397,7 +425,10 @@ function assertComponentUsageExcluded(graph) {
 
 const graph = loadGraph();
 assertMissingCardDiagnostic(graph);
+assertShopListDiagnosticsClean(graph);
 assertDefinition(graph);
+assertGlobalBadgeDefinition(graph);
+assertLocalBadgeOverrideDefinition(graph);
 assertImportDefinition(graph);
 assertIncludeDefinition(graph);
 assertExternalWxsDefinition(graph);
