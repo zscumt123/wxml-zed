@@ -100,6 +100,7 @@ npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$REAL_WORLD_RECOVERY" >
 
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-highlights-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_COMPONENT" >/tmp/wxml-zed-real-world-component-outline-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_TEMPLATES" >/tmp/wxml-zed-real-world-templates-outline-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-injections-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_RECOVERY" >/tmp/wxml-zed-real-world-recovery-injections-query.out
@@ -148,6 +149,34 @@ rg -n 'text: `"format"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/n
 rg -n 'text: `"loadingRow"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
 rg -n 'text: `"compactFooter"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
 rg -n 'text: `"fullFooter"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
+if rg -n 'capture: [0-9]+ - item.*text: `<template is=' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+  echo "Template usage leaked into page outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `"loadingRow"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+  echo "Template usage name leaked into page outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `<user-card' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+  echo "Component usage leaked into page outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `user-card`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+  echo "Component usage name leaked into page outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `<block' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+  echo "Block element leaked into component outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `<slot' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+  echo "Slot element leaked into component outline items" >&2
+  exit 1
+fi
+if rg -n 'capture: [0-9]+ - item.*text: `"header"`' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+  echo "Slot name leaked into component outline items" >&2
+  exit 1
+fi
 
 rg -n 'text: `theme`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
 rg -n 'text: `loading \? .is-loading. : ..`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
