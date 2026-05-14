@@ -577,6 +577,49 @@ function assertTemplateDocumentSymbols(graph) {
   );
 }
 
+function assertDuplicateTemplateDocumentSymbols(graph) {
+  const withFirstDefinition = graphWithTemplateSymbol(
+    graph,
+    "fixtures/miniprogram/pages/home/home.wxml",
+    {
+      kind: "template",
+      name: "duplicateLocalSymbol",
+      range: templateSymbolRange(21, 24),
+    },
+  );
+  const testGraph = graphWithTemplateSymbol(
+    withFirstDefinition,
+    "fixtures/miniprogram/pages/home/home.wxml",
+    {
+      kind: "template",
+      name: "duplicateLocalSymbol",
+      range: templateSymbolRange(25, 28),
+    },
+  );
+  const symbols = getDocumentSymbols({ graph: testGraph, documentPath: HOME_WXML, extensionRoot: ROOT });
+  const duplicateSymbols = symbols.filter((symbol) => symbol.name === "duplicateLocalSymbol");
+  assertDeepEqual(
+    duplicateSymbols,
+    [
+      {
+        name: "duplicateLocalSymbol",
+        kind: 12,
+        detail: "template",
+        range: { start: { line: 21, character: 2 }, end: { line: 24, character: 13 } },
+        selectionRange: { start: { line: 21, character: 2 }, end: { line: 24, character: 13 } },
+      },
+      {
+        name: "duplicateLocalSymbol",
+        kind: 12,
+        detail: "template",
+        range: { start: { line: 25, character: 2 }, end: { line: 28, character: 13 } },
+        selectionRange: { start: { line: 25, character: 2 }, end: { line: 28, character: 13 } },
+      },
+    ],
+    "duplicate template document symbols",
+  );
+}
+
 function assertComponentUsageExcluded(graph) {
   const symbols = getDocumentSymbols({ graph, documentPath: USER_CARD_WXML, extensionRoot: ROOT });
   assertDeepEqual(symbols, [], "component usage symbols should be excluded");
@@ -607,4 +650,5 @@ assertMissingWxsDependencyReturnsNull(graph);
 assertOutsideRootWxsDependencyReturnsNull(graph);
 assertHomeDocumentSymbols(graph);
 assertTemplateDocumentSymbols(graph);
+assertDuplicateTemplateDocumentSymbols(graph);
 assertComponentUsageExcluded(graph);
