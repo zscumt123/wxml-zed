@@ -23,7 +23,7 @@ git submodule.
 | Basic tag editing through bracket matching, autoclose pairs, comments, and snippets | Yes |
 | Tree-sitter parse/query verification script | Yes |
 | Pre-LSP dependency and symbol model extractor | Yes |
-| Pre-LSP project graph extractor for local mini program fixtures | Yes |
+| Pre-LSP project graph extractor for pages, subpackages, local components, and app-global components | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
 | Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and static templates | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
@@ -111,7 +111,8 @@ It intentionally does not provide symbol indexing, dynamic template navigation,
 template visibility-rule navigation,
 completion, hover, nested structural document symbols, semantic tokens, code
 actions, formatting, file watching, npm/plugin component resolution,
-`componentGenerics`, `subPackages`, or production Node runtime packaging.
+`componentGenerics`, independent-subpackage component isolation rules, or
+production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -138,10 +139,11 @@ custom component candidates. It does not validate file existence, read
 behavior.
 
 `scripts/extract-wxml-project-graph.mjs` emits a deterministic JSON graph for a
-single mini program project root. It reads `app.json`, page and component JSON
-files, local relative `usingComponents`, and the existing WXML symbol model. It
-does not resolve npm components, plugin components, `subPackages`, watch mode,
-or editor navigation.
+single mini program project root. It reads top-level `app.json.pages`,
+`app.json.subPackages` / `subpackages`, app-global and owner-local
+`usingComponents`, local relative component paths, local root-absolute component
+paths, and the existing WXML symbol model. It does not resolve npm components,
+plugin components, `componentGenerics`, watch mode, or editor navigation.
 
 `server/wxml-lsp.mjs` is a minimal stdio LSP prototype and protocol host. WXML
 feature mapping lives in `server/wxml-language-service.mjs`, which converts the
@@ -158,8 +160,10 @@ modules, imports, and includes. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
 `components/user-card/user-card.wxml`, resolves the top-level `import`,
 `include`, and external `wxs` declarations to their target files, resolves the
-static `loadingRow` template usage to `templates/common.wxml`, and returns
-document symbols for those dependency entries. Diagnostics still run on
+static `loadingRow` template usage to `templates/common.wxml`, resolves the
+subpackage `<global-badge>` usage through app-global `usingComponents`, resolves
+the home page `<global-badge>` usage through the owner-local override, and
+returns document symbols for those dependency entries. Diagnostics still run on
 open/save only; there is no file watching, incremental parsing, nested
 structural document symbols, component usage symbols, JSON document symbols,
 dynamic template navigation, template visibility-rule navigation, npm/plugin
