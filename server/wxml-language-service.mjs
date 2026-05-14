@@ -145,16 +145,40 @@ function dependencyDefinitionForPosition({ graph, documentGraphPath, fileModel, 
   return locationForGraphPath(target, extensionRoot);
 }
 
-function templateDefinitionsForName(graph, name) {
-  const matches = [];
-  for (const fileModel of graph.wxml) {
-    for (const symbol of fileModel.symbols) {
-      if (symbol.kind === "template" && symbol.name === name) {
-        matches.push({ fileModel, symbol });
-      }
-    }
+function templateDefinitionsInFile(fileModel, name) {
+  return fileModel.symbols
+    .filter((symbol) => symbol.kind === "template" && symbol.name === name)
+    .map((symbol) => ({ fileModel, symbol }));
+}
+
+function directTemplateDependencyFiles(graph, fileModel) {
+  const filesByPath = new Map(graph.wxml.map((entry) => [entry.path, entry]));
+  const seen = new Set();
+  const files = [];
+
+  for (const dependency of fileModel.dependencies) {
+    if (dependency.kind !== "import" && dependency.kind !== "include") continue;
+    if (typeof dependency.normalized !== "string") continue;
+    if (seen.has(dependency.normalized)) continue;
+
+    const dependencyFile = filesByPath.get(dependency.normalized);
+    if (!dependencyFile) continue;
+
+    seen.add(dependency.normalized);
+    files.push(dependencyFile);
   }
-  return matches;
+
+  return files;
+}
+
+function visibleTemplateDefinitions(graph, fileModel, name) {
+  const localMatches = templateDefinitionsInFile(fileModel, name);
+  if (localMatches.length > 0) {
+    return localMatches;
+  }
+
+  return directTemplateDependencyFiles(graph, fileModel)
+    .flatMap((dependencyFile) => templateDefinitionsInFile(dependencyFile, name));
 }
 
 function templateDefinitionForPosition({ graph, fileModel, position, extensionRoot }) {
@@ -169,7 +193,7 @@ function templateDefinitionForPosition({ graph, fileModel, position, extensionRo
     return null;
   }
 
-  const matches = templateDefinitionsForName(graph, reference.name);
+  const matches = visibleTemplateDefinitions(graph, fileModel, reference.name);
   if (matches.length !== 1) {
     return null;
   }

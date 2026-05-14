@@ -1,5 +1,5 @@
 <import src="../../templates/common.wxml" />
-<include src="../../shared/header.wxml" />
+<include src="../../templates/secondary.wxml" />
 <wxs module="format" src="../../utils/format.wxs" />
 
 <view class="home {{theme}}">

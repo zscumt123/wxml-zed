@@ -347,18 +347,20 @@ assertSingleResolvedComponent(
 );
 
 const home = wxml("fixtures/miniprogram/pages/home/home.wxml");
-wxml("fixtures/miniprogram/pages/detail/detail.wxml");
+const detail = wxml("fixtures/miniprogram/pages/detail/detail.wxml");
 wxml("fixtures/miniprogram/components/user-card/user-card.wxml");
 wxml("fixtures/miniprogram/components/status-badge/status-badge.wxml");
 wxml("fixtures/miniprogram/components/global-badge/global-badge.wxml");
 wxml("fixtures/miniprogram/components/local-badge/local-badge.wxml");
 wxml("fixtures/miniprogram/packages/shop/pages/list/list.wxml");
-wxml("fixtures/miniprogram/shared/header.wxml");
 wxml("fixtures/miniprogram/templates/common.wxml");
+wxml("fixtures/miniprogram/templates/secondary.wxml");
+wxml("fixtures/miniprogram/templates/unrelated.wxml");
 
 assert(hasDependency(home, "import", "fixtures/miniprogram/templates/common.wxml"), "Missing common template import dependency");
-assert(hasDependency(home, "include", "fixtures/miniprogram/shared/header.wxml"), "Missing shared header include dependency");
+assert(hasDependency(home, "include", "fixtures/miniprogram/templates/secondary.wxml"), "Missing secondary template include dependency");
 assert(hasDependency(home, "wxs", "fixtures/miniprogram/utils/format.wxs"), "Missing format wxs dependency");
+assert(hasDependency(detail, "import", "fixtures/miniprogram/templates/unrelated.wxml"), "Missing unrelated template import dependency");
 assert(home.references.some((reference) => reference.kind === "template" && reference.name === "loadingRow"), "Missing loadingRow template reference");
 assert(home.components.some((component) => component.tag === "user-card"), "Missing user-card component candidate");
 assert(home.components.some((component) => component.tag === "global-badge"), "Missing home global-badge component candidate");

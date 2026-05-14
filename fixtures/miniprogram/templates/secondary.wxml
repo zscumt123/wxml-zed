@@ -1,0 +1,5 @@
+<template name="secondaryRow">
+  <view class="secondary-row">
+    <text>{{label}}</text>
+  </view>
+</template>

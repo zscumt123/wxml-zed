@@ -15,7 +15,7 @@ const MINIPROGRAM_ROOT = path.join(ROOT, "fixtures/miniprogram");
 const HOME_WXML = path.join(MINIPROGRAM_ROOT, "pages/home/home.wxml");
 const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
-const HEADER_WXML = path.join(MINIPROGRAM_ROOT, "shared/header.wxml");
+const SECONDARY_WXML = path.join(MINIPROGRAM_ROOT, "templates/secondary.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
@@ -137,7 +137,7 @@ function assertIncludeDefinition(graph) {
     position: { line: 1, character: 2 },
     extensionRoot: ROOT,
   });
-  assertLocationTarget(location, HEADER_WXML, "include definition");
+  assertLocationTarget(location, SECONDARY_WXML, "include definition");
 }
 
 function assertExternalWxsDefinition(graph) {
@@ -181,6 +181,12 @@ function dependencyRange(line) {
 }
 
 function graphWithDependency(graph, dependency) {
+  const nextGraph = cloneGraph(graph);
+  homeFileModel(nextGraph).dependencies.push(dependency);
+  return nextGraph;
+}
+
+function graphWithHomeDependency(graph, dependency) {
   const nextGraph = cloneGraph(graph);
   homeFileModel(nextGraph).dependencies.push(dependency);
   return nextGraph;
@@ -245,6 +251,46 @@ function assertTemplateDefinitionUsesSymbolRange(graph) {
   );
 }
 
+function assertLocalTemplateDefinitionShadowsDependency(graph) {
+  const testGraphWithReference = graphWithTemplateReference(graph, {
+    kind: "template",
+    dynamic: false,
+    raw: "localShadow",
+    name: "localShadow",
+    range: templateReferenceRange(64),
+  });
+  const withDependencyDefinition = graphWithTemplateSymbol(
+    testGraphWithReference,
+    "fixtures/miniprogram/templates/common.wxml",
+    {
+      kind: "template",
+      name: "localShadow",
+      range: templateSymbolRange(13, 14),
+    },
+  );
+  const testGraph = graphWithTemplateSymbol(
+    withDependencyDefinition,
+    "fixtures/miniprogram/pages/home/home.wxml",
+    {
+      kind: "template",
+      name: "localShadow",
+      range: templateSymbolRange(21, 24),
+    },
+  );
+  const location = getDefinition({
+    graph: testGraph,
+    documentPath: HOME_WXML,
+    position: { line: 64, character: 2 },
+    extensionRoot: ROOT,
+  });
+  assertLocation(
+    location,
+    HOME_WXML,
+    { start: { line: 21, character: 2 }, end: { line: 24, character: 13 } },
+    "local template definition shadows dependency",
+  );
+}
+
 function assertDynamicTemplateDefinitionReturnsNull(graph) {
   const testGraph = graphWithTemplateReference(graph, {
     kind: "template",
@@ -278,30 +324,30 @@ function assertMissingTemplateDefinitionReturnsNull(graph) {
   assertNullLocation(location, "missing template definition");
 }
 
-function assertDuplicateTemplateDefinitionReturnsNull(graph) {
+function assertDuplicateLocalTemplateDefinitionsReturnNull(graph) {
   const testGraphWithReference = graphWithTemplateReference(graph, {
     kind: "template",
     dynamic: false,
-    raw: "duplicateTemplate",
-    name: "duplicateTemplate",
+    raw: "duplicateLocal",
+    name: "duplicateLocal",
     range: templateReferenceRange(63),
   });
   const withFirstDefinition = graphWithTemplateSymbol(
     testGraphWithReference,
-    "fixtures/miniprogram/templates/common.wxml",
+    "fixtures/miniprogram/pages/home/home.wxml",
     {
       kind: "template",
-      name: "duplicateTemplate",
-      range: templateSymbolRange(13, 14),
+      name: "duplicateLocal",
+      range: templateSymbolRange(21, 24),
     },
   );
   const testGraph = graphWithTemplateSymbol(
     withFirstDefinition,
-    "fixtures/miniprogram/pages/detail/detail.wxml",
+    "fixtures/miniprogram/pages/home/home.wxml",
     {
       kind: "template",
-      name: "duplicateTemplate",
-      range: templateSymbolRange(3, 4),
+      name: "duplicateLocal",
+      range: templateSymbolRange(25, 28),
     },
   );
   const location = getDefinition({
@@ -310,7 +356,105 @@ function assertDuplicateTemplateDefinitionReturnsNull(graph) {
     position: { line: 63, character: 2 },
     extensionRoot: ROOT,
   });
-  assertNullLocation(location, "duplicate template definition");
+  assertNullLocation(location, "duplicate local template definitions");
+}
+
+function assertDuplicateDirectDependencyTemplateDefinitionsReturnNull(graph) {
+  const testGraphWithReference = graphWithTemplateReference(graph, {
+    kind: "template",
+    dynamic: false,
+    raw: "duplicateDependency",
+    name: "duplicateDependency",
+    range: templateReferenceRange(65),
+  });
+  const withCommonDefinition = graphWithTemplateSymbol(
+    testGraphWithReference,
+    "fixtures/miniprogram/templates/common.wxml",
+    {
+      kind: "template",
+      name: "duplicateDependency",
+      range: templateSymbolRange(13, 14),
+    },
+  );
+  const testGraph = graphWithTemplateSymbol(
+    withCommonDefinition,
+    "fixtures/miniprogram/templates/secondary.wxml",
+    {
+      kind: "template",
+      name: "duplicateDependency",
+      range: templateSymbolRange(0, 4),
+    },
+  );
+  const location = getDefinition({
+    graph: testGraph,
+    documentPath: HOME_WXML,
+    position: { line: 65, character: 2 },
+    extensionRoot: ROOT,
+  });
+  assertNullLocation(location, "duplicate direct dependency template definitions");
+}
+
+function assertTemplateOutsideDirectDependenciesReturnsNull(graph) {
+  const testGraphWithReference = graphWithTemplateReference(graph, {
+    kind: "template",
+    dynamic: false,
+    raw: "detailOnlyTemplate",
+    name: "detailOnlyTemplate",
+    range: templateReferenceRange(66),
+  });
+  const testGraph = graphWithTemplateSymbol(
+    testGraphWithReference,
+    "fixtures/miniprogram/pages/detail/detail.wxml",
+    {
+      kind: "template",
+      name: "detailOnlyTemplate",
+      range: templateSymbolRange(5, 8),
+    },
+  );
+  const location = getDefinition({
+    graph: testGraph,
+    documentPath: HOME_WXML,
+    position: { line: 66, character: 2 },
+    extensionRoot: ROOT,
+  });
+  assertNullLocation(location, "template outside direct dependencies");
+}
+
+function assertDuplicateDependencyEntriesDoNotDuplicateTemplateDefinitions(graph) {
+  const testGraphWithReference = graphWithTemplateReference(graph, {
+    kind: "template",
+    dynamic: false,
+    raw: "singleViaDuplicateDependency",
+    name: "singleViaDuplicateDependency",
+    range: templateReferenceRange(67),
+  });
+  const withDefinition = graphWithTemplateSymbol(
+    testGraphWithReference,
+    "fixtures/miniprogram/templates/common.wxml",
+    {
+      kind: "template",
+      name: "singleViaDuplicateDependency",
+      range: templateSymbolRange(13, 14),
+    },
+  );
+  const testGraph = graphWithHomeDependency(withDefinition, {
+    kind: "include",
+    value: "../../templates/common.wxml",
+    normalized: "fixtures/miniprogram/templates/common.wxml",
+    range: dependencyRange(68),
+  });
+  const location = getDefinition({
+    graph: testGraph,
+    documentPath: HOME_WXML,
+    position: { line: 67, character: 2 },
+    extensionRoot: ROOT,
+  });
+  assertLocation(
+    location,
+    COMMON_WXML,
+    { start: { line: 13, character: 2 }, end: { line: 14, character: 13 } },
+    "duplicate dependency entries should count one template definition",
+  );
 }
 
 function assertNonTemplateDefinitionReturnsNull(graph) {
@@ -380,7 +524,7 @@ function assertHomeDocumentSymbols(graph) {
     symbols.map((symbol) => [symbol.name, symbol.kind, symbol.detail]),
     [
       ["fixtures/miniprogram/templates/common.wxml", 1, "import"],
-      ["fixtures/miniprogram/shared/header.wxml", 1, "include"],
+      ["fixtures/miniprogram/templates/secondary.wxml", 1, "include"],
       ["format", 2, "wxs"],
     ],
     "home document symbol identity/order",
@@ -389,7 +533,7 @@ function assertHomeDocumentSymbols(graph) {
     symbols.map((symbol) => symbol.range),
     [
       { start: { line: 0, character: 0 }, end: { line: 0, character: 44 } },
-      { start: { line: 1, character: 0 }, end: { line: 1, character: 42 } },
+      { start: { line: 1, character: 0 }, end: { line: 1, character: 48 } },
       { start: { line: 2, character: 0 }, end: { line: 2, character: 52 } },
     ],
     "home document symbol ranges",
@@ -434,9 +578,13 @@ assertIncludeDefinition(graph);
 assertExternalWxsDefinition(graph);
 assertStaticTemplateDefinition(graph);
 assertTemplateDefinitionUsesSymbolRange(graph);
+assertLocalTemplateDefinitionShadowsDependency(graph);
 assertDynamicTemplateDefinitionReturnsNull(graph);
 assertMissingTemplateDefinitionReturnsNull(graph);
-assertDuplicateTemplateDefinitionReturnsNull(graph);
+assertDuplicateLocalTemplateDefinitionsReturnNull(graph);
+assertDuplicateDirectDependencyTemplateDefinitionsReturnNull(graph);
+assertTemplateOutsideDirectDependenciesReturnsNull(graph);
+assertDuplicateDependencyEntriesDoNotDuplicateTemplateDefinitions(graph);
 assertNonTemplateDefinitionReturnsNull(graph);
 assertMissingWxmlDependencyReturnsNull(graph);
 assertMissingWxsDependencyReturnsNull(graph);

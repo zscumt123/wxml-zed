@@ -1,0 +1,5 @@
+<template name="loadingRow">
+  <view class="unrelated-loading-row">
+    <text>{{message}}</text>
+  </view>
+</template>
