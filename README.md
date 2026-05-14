@@ -25,10 +25,10 @@ git submodule.
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for pages, subpackages, local components, and app-global components | Yes |
 | Prototype LSP diagnostics for missing local `usingComponents` | Yes |
-| Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and static templates | Yes |
+| Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and direct-scope static templates | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
-| Dynamic template, template visibility-rule, npm/plugin component, and full component resolution navigation | Planned |
+| Dynamic template, recursive/full template visibility, npm/plugin component, and full component resolution navigation | Planned |
 
 ## Install
 
@@ -105,10 +105,11 @@ When changing queries or snippets:
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
 missing local component diagnostics, go-to-definition for resolved local WXML
 component tags, go-to-definition for WXML import/include and external WXS file
-dependencies, go-to-definition for static template usages with unique matching
-definitions, and flat document symbols for WXML declaration/dependency entries.
+dependencies, go-to-definition for static template usages within the current
+file and direct `import` / `include` dependencies, and flat document symbols for
+WXML declaration/dependency entries.
 It intentionally does not provide symbol indexing, dynamic template navigation,
-template visibility-rule navigation,
+recursive/full template visibility,
 completion, hover, nested structural document symbols, semantic tokens, code
 actions, formatting, file watching, npm/plugin component resolution,
 `componentGenerics`, independent-subpackage component isolation rules, or
@@ -154,8 +155,9 @@ tags in the current WXML file. It supports go-to-definition from resolved local
 custom component tags to their target `.wxml` files, from WXML
 `import`/`include` declarations to their target `.wxml` files, and from external
 WXS declarations to their target `.wxs` files, and from static template usages
-to unique matching template definitions. It also returns a flat document-symbol
-list for WXML declaration/dependency entries such as template definitions, WXS
+to matching template definitions in the current file or direct `import` /
+`include` dependencies. It also returns a flat document-symbol list for WXML
+declaration/dependency entries such as template definitions, WXS
 modules, imports, and includes. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
 `components/user-card/user-card.wxml`, resolves the top-level `import`,
@@ -166,7 +168,7 @@ the home page `<global-badge>` usage through the owner-local override, and
 returns document symbols for those dependency entries. Diagnostics still run on
 open/save only; there is no file watching, incremental parsing, nested
 structural document symbols, component usage symbols, JSON document symbols,
-dynamic template navigation, template visibility-rule navigation, npm/plugin
+dynamic template navigation, recursive/full template visibility, npm/plugin
 component navigation, or `componentGenerics`
 support.
 

@@ -12,7 +12,7 @@ const HOME_WXML = path.join(MINIPROGRAM_ROOT, "pages/home/home.wxml");
 const USER_CARD_WXML = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 const STATUS_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/status-badge/status-badge.wxml");
 const COMMON_WXML = path.join(MINIPROGRAM_ROOT, "templates/common.wxml");
-const HEADER_WXML = path.join(MINIPROGRAM_ROOT, "shared/header.wxml");
+const SECONDARY_WXML = path.join(MINIPROGRAM_ROOT, "templates/secondary.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
@@ -132,7 +132,7 @@ function assertHomeDocumentSymbols(symbols) {
     symbols.map((symbol) => [symbol.name, symbol.kind, symbol.detail]),
     [
       ["fixtures/miniprogram/templates/common.wxml", 1, "import"],
-      ["fixtures/miniprogram/shared/header.wxml", 1, "include"],
+      ["fixtures/miniprogram/templates/secondary.wxml", 1, "include"],
       ["format", 2, "wxs"],
     ],
     "home document symbol identity/order",
@@ -141,7 +141,7 @@ function assertHomeDocumentSymbols(symbols) {
     symbols.map((symbol) => symbol.range),
     [
       { start: { line: 0, character: 0 }, end: { line: 0, character: 44 } },
-      { start: { line: 1, character: 0 }, end: { line: 1, character: 42 } },
+      { start: { line: 1, character: 0 }, end: { line: 1, character: 48 } },
       { start: { line: 2, character: 0 }, end: { line: 2, character: 52 } },
     ],
     "home document symbol ranges",
@@ -503,7 +503,7 @@ async function testIncludeDefinition() {
     const uri = client.openDocument(HOME_WXML);
     await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before include definition");
     const result = await client.definition(HOME_WXML, { line: 1, character: 2 });
-    assertLocationTarget(result, HEADER_WXML);
+    assertLocationTarget(result, SECONDARY_WXML);
   });
 }
 
