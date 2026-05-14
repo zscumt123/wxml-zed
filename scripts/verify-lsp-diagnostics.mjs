@@ -530,6 +530,20 @@ async function testStaticTemplateDefinition() {
   });
 }
 
+async function testDirectIncludeTemplateDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before direct include template definition");
+    const result = await client.definition(HOME_WXML, { line: 21, character: 4 });
+    assertLocation(
+      result,
+      SECONDARY_WXML,
+      { start: { line: 0, character: 0 }, end: { line: 4, character: 11 } },
+      "direct include template definition",
+    );
+  });
+}
+
 async function testNestedComponentDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(USER_CARD_WXML);
@@ -784,6 +798,7 @@ const scenarios = [
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
   ["static template definition", testStaticTemplateDefinition],
+  ["direct include template definition", testDirectIncludeTemplateDefinition],
   ["nested component definition", testNestedComponentDefinition],
   ["missing component definition returns null", testMissingComponentDefinitionReturnsNull],
   ["non-component definition returns null", testNonComponentDefinitionReturnsNull],

@@ -19,3 +19,4 @@
     {{format.price(total)}}
   </view>
 </view>
+<template is="secondaryRow" data="{{label: 'Secondary'}}" />

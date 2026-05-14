@@ -362,6 +362,7 @@ assert(hasDependency(home, "include", "fixtures/miniprogram/templates/secondary.
 assert(hasDependency(home, "wxs", "fixtures/miniprogram/utils/format.wxs"), "Missing format wxs dependency");
 assert(hasDependency(detail, "import", "fixtures/miniprogram/templates/unrelated.wxml"), "Missing unrelated template import dependency");
 assert(home.references.some((reference) => reference.kind === "template" && reference.name === "loadingRow"), "Missing loadingRow template reference");
+assert(home.references.some((reference) => reference.kind === "template" && reference.name === "secondaryRow"), "Missing secondaryRow template reference");
 assert(home.components.some((component) => component.tag === "user-card"), "Missing user-card component candidate");
 assert(home.components.some((component) => component.tag === "global-badge"), "Missing home global-badge component candidate");
 for (const tag of ["view", "text"]) {

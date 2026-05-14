@@ -165,6 +165,21 @@ function assertStaticTemplateDefinition(graph) {
   );
 }
 
+function assertDirectIncludeTemplateDefinition(graph) {
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 21, character: 4 },
+    extensionRoot: ROOT,
+  });
+  assertLocation(
+    location,
+    SECONDARY_WXML,
+    { start: { line: 0, character: 0 }, end: { line: 4, character: 11 } },
+    "direct include template definition",
+  );
+}
+
 function cloneGraph(graph) {
   return JSON.parse(JSON.stringify(graph));
 }
@@ -577,6 +592,7 @@ assertImportDefinition(graph);
 assertIncludeDefinition(graph);
 assertExternalWxsDefinition(graph);
 assertStaticTemplateDefinition(graph);
+assertDirectIncludeTemplateDefinition(graph);
 assertTemplateDefinitionUsesSymbolRange(graph);
 assertLocalTemplateDefinitionShadowsDependency(graph);
 assertDynamicTemplateDefinitionReturnsNull(graph);
