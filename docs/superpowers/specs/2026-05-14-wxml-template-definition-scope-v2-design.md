@@ -75,6 +75,10 @@ For a template reference in owner file `owner.wxml`, the visible file list is:
 
 Do not traverse dependencies of those dependency files.
 
+Direct dependency files are de-duplicated by `dependency.normalized`. If the
+same file is imported and included, or declared twice, its template symbols count
+once for conflict detection.
+
 Ignore external WXS dependencies for template visibility.
 
 ### Nearest Definition Rule
@@ -132,6 +136,7 @@ Extend `fixtures/miniprogram/` with focused template scope fixtures:
 ```text
 fixtures/miniprogram/
   pages/home/home.wxml
+  pages/detail/detail.wxml
   templates/common.wxml
   templates/secondary.wxml
   templates/unrelated.wxml
@@ -141,13 +146,15 @@ Required fixture behavior:
 
 - `pages/home/home.wxml` imports `../../templates/common.wxml`.
 - `pages/home/home.wxml` includes `../../templates/secondary.wxml`.
+- `pages/detail/detail.wxml` imports `../../templates/unrelated.wxml`.
 - `templates/common.wxml` defines `loadingRow`.
 - `templates/unrelated.wxml` also defines `loadingRow`, but is not a direct
   dependency of `pages/home/home.wxml`.
 - `pages/home/home.wxml` uses `<template is="loadingRow" />`.
 
-This proves unrelated graph-wide duplicates no longer disable a direct visible
-template definition.
+This makes `templates/unrelated.wxml` enter `graph.wxml` through another page
+while proving unrelated graph-wide duplicates no longer disable a direct visible
+template definition for `pages/home/home.wxml`.
 
 Additional conflict tests can be synthetic graph tests in
 `scripts/verify-wxml-language-service.mjs` so the fixture tree does not need many
