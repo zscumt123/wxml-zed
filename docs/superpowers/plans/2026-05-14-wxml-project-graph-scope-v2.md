@@ -12,7 +12,7 @@
 
 ## File Structure
 
-- Modify `fixtures/miniprogram/app.json`: add app-global `usingComponents` and `subPackages`.
+- Modify `fixtures/miniprogram/app.json`: add app-global `usingComponents`, `subPackages`, and duplicate `subpackages` coverage.
 - Modify `fixtures/miniprogram/pages/home/home.json`: add local override for `global-badge`.
 - Modify `fixtures/miniprogram/pages/home/home.wxml`: use local override `<global-badge />` immediately after `<missing-card />`.
 - Create `fixtures/miniprogram/components/global-badge/global-badge.json`.
@@ -101,11 +101,20 @@ Replace `fixtures/miniprogram/app.json` with:
       ]
     }
   ],
+  "subpackages": [
+    {
+      "root": "/packages/shop/",
+      "pages": [
+        "/pages/list/list"
+      ]
+    }
+  ],
   "window": {
     "navigationBarTitleText": "WXML Fixture"
   },
   "usingComponents": {
-    "global-badge": "/components/global-badge/global-badge"
+    "global-badge": "/components/global-badge/global-badge",
+    "relative-badge": "./components/global-badge/global-badge"
   }
 }
 ```
@@ -211,6 +220,10 @@ function matchingComponents(owner, tag) {
   ));
 }
 
+function pageCount(name) {
+  return graph.pages.filter((page) => page.name === name).length;
+}
+
 function assertSingleResolvedComponent(owner, tag, value, target) {
   const matches = matchingComponents(owner, tag);
   assert(matches.length === 1, `Expected one ${tag} component for ${owner}, got ${matches.length}: ${JSON.stringify(matches)}`);
@@ -227,6 +240,7 @@ In the same `node -e` block, add these assertions after the existing `assert(has
 
 ```javascript
 assert(hasPage("packages/shop/pages/list/list"), "Missing shop list subpackage page");
+assert(pageCount("packages/shop/pages/list/list") === 1, "Shop list subpackage page should be de-duplicated");
 ```
 
 Add these config assertions after the existing status-badge config assertion:
@@ -244,6 +258,12 @@ assertSingleResolvedComponent(
   "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
   "global-badge",
   "/components/global-badge/global-badge",
+  "fixtures/miniprogram/components/global-badge/global-badge.wxml",
+);
+assertSingleResolvedComponent(
+  "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
+  "relative-badge",
+  "./components/global-badge/global-badge",
   "fixtures/miniprogram/components/global-badge/global-badge.wxml",
 );
 assertSingleResolvedComponent(
@@ -379,16 +399,31 @@ function collectPageNames(appJson) {
 }
 ```
 
-- [ ] **Step 4: Add effective component merge helper**
+- [ ] **Step 4: Add effective component declaration helpers**
 
 Add this helper after `collectPageNames(appJson)`:
 
 ```javascript
-function effectiveUsingComponents(appUsingComponents, ownerUsingComponents) {
-  return {
-    ...appUsingComponents,
-    ...ownerUsingComponents,
-  };
+function usingComponentDeclarations(declaringJsonPath, components) {
+  return Object.entries(components).map(([tag, value]) => ({
+    tag,
+    value: String(value),
+    declaringJsonPath,
+  }));
+}
+
+function effectiveUsingComponentDeclarations(appJsonPath, appUsingComponents, ownerJsonPath, ownerUsingComponents) {
+  const byTag = new Map();
+
+  for (const declaration of usingComponentDeclarations(appJsonPath, appUsingComponents)) {
+    byTag.set(declaration.tag, declaration);
+  }
+
+  for (const declaration of usingComponentDeclarations(ownerJsonPath, ownerUsingComponents)) {
+    byTag.set(declaration.tag, declaration);
+  }
+
+  return [...byTag.values()];
 }
 ```
 
@@ -411,14 +446,26 @@ In `readOwnerConfig(jsonPath, wxmlPath, kind)`, replace the component loop:
 With:
 
 ```javascript
-    const ownerUsingComponents = kind === "app"
-      ? readUsingComponents(config)
-      : effectiveUsingComponents(appUsingComponents, readUsingComponents(config));
+    const componentDeclarations = kind === "app"
+      ? usingComponentDeclarations(jsonPath, readUsingComponents(config))
+      : effectiveUsingComponentDeclarations(appJsonPath, appUsingComponents, jsonPath, readUsingComponents(config));
 
-    for (const [tag, value] of Object.entries(ownerUsingComponents)) {
+    for (const { tag, value, declaringJsonPath } of componentDeclarations) {
 ```
 
-This keeps app-global entries available for page/component owners and avoids duplicating app entries on the app config itself.
+Then replace the resolver call inside that loop:
+
+```javascript
+      const entry = resolveUsingComponent(projectRoot, jsonPath, wxmlPath, tag, String(value));
+```
+
+With:
+
+```javascript
+      const entry = resolveUsingComponent(projectRoot, declaringJsonPath, wxmlPath, tag, value);
+```
+
+This keeps app-global entries available for page/component owners, preserves the JSON file that declared each component value for relative-path resolution, and avoids duplicating app entries on the app config itself.
 
 - [ ] **Step 7: Use collected page names**
 
@@ -440,15 +487,16 @@ Run:
 
 ```bash
 node scripts/extract-wxml-project-graph.mjs fixtures/miniprogram >/tmp/wxml-zed-project-graph-v2.json
-node -e 'const fs=require("fs"); const graph=JSON.parse(fs.readFileSync("/tmp/wxml-zed-project-graph-v2.json","utf8")); console.log(graph.pages.map((p)=>p.name).join("\n")); console.log(graph.usingComponents.filter((c)=>c.tag==="global-badge").map((c)=>`${c.owner} -> ${c.value} -> ${c.target}`).join("\n"));'
+node -e 'const fs=require("fs"); const graph=JSON.parse(fs.readFileSync("/tmp/wxml-zed-project-graph-v2.json","utf8")); console.log(graph.pages.map((p)=>p.name).join("\n")); console.log(graph.usingComponents.filter((c)=>["global-badge","relative-badge"].includes(c.tag)).map((c)=>`${c.owner} -> ${c.tag} -> ${c.value} -> ${c.target}`).join("\n"));'
 ```
 
 Expected output includes:
 
 ```text
 packages/shop/pages/list/list
-fixtures/miniprogram/pages/home/home.wxml -> ../../components/local-badge/local-badge -> fixtures/miniprogram/components/local-badge/local-badge.wxml
-fixtures/miniprogram/packages/shop/pages/list/list.wxml -> /components/global-badge/global-badge -> fixtures/miniprogram/components/global-badge/global-badge.wxml
+fixtures/miniprogram/pages/home/home.wxml -> global-badge -> ../../components/local-badge/local-badge -> fixtures/miniprogram/components/local-badge/local-badge.wxml
+fixtures/miniprogram/packages/shop/pages/list/list.wxml -> global-badge -> /components/global-badge/global-badge -> fixtures/miniprogram/components/global-badge/global-badge.wxml
+fixtures/miniprogram/packages/shop/pages/list/list.wxml -> relative-badge -> ./components/global-badge/global-badge -> fixtures/miniprogram/components/global-badge/global-badge.wxml
 ```
 
 - [ ] **Step 9: Run total verification**
