@@ -1,0 +1,3 @@
+<view class="global-badge">
+  <text>{{label}}</text>
+</view>

@@ -257,6 +257,26 @@ function hasResolvedComponent(owner, tag, target) {
   ));
 }
 
+function matchingComponents(owner, tag) {
+  return graph.usingComponents.filter((component) => (
+    component.owner === owner &&
+    component.tag === tag
+  ));
+}
+
+function pageCount(name) {
+  return graph.pages.filter((page) => page.name === name).length;
+}
+
+function assertSingleResolvedComponent(owner, tag, value, target) {
+  const matches = matchingComponents(owner, tag);
+  assert(matches.length === 1, `Expected one ${tag} component for ${owner}, got ${matches.length}: ${JSON.stringify(matches)}`);
+  const [component] = matches;
+  assert(component.value === value, `${owner} ${tag} value mismatch: ${component.value}`);
+  assert(component.target === target, `${owner} ${tag} target mismatch: ${component.target}`);
+  assert(component.resolved === true, `${owner} ${tag} should be resolved: ${JSON.stringify(component)}`);
+}
+
 function hasUnresolvedComponent(owner, tag, reason) {
   return graph.unresolved.some((entry) => (
     entry.kind === "component" &&
@@ -280,12 +300,17 @@ assert(graph.version === 1, "Unexpected project graph version");
 assert(graph.root === "fixtures/miniprogram", "Unexpected project graph root");
 assert(hasPage("pages/home/home"), "Missing home page");
 assert(hasPage("pages/detail/detail"), "Missing detail page");
+assert(hasPage("packages/shop/pages/list/list"), "Missing shop list subpackage page");
+assert(pageCount("packages/shop/pages/list/list") === 1, "Shop list subpackage page should be de-duplicated");
 
 assert(hasConfig("fixtures/miniprogram/app.json", "app"), "Missing app config");
 assert(hasConfig("fixtures/miniprogram/pages/home/home.json", "page"), "Missing home page config");
 assert(hasConfig("fixtures/miniprogram/pages/detail/detail.json", "page"), "Missing detail page config");
 assert(hasConfig("fixtures/miniprogram/components/user-card/user-card.json", "component"), "Missing user-card config");
 assert(hasConfig("fixtures/miniprogram/components/status-badge/status-badge.json", "component"), "Missing status-badge config");
+assert(hasConfig("fixtures/miniprogram/packages/shop/pages/list/list.json", "page"), "Missing shop list page config");
+assert(hasConfig("fixtures/miniprogram/components/global-badge/global-badge.json", "component"), "Missing global-badge config");
+assert(hasConfig("fixtures/miniprogram/components/local-badge/local-badge.json", "component"), "Missing local-badge config");
 
 assert(hasResolvedComponent(
   "fixtures/miniprogram/pages/home/home.wxml",
@@ -302,11 +327,32 @@ assert(hasUnresolvedComponent(
   "missing-card",
   "missing-file",
 ), "Missing unresolved missing-card component");
+assertSingleResolvedComponent(
+  "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
+  "global-badge",
+  "/components/global-badge/global-badge",
+  "fixtures/miniprogram/components/global-badge/global-badge.wxml",
+);
+assertSingleResolvedComponent(
+  "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
+  "relative-badge",
+  "./components/global-badge/global-badge",
+  "fixtures/miniprogram/components/global-badge/global-badge.wxml",
+);
+assertSingleResolvedComponent(
+  "fixtures/miniprogram/pages/home/home.wxml",
+  "global-badge",
+  "../../components/local-badge/local-badge",
+  "fixtures/miniprogram/components/local-badge/local-badge.wxml",
+);
 
 const home = wxml("fixtures/miniprogram/pages/home/home.wxml");
 wxml("fixtures/miniprogram/pages/detail/detail.wxml");
 wxml("fixtures/miniprogram/components/user-card/user-card.wxml");
 wxml("fixtures/miniprogram/components/status-badge/status-badge.wxml");
+wxml("fixtures/miniprogram/components/global-badge/global-badge.wxml");
+wxml("fixtures/miniprogram/components/local-badge/local-badge.wxml");
+wxml("fixtures/miniprogram/packages/shop/pages/list/list.wxml");
 wxml("fixtures/miniprogram/shared/header.wxml");
 wxml("fixtures/miniprogram/templates/common.wxml");
 
@@ -315,6 +361,7 @@ assert(hasDependency(home, "include", "fixtures/miniprogram/shared/header.wxml")
 assert(hasDependency(home, "wxs", "fixtures/miniprogram/utils/format.wxs"), "Missing format wxs dependency");
 assert(home.references.some((reference) => reference.kind === "template" && reference.name === "loadingRow"), "Missing loadingRow template reference");
 assert(home.components.some((component) => component.tag === "user-card"), "Missing user-card component candidate");
+assert(home.components.some((component) => component.tag === "global-badge"), "Missing home global-badge component candidate");
 for (const tag of ["view", "text"]) {
   assert(!home.components.some((component) => component.tag === tag), `Builtin tag leaked into project graph component candidates: ${tag}`);
 }

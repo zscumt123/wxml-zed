@@ -29,8 +29,15 @@ function withoutKnownExtension(value) {
   return value.replace(/\.(wxml|json)$/u, "");
 }
 
-function derivedPaths(ownerJsonPath, value) {
-  const base = path.resolve(path.dirname(ownerJsonPath), withoutKnownExtension(value));
+function componentBasePath(projectRoot, ownerJsonPath, value) {
+  if (value.startsWith("/")) {
+    return path.resolve(projectRoot, withoutKnownExtension(value.slice(1)));
+  }
+  return path.resolve(path.dirname(ownerJsonPath), withoutKnownExtension(value));
+}
+
+function derivedPaths(projectRoot, ownerJsonPath, value) {
+  const base = componentBasePath(projectRoot, ownerJsonPath, value);
   return {
     base,
     wxml: `${base}.wxml`,
@@ -77,7 +84,7 @@ function createUnresolved(kind, data) {
 }
 
 function resolveUsingComponent(projectRoot, ownerJsonPath, ownerWxmlPath, tag, value) {
-  if (!value.startsWith("./") && !value.startsWith("../")) {
+  if (!value.startsWith("./") && !value.startsWith("../") && !value.startsWith("/")) {
     return {
       owner: repoRelative(ownerWxmlPath),
       tag,
@@ -87,7 +94,7 @@ function resolveUsingComponent(projectRoot, ownerJsonPath, ownerWxmlPath, tag, v
     };
   }
 
-  const paths = derivedPaths(ownerJsonPath, value);
+  const paths = derivedPaths(projectRoot, ownerJsonPath, value);
   const entry = {
     owner: repoRelative(ownerWxmlPath),
     tag,
@@ -137,6 +144,69 @@ function readUsingComponents(config) {
   return value;
 }
 
+function validPageEntries(value) {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+}
+
+function subpackageEntries(appJson) {
+  return [
+    ...(Array.isArray(appJson.subPackages) ? appJson.subPackages : []),
+    ...(Array.isArray(appJson.subpackages) ? appJson.subpackages : []),
+  ];
+}
+
+function collectPageNames(appJson) {
+  const pageNames = [];
+  const seen = new Set();
+
+  function addPage(name) {
+    if (seen.has(name)) return;
+    seen.add(name);
+    pageNames.push(name);
+  }
+
+  for (const pageName of validPageEntries(appJson.pages)) {
+    addPage(pageName);
+  }
+
+  for (const item of subpackageEntries(appJson)) {
+    if (!item || typeof item.root !== "string" || !Array.isArray(item.pages)) {
+      continue;
+    }
+    const root = item.root.replace(/^\/+|\/+$/gu, "");
+    if (!root) {
+      continue;
+    }
+    for (const pageName of validPageEntries(item.pages)) {
+      addPage(`${root}/${pageName.replace(/^\/+/u, "")}`);
+    }
+  }
+
+  return pageNames;
+}
+
+function usingComponentDeclarations(declaringJsonPath, components) {
+  return Object.entries(components).map(([tag, value]) => ({
+    tag,
+    value: String(value),
+    declaringJsonPath,
+  }));
+}
+
+function effectiveUsingComponentDeclarations(appJsonPath, appUsingComponents, ownerJsonPath, ownerUsingComponents) {
+  const byTag = new Map();
+
+  for (const declaration of usingComponentDeclarations(appJsonPath, appUsingComponents)) {
+    byTag.set(declaration.tag, declaration);
+  }
+
+  for (const declaration of usingComponentDeclarations(ownerJsonPath, ownerUsingComponents)) {
+    byTag.set(declaration.tag, declaration);
+  }
+
+  return [...byTag.values()];
+}
+
 function extractProject(projectRootInput) {
   const projectRoot = path.resolve(projectRootInput);
   const appJsonPath = path.join(projectRoot, "app.json");
@@ -144,6 +214,7 @@ function extractProject(projectRootInput) {
   if (!appJson) {
     throw new Error(`Missing app.json: ${repoRelative(appJsonPath)}`);
   }
+  const appUsingComponents = readUsingComponents(appJson);
 
   const graph = {
     version: 1,
@@ -176,8 +247,12 @@ function extractProject(projectRootInput) {
     if (!config) return;
     pushConfig(graph.configs, jsonPath, kind, kind === "app" ? undefined : wxmlPath);
 
-    for (const [tag, value] of Object.entries(readUsingComponents(config))) {
-      const entry = resolveUsingComponent(projectRoot, jsonPath, wxmlPath, tag, String(value));
+    const componentDeclarations = kind === "app"
+      ? usingComponentDeclarations(jsonPath, readUsingComponents(config))
+      : effectiveUsingComponentDeclarations(appJsonPath, appUsingComponents, jsonPath, readUsingComponents(config));
+
+    for (const { tag, value, declaringJsonPath } of componentDeclarations) {
+      const entry = resolveUsingComponent(projectRoot, declaringJsonPath, wxmlPath, tag, value);
       graph.usingComponents.push(entry);
 
       if (!entry.resolved) {
@@ -198,7 +273,7 @@ function extractProject(projectRootInput) {
     }
   }
 
-  const pages = Array.isArray(appJson.pages) ? appJson.pages : [];
+  const pages = collectPageNames(appJson);
   for (const pageName of pages) {
     const pageBase = path.join(projectRoot, pageName);
     const pageJsonPath = `${pageBase}.json`;

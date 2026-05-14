@@ -1,0 +1,3 @@
+<view class="shop-list">
+  <global-badge label="Shop" />
+</view>

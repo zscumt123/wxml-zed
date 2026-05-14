@@ -13,6 +13,7 @@
   />
 
   <missing-card reason="{{emptyReason}}" />
+  <global-badge label="Local override" />
 
   <view class="total">
     {{format.price(total)}}

@@ -1,6 +1,7 @@
 {
   "usingComponents": {
     "user-card": "../../components/user-card/user-card",
-    "missing-card": "../../components/missing-card/missing-card"
+    "missing-card": "../../components/missing-card/missing-card",
+    "global-badge": "../../components/local-badge/local-badge"
   }
 }

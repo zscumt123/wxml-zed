@@ -3,7 +3,27 @@
     "pages/home/home",
     "pages/detail/detail"
   ],
+  "subPackages": [
+    {
+      "root": "packages/shop",
+      "pages": [
+        "pages/list/list"
+      ]
+    }
+  ],
+  "subpackages": [
+    {
+      "root": "/packages/shop/",
+      "pages": [
+        "/pages/list/list"
+      ]
+    }
+  ],
   "window": {
     "navigationBarTitleText": "WXML Fixture"
+  },
+  "usingComponents": {
+    "global-badge": "/components/global-badge/global-badge",
+    "relative-badge": "./components/global-badge/global-badge"
   }
 }
