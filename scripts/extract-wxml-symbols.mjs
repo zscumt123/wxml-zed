@@ -4,20 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { BUILTIN_TAGS } from "../shared/wxml-builtins.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAMMAR_DIR = path.join(ROOT, "grammar/tree-sitter-wxml");
-
-const BUILTIN_TAGS = new Set([
-  "view", "scroll-view", "swiper", "swiper-item", "movable-area", "movable-view",
-  "cover-view", "cover-image", "match-media", "page-container", "root-portal",
-  "share-element", "text", "rich-text", "icon", "progress", "button", "checkbox",
-  "checkbox-group", "editor", "form", "input", "label", "picker", "picker-view",
-  "picker-view-column", "radio", "radio-group", "slider", "switch", "textarea",
-  "keyboard-accessory", "navigator", "functional-page-navigator", "audio", "image",
-  "video", "camera", "live-player", "live-pusher", "voip-room", "map", "canvas",
-  "open-data", "web-view", "ad", "ad-custom", "official-account", "open-container",
-  "page-meta", "navigation-bar", "custom-wrapper",
-]);
 
 const CONTROL_TAGS = new Set(["template", "wxs", "import", "include", "slot", "block"]);
 

@@ -21,6 +21,8 @@ export HOME="${WXML_ZED_HOME:-/private/tmp}"
 export npm_config_cache="$CACHE_DIR"
 mkdir -p "$HOME/.cache/tree-sitter/lock" "$npm_config_cache"
 
+node "$ROOT_DIR/scripts/verify-wxml-builtins.mjs"
+
 count_matches() {
   rg -c "$1" "$2" || true
 }
