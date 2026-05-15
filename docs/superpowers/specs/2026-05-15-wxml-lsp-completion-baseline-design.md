@@ -121,6 +121,16 @@ Track open documents as:
 
 `didOpen` stores `params.textDocument.text` when provided.
 
+The current diagnostics path also records open documents. This slice must not
+let diagnostics scheduling overwrite the stored text. Implement this by either:
+
+- making diagnostics scheduling preserve an existing `{ path, text }` entry; or
+- splitting document tracking from diagnostics scheduling so `didOpen`,
+  `didChange`, `didSave`, and `textDocument/completion` all read the same open
+  document record.
+
+`didOpen` should store the document text before scheduling diagnostics.
+
 `didChange` replaces the open document text from the first full-content change
 where `range` is absent and `text` is a string. Range-based incremental changes
 are out of scope and should be ignored rather than partially applied.
@@ -154,12 +164,18 @@ Unsupported examples:
 
 Sources:
 
-- built-in WXML / mini program components from the existing built-in component
-  set used by highlighting or an equivalent shared constant;
+- built-in WXML / mini program components from a reusable JavaScript constant
+  owned by this repository;
 - visible custom components from `graph.usingComponents` where:
   - `owner` is the current document graph path;
   - `resolved === true`;
   - `tag` is a non-empty string.
+
+The reusable built-in component list should become the source used by the
+language service and the symbol extractor's component-candidate filtering.
+`languages/wxml/highlights.scm` cannot import JavaScript, so the implementation
+plan must include a drift check that compares the JS list with the highlight
+query's `@tag.builtin` list.
 
 Return labels as tag names. Built-ins and custom components can both use
 `CompletionItemKind.Class` or a locally documented numeric kind. The item should
@@ -192,6 +208,8 @@ Unsupported examples:
 <template data="|
 <view is="|
 <template is="{{dynamic}}|
+<!-- <template is="| -->
+<wxs module="tools">var tag = "<template is=\"|\""</wxs>
 ```
 
 Sources:
@@ -213,6 +231,10 @@ Ordering:
 This mirrors the existing direct-scope model while avoiding recursive template
 semantics.
 
+Completion de-duplicates repeated template names only as a candidate-display
+strategy. It does not change definition eligibility: duplicate visible template
+definitions should continue to make `textDocument/definition` return `null`.
+
 ### Attribute Name Completion
 
 Offer attribute name completions when the cursor is inside a start tag after the
@@ -231,6 +253,8 @@ Unsupported examples:
 <view class="|
 </view |
 {{ |
+<!-- <view | -->
+<wxs module="tools">var tag = "<view |"</wxs>
 ```
 
 The first baseline should use a small fixed list:
@@ -298,6 +322,8 @@ Completion should fail closed:
 - graph extraction failure returns `[]`;
 - stale or missing open document text returns `[]`;
 - ambiguous source context returns `[]`.
+- positions inside WXML comments, interpolation expressions, or inline WXS raw
+  text return `[]`.
 
 Unexpected exceptions should be caught in the LSP handler, logged to stderr with
 the existing `[wxml-lsp]` prefix, and returned as `[]`.
@@ -320,7 +346,8 @@ Required cases:
 7. attribute completion appears after a start tag name;
 8. attribute completion returns `[]` inside quoted attribute values;
 9. replacement ranges cover only the typed prefix;
-10. missing file model or invalid position returns `[]`.
+10. comment, interpolation, and inline WXS raw-text contexts return `[]`;
+11. missing file model or invalid position returns `[]`.
 
 Synthetic source text is acceptable for cursor-context cases. Fixture-backed
 graph data should be used for component and template visibility cases.
@@ -332,14 +359,21 @@ Extend `scripts/verify-lsp-diagnostics.mjs`.
 Required cases:
 
 1. `initialize` advertises `completionProvider`;
-2. completion can trigger graph construction without prior diagnostics;
+2. `didOpen` stores source text before diagnostics finish, so an immediate
+   completion request can wait for the graph and return real items without
+   first waiting for `publishDiagnostics`;
 3. tag completion in `pages/home/home.wxml` includes `user-card`,
    `global-badge`, and `view`;
 4. template `is` completion includes `loadingRow` and `secondaryRow`;
 5. attribute completion includes `wx:if`, `bindtap`, and `capture-bind:tap`;
 6. `didChange` with full document text updates the completion source text;
-7. delayed graph build does not block unrelated request handling;
-8. existing diagnostics, definition, and document-symbol scenarios remain green.
+7. diagnostics scheduling preserves open document text after `didOpen`;
+8. delayed graph build does not block unrelated request handling;
+9. existing diagnostics, definition, and document-symbol scenarios remain green.
+
+The protocol harness should add a `completion(filePath, position)` helper and a
+`changeDocument(filePath, text, version)` helper that sends full-content
+`textDocument/didChange`.
 
 ### Total Verification
 
@@ -382,9 +416,15 @@ formatting, semantic tokens, and code actions as unsupported.
 - `server/wxml-language-service.mjs` exposes a pure `getCompletions(...)`
   function.
 - Completion uses current open document text from `didOpen` / full `didChange`.
+- Diagnostics scheduling preserves the stored open document text instead of
+  replacing it with a path-only record.
 - Tag completion returns built-ins plus resolved current-owner components.
+- Built-in tag names used by completion and component-candidate filtering share
+  one JS source, with a verification check against `highlights.scm`.
 - Template `is` completion returns local and direct import/include static
   template names only.
+- Template completion de-duplicates display candidates without changing
+  duplicate-definition navigation behavior.
 - Attribute completion returns the fixed baseline attribute list only in start
   tag attribute context.
 - Unsupported or ambiguous contexts return `[]`.
