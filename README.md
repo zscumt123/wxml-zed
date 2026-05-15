@@ -94,7 +94,10 @@ For local WXML LSP development:
   `zed: reload extensions`; if an old server process is still active, restart
   Zed.
 - LSP diagnostics run for open WXML documents on open/save and on relevant
-  `workspace/didChangeWatchedFiles` refreshes. There is still no Node-side file
+  `workspace/didChangeWatchedFiles` refreshes. For clients such as Zed that
+  advertise watched-file dynamic registration, the server registers
+  `**/*.json`, `**/*.wxml`, and `**/*.wxs` watchers after `initialized` so the
+  editor can deliver those notifications. There is still no Node-side file
   watcher, no project-wide diagnostics publication, and no per-keystroke graph
   rebuild.
 
@@ -121,6 +124,8 @@ common WXML attributes.
 The LSP host can also refresh the cached project graph from
 `workspace/didChangeWatchedFiles` notifications for relevant `.json`, `.wxml`,
 and `.wxs` files, then republish diagnostics for already-open WXML documents.
+With capable clients, it dynamically registers those watched-file patterns
+instead of running its own file watcher.
 It intentionally does not provide symbol indexing, dynamic template
 completion/navigation, recursive/full template visibility, expression
 completion, WXS module completion, hover, nested structural document symbols,
