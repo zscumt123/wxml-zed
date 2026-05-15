@@ -16,7 +16,9 @@ const SECONDARY_WXML = path.join(MINIPROGRAM_ROOT, "templates/secondary.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
-const TIMEOUT_MS = 240_000;
+// Some coalescing scenarios intentionally wait for two serial graph extractor
+// runs; local Tree-sitter extraction can take multiple minutes per run.
+const TIMEOUT_MS = 600_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
 
