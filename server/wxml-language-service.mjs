@@ -2,10 +2,33 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { BUILTIN_TAG_NAMES } from "../shared/wxml-builtins.mjs";
+
 const WARNING = 2;
 const DOCUMENT_SYMBOL_KIND_FILE = 1;
 const DOCUMENT_SYMBOL_KIND_MODULE = 2;
 const DOCUMENT_SYMBOL_KIND_FUNCTION = 12;
+const COMPLETION_ITEM_KIND_FUNCTION = 3;
+const COMPLETION_ITEM_KIND_CLASS = 7;
+const COMPLETION_ITEM_KIND_PROPERTY = 10;
+
+const COMMON_ATTRIBUTE_NAMES = [
+  "wx:if",
+  "wx:elif",
+  "wx:else",
+  "wx:for",
+  "wx:for-item",
+  "wx:for-index",
+  "wx:key",
+  "class",
+  "style",
+  "id",
+  "bindtap",
+  "catchtap",
+  "capture-bind:tap",
+  "capture-catch:tap",
+  "generic:selectable",
+];
 
 const ZERO_RANGE = {
   start: { line: 0, character: 0 },
@@ -181,6 +204,191 @@ function visibleTemplateDefinitions(graph, fileModel, name) {
     .flatMap((dependencyFile) => templateDefinitionsInFile(dependencyFile, name));
 }
 
+function lineTextAt(sourceText, line) {
+  const lines = sourceText.split("\n");
+  return lines[line];
+}
+
+function offsetAt(sourceText, position) {
+  if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
+    return undefined;
+  }
+  const lines = sourceText.split("\n");
+  if (position.line < 0 || position.line >= lines.length) return undefined;
+  if (position.character < 0 || position.character > lines[position.line].length) return undefined;
+
+  let offset = 0;
+  for (let line = 0; line < position.line; line += 1) {
+    offset += lines[line].length + 1;
+  }
+  return offset + position.character;
+}
+
+function isInsideDelimitedRange(sourceText, offset, open, close) {
+  const before = sourceText.slice(0, offset);
+  const start = before.lastIndexOf(open);
+  if (start === -1) return false;
+  const end = before.lastIndexOf(close);
+  return end < start;
+}
+
+function isInsideInlineWxsRawText(sourceText, offset) {
+  const before = sourceText.slice(0, offset);
+  const start = before.lastIndexOf("<wxs");
+  if (start === -1) return false;
+  const end = before.lastIndexOf("</wxs>");
+  const openEnd = before.indexOf(">", start);
+  if (openEnd === -1 || end > start) return false;
+  const openTag = before.slice(start, openEnd + 1);
+  return !/\/>\s*$/u.test(openTag);
+}
+
+function isExcludedCompletionContext(sourceText, offset) {
+  return (
+    isInsideDelimitedRange(sourceText, offset, "<!--", "-->") ||
+    isInsideDelimitedRange(sourceText, offset, "{{", "}}") ||
+    isInsideInlineWxsRawText(sourceText, offset)
+  );
+}
+
+function currentLinePrefix(sourceText, position) {
+  const line = lineTextAt(sourceText, position.line);
+  if (typeof line !== "string") return undefined;
+  return line.slice(0, position.character);
+}
+
+function contextRange(position, startCharacter) {
+  return {
+    start: { line: position.line, character: startCharacter },
+    end: { line: position.line, character: position.character },
+  };
+}
+
+function tagNameContext(sourceText, position) {
+  const prefix = currentLinePrefix(sourceText, position);
+  if (typeof prefix !== "string") return undefined;
+
+  const match = prefix.match(/<([A-Za-z][\w-]*)?$/u);
+  if (!match) return undefined;
+  if (prefix.endsWith("</")) return undefined;
+
+  const typed = match[1] || "";
+  return {
+    type: "tag",
+    typed,
+    range: contextRange(position, position.character - typed.length),
+  };
+}
+
+function attributeContext(sourceText, position) {
+  const prefix = currentLinePrefix(sourceText, position);
+  if (typeof prefix !== "string") return undefined;
+  const openIndex = prefix.lastIndexOf("<");
+  if (openIndex === -1 || prefix.slice(openIndex).startsWith("</")) return undefined;
+  const tagContent = prefix.slice(openIndex + 1);
+  if (!/^[A-Za-z][\w-]*(?:\s|$)/u.test(tagContent)) return undefined;
+
+  const quoteCount = (tagContent.match(/["']/gu) || []).length;
+  if (quoteCount % 2 === 1) return undefined;
+
+  const attrMatch = tagContent.match(/(?:^|\s)([\w:-]*)$/u);
+  if (!attrMatch) return undefined;
+  const typed = attrMatch[1] || "";
+  const startCharacter = position.character - typed.length;
+  if (startCharacter <= openIndex + 1) return undefined;
+
+  return {
+    type: "attribute",
+    typed,
+    range: contextRange(position, startCharacter),
+  };
+}
+
+function templateIsContext(sourceText, position) {
+  const prefix = currentLinePrefix(sourceText, position);
+  if (typeof prefix !== "string") return undefined;
+  const match = prefix.match(/<template\b[^>]*\bis=(["'])([^"']*)$/u);
+  if (!match) return undefined;
+  const typed = match[2];
+  if (typed.includes("{{")) return undefined;
+  return {
+    type: "template",
+    typed,
+    range: contextRange(position, position.character - typed.length),
+  };
+}
+
+function completionItem(label, kind, detail, range) {
+  return {
+    label,
+    kind,
+    detail,
+    textEdit: {
+      range,
+      newText: label,
+    },
+  };
+}
+
+function componentCompletionItems(graph, documentGraphPath, range) {
+  const customTags = graph.usingComponents
+    .filter((entry) => (
+      entry.owner === documentGraphPath &&
+      entry.resolved === true &&
+      typeof entry.tag === "string" &&
+      entry.tag.length > 0
+    ))
+    .map((entry) => entry.tag)
+    .sort();
+
+  const seen = new Set();
+  const items = [];
+  for (const tag of customTags) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    items.push(completionItem(tag, COMPLETION_ITEM_KIND_CLASS, "component", range));
+  }
+  for (const tag of [...BUILTIN_TAG_NAMES].sort()) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    items.push(completionItem(tag, COMPLETION_ITEM_KIND_CLASS, "built-in component", range));
+  }
+  return items;
+}
+
+function visibleTemplateCompletionItems(graph, fileModel, range) {
+  const items = [];
+  const seen = new Set();
+
+  function pushTemplate(symbol) {
+    if (seen.has(symbol.name)) return;
+    seen.add(symbol.name);
+    items.push(completionItem(symbol.name, COMPLETION_ITEM_KIND_FUNCTION, "template", range));
+  }
+
+  for (const symbol of fileModel.symbols) {
+    if (symbol.kind === "template" && typeof symbol.name === "string" && symbol.name.length > 0) {
+      pushTemplate(symbol);
+    }
+  }
+
+  for (const dependencyFile of directTemplateDependencyFiles(graph, fileModel)) {
+    for (const symbol of dependencyFile.symbols) {
+      if (symbol.kind === "template" && typeof symbol.name === "string" && symbol.name.length > 0) {
+        pushTemplate(symbol);
+      }
+    }
+  }
+
+  return items;
+}
+
+function attributeCompletionItems(range) {
+  return COMMON_ATTRIBUTE_NAMES.map((name) => (
+    completionItem(name, COMPLETION_ITEM_KIND_PROPERTY, "attribute", range)
+  ));
+}
+
 function templateDefinitionForPosition({ graph, fileModel, position, extensionRoot }) {
   const reference = fileModel.references.find((entry) => (
     entry.kind === "template" &&
@@ -200,6 +408,38 @@ function templateDefinitionForPosition({ graph, fileModel, position, extensionRo
 
   const match = matches[0];
   return locationForGraphPathWithRange(match.fileModel.path, match.symbol.range, extensionRoot);
+}
+
+export function getCompletions({ graph, documentPath, position, sourceText, extensionRoot }) {
+  if (typeof sourceText !== "string") {
+    return [];
+  }
+  const offset = offsetAt(sourceText, position);
+  if (offset === undefined || isExcludedCompletionContext(sourceText, offset)) {
+    return [];
+  }
+
+  const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
+  if (!fileModel) {
+    return [];
+  }
+
+  const templateContext = templateIsContext(sourceText, position);
+  if (templateContext) {
+    return visibleTemplateCompletionItems(graph, fileModel, templateContext.range);
+  }
+
+  const tagContext = tagNameContext(sourceText, position);
+  if (tagContext) {
+    return componentCompletionItems(graph, documentGraphPath, tagContext.range);
+  }
+
+  const attrContext = attributeContext(sourceText, position);
+  if (attrContext) {
+    return attributeCompletionItems(attrContext.range);
+  }
+
+  return [];
 }
 
 export function getDiagnostics({ graph, documentPath, extensionRoot }) {

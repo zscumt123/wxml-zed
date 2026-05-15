@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  getCompletions,
   getDefinition,
   getDiagnostics,
   getDocumentSymbols,
@@ -46,6 +48,53 @@ function assertDeepEqual(actual, expected, label) {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
   assert(actualJson === expectedJson, `${label}: expected ${expectedJson}, got ${actualJson}`);
+}
+
+function sourceWithCursor(source) {
+  const offset = source.indexOf("|");
+  assert(offset !== -1, `Missing cursor marker in source: ${source}`);
+  const cleanSource = source.slice(0, offset) + source.slice(offset + 1);
+  const before = source.slice(0, offset);
+  const lines = before.split("\n");
+  return {
+    source: cleanSource,
+    position: {
+      line: lines.length - 1,
+      character: lines[lines.length - 1].length,
+    },
+  };
+}
+
+function homeSourceWithCursor(insert) {
+  const source = fs.readFileSync(HOME_WXML, "utf8");
+  return sourceWithCursor(`${source}\n${insert}`);
+}
+
+function completionLabels(items) {
+  return items.map((item) => item.label);
+}
+
+function completionByLabel(items, label) {
+  return items.find((item) => item.label === label);
+}
+
+function assertCompletionLabelsInclude(items, labels, label) {
+  const actual = new Set(completionLabels(items));
+  for (const expected of labels) {
+    assert(actual.has(expected), `${label}: missing completion ${expected}; got ${JSON.stringify([...actual])}`);
+  }
+}
+
+function assertNoCompletionLabel(items, forbidden, label) {
+  assert(
+    !completionLabels(items).includes(forbidden),
+    `${label}: unexpected completion ${forbidden}; got ${JSON.stringify(completionLabels(items))}`,
+  );
+}
+
+function assertCompletionTextEdit(item, range, newText, label) {
+  assert(item, `${label}: missing completion item`);
+  assertDeepEqual(item.textEdit, { range, newText }, `${label} textEdit`);
 }
 
 function assertMissingCardDiagnostic(graph) {
@@ -625,6 +674,176 @@ function assertComponentUsageExcluded(graph) {
   assertDeepEqual(symbols, [], "component usage symbols should be excluded");
 }
 
+function assertTagCompletion(graph) {
+  const { source, position } = sourceWithCursor("<user-|");
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertCompletionLabelsInclude(items, ["global-badge", "user-card", "view"], "tag completion");
+  assertNoCompletionLabel(items, "missing-card", "tag completion");
+  assertCompletionTextEdit(
+    completionByLabel(items, "user-card"),
+    { start: { line: 0, character: 1 }, end: { line: 0, character: 6 } },
+    "user-card",
+    "tag completion user-card",
+  );
+}
+
+function assertClosingTagCompletionReturnsEmpty(graph) {
+  const { source, position } = sourceWithCursor("</|");
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertDeepEqual(items, [], "closing tag completion");
+}
+
+function assertOutsideTagCompletionReturnsEmpty(graph) {
+  const { source, position } = sourceWithCursor("{{ | }}");
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertDeepEqual(items, [], "outside tag completion");
+}
+
+function assertTemplateCompletion(graph) {
+  const { source, position } = homeSourceWithCursor('<template is="load|" />');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertCompletionLabelsInclude(items, ["loadingRow", "secondaryRow"], "template completion");
+  assertCompletionTextEdit(
+    completionByLabel(items, "loadingRow"),
+    { start: { line: 23, character: 14 }, end: { line: 23, character: 18 } },
+    "loadingRow",
+    "template completion loadingRow",
+  );
+}
+
+function assertDynamicTemplateCompletionReturnsEmpty(graph) {
+  const { source, position } = homeSourceWithCursor('<template is="{{current|}}" />');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertDeepEqual(items, [], "dynamic template completion");
+}
+
+function assertAttributeCompletion(graph) {
+  const { source, position } = sourceWithCursor("<user-card wx:| />");
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertCompletionLabelsInclude(items, ["wx:if", "bindtap", "capture-bind:tap"], "attribute completion");
+  assertCompletionTextEdit(
+    completionByLabel(items, "wx:if"),
+    { start: { line: 0, character: 11 }, end: { line: 0, character: 14 } },
+    "wx:if",
+    "attribute completion wx:if",
+  );
+}
+
+function assertAttributeValueCompletionReturnsEmpty(graph) {
+  const { source, position } = sourceWithCursor('<view class="|" />');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertDeepEqual(items, [], "attribute value completion");
+}
+
+function assertExcludedContextsReturnEmpty(graph) {
+  for (const [label, markedSource] of [
+    ["comment tag", "<!-- <view | -->"],
+    ["interpolation tag", "{{ '<view |' }}"],
+    ["inline wxs tag", '<wxs module="tools">var tag = "<view |"</wxs>'],
+  ]) {
+    const { source, position } = sourceWithCursor(markedSource);
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    });
+    assertDeepEqual(items, [], label);
+  }
+}
+
+function assertCompletionAfterExternalWxs(graph) {
+  const { source, position } = sourceWithCursor('<wxs module="format" src="../../utils/format.wxs" />\n<user-|');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertCompletionLabelsInclude(items, ["user-card", "view"], "completion after external wxs");
+}
+
+function assertInvalidCompletionInputsReturnEmpty(graph) {
+  const { source, position } = sourceWithCursor("<vi|");
+  assertDeepEqual(
+    getCompletions({
+      graph,
+      documentPath: path.join(MINIPROGRAM_ROOT, "missing.wxml"),
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    }),
+    [],
+    "missing file model completion",
+  );
+  assertDeepEqual(
+    getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 99, character: 0 },
+      sourceText: source,
+      extensionRoot: ROOT,
+    }),
+    [],
+    "invalid position completion",
+  );
+  assertDeepEqual(
+    getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: undefined,
+      extensionRoot: ROOT,
+    }),
+    [],
+    "missing sourceText completion",
+  );
+}
+
 const graph = loadGraph();
 assertMissingCardDiagnostic(graph);
 assertShopListDiagnosticsClean(graph);
@@ -652,3 +871,13 @@ assertHomeDocumentSymbols(graph);
 assertTemplateDocumentSymbols(graph);
 assertDuplicateTemplateDocumentSymbols(graph);
 assertComponentUsageExcluded(graph);
+assertTagCompletion(graph);
+assertClosingTagCompletionReturnsEmpty(graph);
+assertOutsideTagCompletionReturnsEmpty(graph);
+assertTemplateCompletion(graph);
+assertDynamicTemplateCompletionReturnsEmpty(graph);
+assertAttributeCompletion(graph);
+assertAttributeValueCompletionReturnsEmpty(graph);
+assertExcludedContextsReturnEmpty(graph);
+assertCompletionAfterExternalWxs(graph);
+assertInvalidCompletionInputsReturnEmpty(graph);
