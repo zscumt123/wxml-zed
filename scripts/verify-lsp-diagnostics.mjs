@@ -170,6 +170,24 @@ function assertTemplateDocumentSymbols(symbols) {
   );
 }
 
+function completionLabels(items) {
+  assert(Array.isArray(items), `Expected completion items array, got ${JSON.stringify(items)}`);
+  return items.map((item) => item.label);
+}
+
+function assertCompletionLabelsInclude(items, expectedLabels, label) {
+  const labels = completionLabels(items);
+  for (const expectedLabel of expectedLabels) {
+    assert(labels.includes(expectedLabel), `${label}: missing completion ${expectedLabel}; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionTextEdit(items, itemLabel, expectedTextEdit, label) {
+  const item = items.find((candidate) => candidate.label === itemLabel);
+  assert(item, `${label}: missing completion ${itemLabel}; got ${JSON.stringify(items)}`);
+  assertDeepEqual(item.textEdit, expectedTextEdit, `${label} ${itemLabel} textEdit`);
+}
+
 class LspClient {
   constructor({ rootPath, env = {} }) {
     this.rootPath = rootPath;
@@ -257,6 +275,18 @@ class LspClient {
     const response = await this.waitForResponse(id);
     if (response.error) {
       throw new Error(`Document symbol request failed: ${JSON.stringify(response.error)}`);
+    }
+    return response.result;
+  }
+
+  async completion(filePath, position) {
+    const id = this.request("textDocument/completion", {
+      textDocument: { uri: pathToFileURL(filePath).href },
+      position,
+    });
+    const response = await this.waitForResponse(id);
+    if (response.error) {
+      throw new Error(`Completion request failed: ${JSON.stringify(response.error)}`);
     }
     return response.result;
   }
@@ -359,6 +389,15 @@ class LspClient {
   saveDocument(filePath) {
     const uri = pathToFileURL(filePath).href;
     this.send("textDocument/didSave", { textDocument: { uri } });
+    return uri;
+  }
+
+  changeDocument(filePath, text, version = 2) {
+    const uri = pathToFileURL(filePath).href;
+    this.send("textDocument/didChange", {
+      textDocument: { uri, version },
+      contentChanges: [{ text }],
+    });
     return uri;
   }
 
@@ -648,6 +687,115 @@ async function testDocumentSymbolsBuildDoesNotBlockRequestLoop() {
   });
 }
 
+async function testCompletionImmediatelyAfterOpen() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    client.openDocument(HOME_WXML);
+    const result = await client.completion(HOME_WXML, { line: 7, character: 6 });
+    assertCompletionLabelsInclude(result, ["global-badge", "user-card", "view"], "completion immediately after open");
+  });
+}
+
+async function testTagCompletion() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before tag completion");
+    const result = await client.completion(HOME_WXML, { line: 7, character: 6 });
+    assertCompletionLabelsInclude(result, ["global-badge", "user-card", "view"], "tag completion");
+    assertCompletionTextEdit(
+      result,
+      "user-card",
+      {
+        range: { start: { line: 7, character: 3 }, end: { line: 7, character: 6 } },
+        newText: "user-card",
+      },
+      "tag completion",
+    );
+  });
+}
+
+async function testTemplateCompletion() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before template completion");
+    const result = await client.completion(HOME_WXML, { line: 5, character: 20 });
+    assertCompletionLabelsInclude(result, ["loadingRow", "secondaryRow"], "template completion");
+    assertCompletionTextEdit(
+      result,
+      "loadingRow",
+      {
+        range: { start: { line: 5, character: 16 }, end: { line: 5, character: 20 } },
+        newText: "loadingRow",
+      },
+      "template completion",
+    );
+  });
+}
+
+async function testAttributeCompletion() {
+  const source = `${fs.readFileSync(HOME_WXML, "utf8")}\n<view wx: />\n`;
+  await withClient({ rootPath: ROOT }, async (client) => {
+    client.openDocument(HOME_WXML);
+    client.changeDocument(HOME_WXML, source);
+    const result = await client.completion(HOME_WXML, { line: 23, character: 9 });
+    assertCompletionLabelsInclude(result, ["wx:if", "bindtap", "capture-bind:tap"], "attribute completion");
+  });
+}
+
+async function testDidChangeUpdatesCompletionSource() {
+  const source = `${fs.readFileSync(HOME_WXML, "utf8")}\n<template is="sec" />\n`;
+  await withClient({ rootPath: ROOT }, async (client) => {
+    client.openDocument(HOME_WXML);
+    client.changeDocument(HOME_WXML, source);
+    const result = await client.completion(HOME_WXML, { line: 23, character: 17 });
+    assertCompletionLabelsInclude(result, ["secondaryRow"], "didChange completion source");
+    assertCompletionTextEdit(
+      result,
+      "secondaryRow",
+      {
+        range: { start: { line: 23, character: 14 }, end: { line: 23, character: 17 } },
+        newText: "secondaryRow",
+      },
+      "didChange completion source",
+    );
+  });
+}
+
+async function testDidSavePreservesCompletionSource() {
+  const source = `${fs.readFileSync(HOME_WXML, "utf8")}\n<template is="sec" />\n`;
+  await withClient({ rootPath: ROOT }, async (client) => {
+    client.openDocument(HOME_WXML);
+    client.changeDocument(HOME_WXML, source);
+    client.saveDocument(HOME_WXML);
+    const result = await client.completion(HOME_WXML, { line: 23, character: 17 });
+    assertCompletionLabelsInclude(result, ["secondaryRow"], "didSave completion source");
+    assertCompletionTextEdit(
+      result,
+      "secondaryRow",
+      {
+        range: { start: { line: 23, character: 14 }, end: { line: 23, character: 17 } },
+        newText: "secondaryRow",
+      },
+      "didSave completion source",
+    );
+  });
+}
+
+async function testCompletionBuildDoesNotBlockRequestLoop() {
+  await withClient({
+    rootPath: ROOT,
+    env: {
+      WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+    },
+  }, async (client) => {
+    client.openDocument(HOME_WXML);
+    const completionPromise = client.completion(HOME_WXML, { line: 7, character: 6 });
+    const id = client.request("workspace/symbol", { query: "user-card" });
+    const response = await client.waitForResponse(id);
+    assert(response.error?.code === -32601, `Expected responsive -32601, got ${JSON.stringify(response)}`);
+    assertCompletionLabelsInclude(await completionPromise, ["user-card", "view"], "completion responsive build");
+  });
+}
+
 async function testRepositoryRootInitialization() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -811,6 +959,13 @@ const scenarios = [
   ["component usage document symbols excluded", testComponentUsageDocumentSymbolsExcluded],
   ["document symbols build graph without prior diagnostics", testDocumentSymbolsBuildGraphWithoutPriorDiagnostics],
   ["document symbols build does not block request loop", testDocumentSymbolsBuildDoesNotBlockRequestLoop],
+  ["completion immediately after open", testCompletionImmediatelyAfterOpen],
+  ["tag completion", testTagCompletion],
+  ["template completion", testTemplateCompletion],
+  ["attribute completion", testAttributeCompletion],
+  ["didChange updates completion source", testDidChangeUpdatesCompletionSource],
+  ["didSave preserves completion source", testDidSavePreservesCompletionSource],
+  ["completion build does not block request loop", testCompletionBuildDoesNotBlockRequestLoop],
   ["repository root initialization", testRepositoryRootInitialization],
   ["mini program root initialization", testMiniProgramRootInitialization],
   ["subpackage global component diagnostics clean", testSubpackageGlobalComponentDiagnosticsClean],
