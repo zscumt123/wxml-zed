@@ -425,6 +425,18 @@ function assertExcludedContextsReturnEmpty(graph) {
   }
 }
 
+function assertCompletionAfterExternalWxs(graph) {
+  const { source, position } = sourceWithCursor('<wxs module="format" src="../../utils/format.wxs" />\n<user-|');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assertCompletionLabelsInclude(items, ["user-card", "view"], "completion after external wxs");
+}
+
 function assertInvalidCompletionInputsReturnEmpty(graph) {
   const { source, position } = sourceWithCursor("<vi|");
   assertDeepEqual(
@@ -476,6 +488,7 @@ assertDynamicTemplateCompletionReturnsEmpty(graph);
 assertAttributeCompletion(graph);
 assertAttributeValueCompletionReturnsEmpty(graph);
 assertExcludedContextsReturnEmpty(graph);
+assertCompletionAfterExternalWxs(graph);
 assertInvalidCompletionInputsReturnEmpty(graph);
 ```
 
@@ -497,14 +510,11 @@ Expected:
 does not provide an export named 'getCompletions'
 ```
 
-- [ ] **Step 6: Commit failing direct tests**
+- [ ] **Step 6: Leave failing tests uncommitted**
 
-Run:
+Do not commit this failing state. Keep the working tree changes for Task 3, where the implementation will make these tests pass before committing.
 
-```bash
-git add scripts/verify-wxml-language-service.mjs
-git commit -m "test: add wxml completion service coverage"
-```
+Run `git status --short` and confirm only `scripts/verify-wxml-language-service.mjs` is modified.
 
 ---
 
@@ -586,7 +596,10 @@ function isInsideInlineWxsRawText(sourceText, offset) {
   const start = before.lastIndexOf("<wxs");
   if (start === -1) return false;
   const end = before.lastIndexOf("</wxs>");
-  return end < start && before.indexOf(">", start) !== -1;
+  const openEnd = before.indexOf(">", start);
+  if (openEnd === -1 || end > start) return false;
+  const openTag = before.slice(start, openEnd + 1);
+  return !/\/>\s*$/u.test(openTag);
 }
 
 function isExcludedCompletionContext(sourceText, offset) {
@@ -676,10 +689,6 @@ function completionItem(label, kind, detail, range) {
   };
 }
 
-function filterByPrefix(items, typed) {
-  if (!typed) return items;
-  return items.filter((item) => item.label.startsWith(typed));
-}
 ```
 
 - [ ] **Step 3: Add completion source helpers**
@@ -768,23 +777,17 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
 
   const templateContext = templateIsContext(sourceText, position);
   if (templateContext) {
-    return filterByPrefix(
-      visibleTemplateCompletionItems(graph, fileModel, templateContext.range),
-      templateContext.typed,
-    );
+    return visibleTemplateCompletionItems(graph, fileModel, templateContext.range);
   }
 
   const tagContext = tagNameContext(sourceText, position);
   if (tagContext) {
-    return filterByPrefix(
-      componentCompletionItems(graph, documentGraphPath, tagContext.range),
-      tagContext.typed,
-    );
+    return componentCompletionItems(graph, documentGraphPath, tagContext.range);
   }
 
   const attrContext = attributeContext(sourceText, position);
   if (attrContext) {
-    return filterByPrefix(attributeCompletionItems(attrContext.range), attrContext.typed);
+    return attributeCompletionItems(attrContext.range);
   }
 
   return [];
@@ -813,6 +816,8 @@ Run:
 git add server/wxml-language-service.mjs scripts/verify-wxml-language-service.mjs
 git commit -m "feat: add wxml completion language service"
 ```
+
+This commit includes the failing tests from Task 2 and the implementation from Task 3 together, so every committed state remains verifiable.
 
 ---
 
@@ -1139,7 +1144,6 @@ async function testAttributeCompletion() {
     const source = `${fs.readFileSync(HOME_WXML, "utf8")}\n<view wx: />\n`;
     const uri = client.openDocument(HOME_WXML);
     client.changeDocument(HOME_WXML, source);
-    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before attribute completion");
     const result = await client.completion(HOME_WXML, { line: 23, character: 9 });
     assertCompletionLabelsInclude(result, ["wx:if", "bindtap", "capture-bind:tap"], "attribute completion");
   });
@@ -1160,6 +1164,26 @@ async function testDidChangeUpdatesCompletionSource() {
         newText: "secondaryRow",
       },
       "didChange template completion secondaryRow",
+    );
+  });
+}
+
+async function testDidSavePreservesCompletionSource() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const source = `${fs.readFileSync(HOME_WXML, "utf8")}\n<template is="sec" />\n`;
+    client.openDocument(HOME_WXML);
+    client.changeDocument(HOME_WXML, source);
+    client.saveDocument(HOME_WXML);
+    const result = await client.completion(HOME_WXML, { line: 23, character: 17 });
+    assertCompletionLabelsInclude(result, ["secondaryRow"], "didSave preserved template completion");
+    assertCompletionTextEdit(
+      result,
+      "secondaryRow",
+      {
+        range: { start: { line: 23, character: 14 }, end: { line: 23, character: 17 } },
+        newText: "secondaryRow",
+      },
+      "didSave preserved template completion secondaryRow",
     );
   });
 }
@@ -1190,6 +1214,7 @@ In the `scenarios` array, add these entries after the document symbol scenarios 
 ["template completion", testTemplateCompletion],
 ["attribute completion", testAttributeCompletion],
 ["didChange updates completion source", testDidChangeUpdatesCompletionSource],
+["didSave preserves completion source", testDidSavePreservesCompletionSource],
 ["completion build does not block request loop", testCompletionBuildDoesNotBlockRequestLoop],
 ```
 
