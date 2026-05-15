@@ -102,6 +102,16 @@ Root resolution must work for deleted files. If a changed file no longer exists,
 the server can still find the root by walking parent directories looking for
 `app.json`.
 
+Watched-file root resolution must be stricter than request/document root
+resolution. It must not unconditionally fall back to `rootCandidates` when the
+changed path is outside those roots. A watched change is eligible only when:
+
+- walking upward from the changed path finds an `app.json`; or
+- the changed path is inside a known `rootCandidate` that contains `app.json`.
+
+This prevents an unrelated file outside the workspace from invalidating the
+current mini program graph.
+
 ## Relevant Files
 
 The baseline should treat these paths as graph-affecting:
@@ -150,8 +160,8 @@ When the rebuild fails:
 
 ## Requests During Refresh
 
-Definition, document-symbol, and completion requests must not use a stale graph
-while a refresh is running or queued.
+Definition and completion requests must not use a stale graph while a refresh
+is running or queued.
 
 Expected behavior:
 
@@ -246,7 +256,7 @@ Update `README.md` after implementation to describe:
 
 - `server/wxml-lsp.mjs` handles `workspace/didChangeWatchedFiles`.
 - Graph refresh invalidates stale cached graphs and uses the next build for
-  diagnostics, definition, document symbols, and completion.
+  diagnostics, definition, and completion.
 - Open WXML diagnostics refresh after relevant JSON/component WXML changes.
 - Requests remain responsive while graph refresh runs.
 - Closed documents do not receive diagnostics from later watched-file refreshes.
