@@ -76,4 +76,3 @@
 - [ ] Run `scripts/verify-tree-sitter.sh`.
 - [ ] Run `git diff --check main..HEAD`.
 - [ ] Review focused diffs for server/test/docs scope.
-

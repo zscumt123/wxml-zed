@@ -76,4 +76,3 @@ unsupported clients.
 - Clients without dynamic watcher support do not receive registration requests.
 - Existing diagnostics, definition, document symbol, completion, and watched
   refresh tests still pass.
-
