@@ -29,6 +29,7 @@ git submodule.
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
 | Prototype LSP completion for built-in tags, resolved local components, direct-scope static templates, and common attributes | Yes |
+| Prototype watched-file graph refresh for open-document diagnostics, definition, and completion | Yes |
 | Dynamic template completion/navigation, recursive/full template visibility, npm/plugin component support, and full component resolution navigation | Planned |
 
 ## Install
@@ -59,6 +60,8 @@ diagnostics, go-to-definition for resolved local components, WXML
 import/include dependencies, external WXS dependencies, and static template
 definitions, plus flat document symbols for WXML declaration/dependency entries
 and baseline completion for tags, static templates, and common WXML attributes.
+The protocol harness also verifies watched-file graph refresh for JSON component
+registration changes and component file creation/deletion.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -90,8 +93,10 @@ For local WXML LSP development:
 - If changes to `server/wxml-lsp.mjs` do not appear immediately, run
   `zed: reload extensions`; if an old server process is still active, restart
   Zed.
-- LSP diagnostics currently run on open/save only. There is no file watcher and
-  no per-keystroke graph rebuild.
+- LSP diagnostics run for open WXML documents on open/save and on relevant
+  `workspace/didChangeWatchedFiles` refreshes. There is still no Node-side file
+  watcher, no project-wide diagnostics publication, and no per-keystroke graph
+  rebuild.
 
 When changing queries or snippets:
 
@@ -113,12 +118,16 @@ WXML declaration/dependency entries. It also provides baseline completion for
 built-in tags, resolved owner-local/app-global component tags, static templates
 visible from the current file or direct `import` / `include` dependencies, and
 common WXML attributes.
+The LSP host can also refresh the cached project graph from
+`workspace/didChangeWatchedFiles` notifications for relevant `.json`, `.wxml`,
+and `.wxs` files, then republish diagnostics for already-open WXML documents.
 It intentionally does not provide symbol indexing, dynamic template
 completion/navigation, recursive/full template visibility, expression
 completion, WXS module completion, hover, nested structural document symbols,
-semantic tokens, code actions, formatting, file watching, npm/plugin component
-navigation, `componentGenerics`, independent-subpackage component isolation
-rules, or production Node runtime packaging.
+semantic tokens, code actions, formatting, Node-side production file watching,
+project-wide diagnostics, npm/plugin component navigation, `componentGenerics`,
+independent-subpackage component isolation rules, or production Node runtime
+packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -174,11 +183,13 @@ static `loadingRow` template usage to `templates/common.wxml`, resolves the
 subpackage `<global-badge>` usage through app-global `usingComponents`, resolves
 the home page `<global-badge>` usage through the owner-local override, and
 returns document symbols for those dependency entries. Diagnostics still run on
-open/save only; there is no file watching, incremental parsing, nested
-structural document symbols, component usage symbols, JSON document symbols,
-dynamic template completion/navigation, recursive/full template visibility,
-expression completion, WXS module completion, npm/plugin component navigation,
-or `componentGenerics` support.
+open/save and relevant `workspace/didChangeWatchedFiles` notifications for
+already-open WXML documents. There is still no Node-side production file
+watcher, project-wide diagnostics, incremental parsing, nested structural
+document symbols, component usage symbols, JSON document symbols, dynamic
+template completion/navigation, recursive/full template visibility, expression
+completion, WXS module completion, npm/plugin component navigation, or
+`componentGenerics` support.
 
 ## Redistribution Status
 
