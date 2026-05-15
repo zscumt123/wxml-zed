@@ -336,9 +336,10 @@ class LspClient {
     const response = await this.waitForResponse(id);
     assert(response.result?.capabilities?.textDocumentSync?.openClose === true, "openClose sync not advertised");
     assert(response.result?.capabilities?.textDocumentSync?.save === true, "save sync not advertised");
-    assert(response.result?.capabilities?.textDocumentSync?.change === 0, "incremental sync should be disabled");
+    assert(response.result?.capabilities?.textDocumentSync?.change === 1, "full text sync not advertised");
     assert(response.result?.capabilities?.definitionProvider === true, "definitionProvider not advertised");
     assert(response.result?.capabilities?.documentSymbolProvider === true, "documentSymbolProvider not advertised");
+    assert(response.result?.capabilities?.completionProvider, "completionProvider not advertised");
     this.send("initialized", {});
   }
 

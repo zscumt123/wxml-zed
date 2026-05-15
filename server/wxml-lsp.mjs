@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  getCompletions,
   getDefinition,
   getDiagnostics,
   getDocumentSymbols,
@@ -272,17 +273,37 @@ function ensureGraphForRequest(projectRoot) {
   return graphPromise;
 }
 
-function scheduleDiagnostics(uri) {
+function recordOpenDocument(uri, text = undefined) {
   const documentPath = fileUriToPath(uri);
   if (!documentPath) {
+    return undefined;
+  }
+
+  const existing = openDocuments.get(uri);
+  const document = {
+    path: documentPath,
+    text: typeof text === "string" ? text : existing?.text,
+  };
+  openDocuments.set(uri, document);
+  return document;
+}
+
+function updateOpenDocumentText(uri, text) {
+  if (typeof text !== "string") {
+    return recordOpenDocument(uri);
+  }
+  return recordOpenDocument(uri, text);
+}
+
+function scheduleDiagnostics(uri, text = undefined) {
+  const document = recordOpenDocument(uri, text);
+  if (!document) {
     return;
   }
 
-  openDocuments.set(uri, { path: documentPath });
-
-  const projectRoot = resolveMiniProgramRoot(documentPath);
+  const projectRoot = resolveMiniProgramRoot(document.path);
   if (!projectRoot) {
-    logDiagnosticError(`No app.json found for ${documentPath}`);
+    logDiagnosticError(`No app.json found for ${document.path}`);
     publishDiagnostics(uri, []);
     return;
   }
@@ -368,6 +389,47 @@ async function handleDocumentSymbolRequest(id, params) {
   }
 }
 
+async function completionsForRequest(params) {
+  const uri = params?.textDocument?.uri;
+  const documentPath = fileUriToPath(uri);
+  if (!documentPath) {
+    return [];
+  }
+
+  const document = openDocuments.get(uri);
+  if (!document || typeof document.text !== "string") {
+    return [];
+  }
+
+  const projectRoot = resolveMiniProgramRoot(documentPath);
+  if (!projectRoot) {
+    logDiagnosticError(`No app.json found for ${documentPath}`);
+    return [];
+  }
+
+  const graph = await ensureGraphForRequest(projectRoot);
+  if (!graph) {
+    return [];
+  }
+
+  return getCompletions({
+    graph,
+    documentPath,
+    position: params?.position,
+    sourceText: document.text,
+    extensionRoot: EXTENSION_ROOT,
+  });
+}
+
+async function handleCompletionRequest(id, params) {
+  try {
+    respond(id, await completionsForRequest(params));
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+    respond(id, []);
+  }
+}
+
 function initialize(params) {
   rootCandidates = [
     fileUriToPath(params?.rootUri),
@@ -381,11 +443,14 @@ function initialize(params) {
     capabilities: {
       textDocumentSync: {
         openClose: true,
-        change: 0,
+        change: 1,
         save: true,
       },
       definitionProvider: true,
       documentSymbolProvider: true,
+      completionProvider: {
+        triggerCharacters: ["<", " ", ":", "\"", "'"],
+      },
     },
   };
 }
@@ -409,11 +474,26 @@ function handleMessage(message) {
       break;
 
     case "textDocument/didOpen":
-      scheduleDiagnostics(message.params?.textDocument?.uri);
+      scheduleDiagnostics(
+        message.params?.textDocument?.uri,
+        message.params?.textDocument?.text,
+      );
+      break;
+
+    case "textDocument/didChange":
+      {
+        const uri = message.params?.textDocument?.uri;
+        const fullChange = Array.isArray(message.params?.contentChanges)
+          ? message.params.contentChanges.find((change) => !change.range && typeof change.text === "string")
+          : undefined;
+        if (fullChange) {
+          updateOpenDocumentText(uri, fullChange.text);
+        }
+      }
       break;
 
     case "textDocument/didSave":
-      scheduleDiagnostics(message.params?.textDocument?.uri);
+      scheduleDiagnostics(message.params?.textDocument?.uri, message.params?.text);
       break;
 
     case "textDocument/didClose":
@@ -426,6 +506,10 @@ function handleMessage(message) {
 
     case "textDocument/documentSymbol":
       handleDocumentSymbolRequest(message.id, message.params);
+      break;
+
+    case "textDocument/completion":
+      handleCompletionRequest(message.id, message.params);
       break;
 
     default:
