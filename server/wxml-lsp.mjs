@@ -14,10 +14,15 @@ import {
 const EXTENSION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAPH_EXTRACTOR = path.join(EXTENSION_ROOT, "scripts/extract-wxml-project-graph.mjs");
 const GRAPH_AFFECTING_EXTENSIONS = new Set([".json", ".wxml", ".wxs"]);
+const WATCH_REGISTRATION_ID = "wxml-zed-watch-registration";
+const WATCH_REGISTRATION_METHOD = "workspace/didChangeWatchedFiles";
+const WATCH_REGISTRATION_GLOBS = ["**/*.json", "**/*.wxml", "**/*.wxs"];
 
 let buffer = Buffer.alloc(0);
 let shutdownRequested = false;
 let rootCandidates = [];
+let supportsWatchedFileDynamicRegistration = false;
+let watchedFilesRegistered = false;
 const openDocuments = new Map();
 const graphsByRoot = new Map();
 const buildStateByRoot = new Map();
@@ -47,6 +52,15 @@ function respondError(id, code, message) {
     jsonrpc: "2.0",
     id,
     error: { code, message },
+  });
+}
+
+function requestClient(id, method, params) {
+  writeMessage({
+    jsonrpc: "2.0",
+    id,
+    method,
+    params,
   });
 }
 
@@ -491,6 +505,10 @@ async function handleCompletionRequest(id, params) {
 }
 
 function initialize(params) {
+  supportsWatchedFileDynamicRegistration = (
+    params?.capabilities?.workspace?.didChangeWatchedFiles?.dynamicRegistration === true
+  );
+  watchedFilesRegistered = false;
   rootCandidates = [
     fileUriToPath(params?.rootUri),
     ...(Array.isArray(params?.workspaceFolders)
@@ -515,13 +533,35 @@ function initialize(params) {
   };
 }
 
+function registerWatchedFilesIfSupported() {
+  if (!supportsWatchedFileDynamicRegistration || watchedFilesRegistered) {
+    return;
+  }
+
+  watchedFilesRegistered = true;
+  requestClient(WATCH_REGISTRATION_ID, "client/registerCapability", {
+    registrations: [{
+      id: "wxml-zed-watched-files",
+      method: WATCH_REGISTRATION_METHOD,
+      registerOptions: {
+        watchers: WATCH_REGISTRATION_GLOBS.map((globPattern) => ({ globPattern })),
+      },
+    }],
+  });
+}
+
 function handleMessage(message) {
+  if (!message.method) {
+    return;
+  }
+
   switch (message.method) {
     case "initialize":
       respond(message.id, initialize(message.params));
       break;
 
     case "initialized":
+      registerWatchedFilesIfSupported();
       break;
 
     case "shutdown":

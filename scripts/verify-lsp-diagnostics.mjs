@@ -1361,7 +1361,16 @@ const scenarios = [
 ];
 
 async function main() {
-  for (const [name, scenario] of scenarios) {
+  const filters = process.argv.slice(2).map((filter) => filter.toLowerCase());
+  const selectedScenarios = filters.length === 0
+    ? scenarios
+    : scenarios.filter(([name]) => filters.some((filter) => name.toLowerCase().includes(filter)));
+  assert(
+    selectedScenarios.length > 0,
+    `No scenarios matched filters: ${JSON.stringify(process.argv.slice(2))}`,
+  );
+
+  for (const [name, scenario] of selectedScenarios) {
     process.stderr.write(`[verify-lsp-diagnostics] ${name}\n`);
     try {
       await scenario();
