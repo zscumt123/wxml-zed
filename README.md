@@ -28,7 +28,8 @@ git submodule.
 | Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and direct-scope static templates | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
-| Dynamic template, recursive/full template visibility, npm/plugin component, and full component resolution navigation | Planned |
+| Prototype LSP completion for built-in tags, resolved local components, direct-scope static templates, and common attributes | Yes |
+| Dynamic template completion/navigation, recursive/full template visibility, npm/plugin component support, and full component resolution navigation | Planned |
 
 ## Install
 
@@ -56,7 +57,8 @@ models. It also verifies the pure WXML language-service mapping layer and starts
 the prototype WXML language server over stdio to verify missing local component
 diagnostics, go-to-definition for resolved local components, WXML
 import/include dependencies, external WXS dependencies, and static template
-definitions, plus flat document symbols for WXML declaration/dependency entries.
+definitions, plus flat document symbols for WXML declaration/dependency entries
+and baseline completion for tags, static templates, and common WXML attributes.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -107,13 +109,16 @@ missing local component diagnostics, go-to-definition for resolved local WXML
 component tags, go-to-definition for WXML import/include and external WXS file
 dependencies, go-to-definition for static template usages within the current
 file and direct `import` / `include` dependencies, and flat document symbols for
-WXML declaration/dependency entries.
-It intentionally does not provide symbol indexing, dynamic template navigation,
-recursive/full template visibility,
-completion, hover, nested structural document symbols, semantic tokens, code
-actions, formatting, file watching, npm/plugin component resolution,
-`componentGenerics`, independent-subpackage component isolation rules, or
-production Node runtime packaging.
+WXML declaration/dependency entries. It also provides baseline completion for
+built-in tags, resolved owner-local/app-global component tags, static templates
+visible from the current file or direct `import` / `include` dependencies, and
+common WXML attributes.
+It intentionally does not provide symbol indexing, dynamic template
+completion/navigation, recursive/full template visibility, expression
+completion, WXS module completion, hover, nested structural document symbols,
+semantic tokens, code actions, formatting, file watching, npm/plugin component
+navigation, `componentGenerics`, independent-subpackage component isolation
+rules, or production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
@@ -158,7 +163,10 @@ WXS declarations to their target `.wxs` files, and from static template usages
 to matching template definitions in the current file or direct `import` /
 `include` dependencies. It also returns a flat document-symbol list for WXML
 declaration/dependency entries such as template definitions, WXS
-modules, imports, and includes. For the baseline fixture this
+modules, imports, and includes. Completion items are available for built-in
+tags, resolved local component tags, direct-scope static templates, and common
+WXML attributes; unsupported contexts return no completion list instead of
+guessing. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
 `components/user-card/user-card.wxml`, resolves the top-level `import`,
 `include`, and external `wxs` declarations to their target files, resolves the
@@ -168,9 +176,9 @@ the home page `<global-badge>` usage through the owner-local override, and
 returns document symbols for those dependency entries. Diagnostics still run on
 open/save only; there is no file watching, incremental parsing, nested
 structural document symbols, component usage symbols, JSON document symbols,
-dynamic template navigation, recursive/full template visibility, npm/plugin
-component navigation, or `componentGenerics`
-support.
+dynamic template completion/navigation, recursive/full template visibility,
+expression completion, WXS module completion, npm/plugin component navigation,
+or `componentGenerics` support.
 
 ## Redistribution Status
 
@@ -195,7 +203,7 @@ clean-room equivalents.
 - `server/wxml-lsp.mjs`: prototype stdio language server.
 - `server/wxml-language-service.mjs`: pure graph-to-LSP feature mapping for the Node LSP prototype.
 - `scripts/verify-wxml-language-service.mjs`: direct verification for the WXML language-service boundary.
-- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, and document symbols.
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, document symbols, and completion.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 
