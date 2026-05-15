@@ -177,6 +177,24 @@ function assertNoConcurrentExtractorWithMax(events, maxStartCount, label) {
   );
   assert(stats.maxActive <= 1, `${label}: expected no concurrent graph extractors, saw ${stats.maxActive}: ${JSON.stringify(events)}`);
 }
+
+async function waitForCounterEventsAfter(counterFile, previousEventCount, label, settleMs = SETTLE_MS) {
+  const deadline = Date.now() + TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const events = readCounterEvents(counterFile);
+    const nextEvents = events.slice(previousEventCount);
+    const stats = counterStats(nextEvents);
+    if (stats.startCount > 0 && stats.active === 0 && stats.startCount === stats.endCount) {
+      await sleep(settleMs);
+      return readCounterEvents(counterFile);
+    }
+    await sleep(25);
+  }
+
+  const events = readCounterEvents(counterFile);
+  assert(false, `${label}: expected graph build after event ${previousEventCount}, got ${JSON.stringify(events)}`);
+}
 ```
 
 - [ ] **Step 4: Add JSON `usingComponents` refresh test**
@@ -332,9 +350,89 @@ async function testWatchedRefreshCoalescesAndStaysResponsive() {
 }
 ```
 
-- [ ] **Step 8: Add irrelevant changes test**
+- [ ] **Step 8: Add request waits for refreshed graph test**
 
 After `testWatchedRefreshCoalescesAndStaysResponsive()`, add:
+
+```javascript
+async function testWatchedRefreshRequestsWaitForFreshGraph() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-request-");
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched request initial diagnostics");
+
+      const config = JSON.parse(fs.readFileSync(tempHomeJson, "utf8"));
+      config.usingComponents["missing-card"] = "../../components/user-card/user-card";
+      writeJson(tempHomeJson, config);
+
+      const cursor = client.diagnosticCursor();
+      client.changeWatchedFiles([tempHomeJson]);
+      const completionPromise = client.completion(tempHome, { line: 14, character: 10 });
+
+      await client.waitForDiagnosticsAfter(uri, cursor, (items) => items.length === 0, "watched request diagnostics refresh");
+      const completions = await completionPromise;
+      assertCompletionLabelsInclude(completions, ["missing-card"], "watched request completion waits for fresh graph");
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+```
+
+- [ ] **Step 9: Add closed document refresh test**
+
+After `testWatchedRefreshRequestsWaitForFreshGraph()`, add:
+
+```javascript
+async function testWatchedRefreshDoesNotPublishClosedDocumentDiagnostics() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-closed-");
+  const counterFile = path.join(os.tmpdir(), `wxml-zed-lsp-watch-closed-${process.pid}.jsonl`);
+  fs.rmSync(counterFile, { force: true });
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_COUNTER_FILE: counterFile,
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched closed initial diagnostics");
+
+      const closeCursor = client.diagnosticCursor();
+      client.closeDocument(tempHome);
+      await client.waitForDiagnosticsAfter(uri, closeCursor, (items) => items.length === 0, "watched closed didClose diagnostics");
+
+      const eventCount = readCounterEvents(counterFile).length;
+      fs.writeFileSync(tempHomeJson, fs.readFileSync(tempHomeJson, "utf8"));
+      client.changeWatchedFiles([tempHomeJson]);
+      await waitForCounterEventsAfter(counterFile, eventCount, "watched closed refresh");
+
+      const later = client.diagnosticsSince(closeCursor, uri);
+      assert(
+        later.length === 1 && later[0].diagnostics.length === 0,
+        `closed document should only receive didClose diagnostics: ${JSON.stringify(later)}`,
+      );
+    });
+  } finally {
+    fs.rmSync(counterFile, { force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+```
+
+- [ ] **Step 10: Add irrelevant changes test**
+
+After `testWatchedRefreshDoesNotPublishClosedDocumentDiagnostics()`, add:
 
 ```javascript
 async function testWatchedIrrelevantChangesIgnored() {
@@ -377,7 +475,7 @@ async function testWatchedIrrelevantChangesIgnored() {
 }
 ```
 
-- [ ] **Step 9: Register new scenarios**
+- [ ] **Step 11: Register new scenarios**
 
 In the `scenarios` array, after `["completion build does not block request loop", testCompletionBuildDoesNotBlockRequestLoop],` add:
 
@@ -386,10 +484,12 @@ In the `scenarios` array, after `["completion build does not block request loop"
   ["watched component creation refresh", testWatchedComponentCreationRefresh],
   ["watched component deletion refresh", testWatchedComponentDeletionRefresh],
   ["watched refresh coalesces and stays responsive", testWatchedRefreshCoalescesAndStaysResponsive],
+  ["watched refresh requests wait for fresh graph", testWatchedRefreshRequestsWaitForFreshGraph],
+  ["watched refresh does not publish closed document diagnostics", testWatchedRefreshDoesNotPublishClosedDocumentDiagnostics],
   ["watched irrelevant changes ignored", testWatchedIrrelevantChangesIgnored],
 ```
 
-- [ ] **Step 10: Run syntax check**
+- [ ] **Step 12: Run syntax check**
 
 Run:
 
@@ -399,7 +499,7 @@ node --check scripts/verify-lsp-diagnostics.mjs
 
 Expected: exits `0`.
 
-- [ ] **Step 11: Run protocol tests and confirm failure**
+- [ ] **Step 13: Run protocol tests and confirm failure**
 
 Run:
 
@@ -409,7 +509,7 @@ node scripts/verify-lsp-diagnostics.mjs
 
 Expected: exits non-zero at the first watched-file scenario because `server/wxml-lsp.mjs` does not yet handle `workspace/didChangeWatchedFiles`.
 
-- [ ] **Step 12: Commit failing tests**
+- [ ] **Step 14: Commit failing tests**
 
 Run:
 
