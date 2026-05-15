@@ -13,6 +13,7 @@ import {
 
 const EXTENSION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAPH_EXTRACTOR = path.join(EXTENSION_ROOT, "scripts/extract-wxml-project-graph.mjs");
+const GRAPH_AFFECTING_EXTENSIONS = new Set([".json", ".wxml", ".wxs"]);
 
 let buffer = Buffer.alloc(0);
 let shutdownRequested = false;
@@ -159,6 +160,11 @@ function containsAppJson(dir) {
   return fs.existsSync(path.join(dir, "app.json"));
 }
 
+function isInside(parent, child) {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 function resolveMiniProgramRoot(documentPath) {
   for (const dir of parentDirs(path.dirname(documentPath))) {
     if (containsAppJson(dir)) return dir;
@@ -169,6 +175,24 @@ function resolveMiniProgramRoot(documentPath) {
   }
 
   return undefined;
+}
+
+function resolveMiniProgramRootForWatchedPath(filePath) {
+  for (const dir of parentDirs(path.dirname(filePath))) {
+    if (containsAppJson(dir)) return dir;
+  }
+
+  for (const root of rootCandidates) {
+    if (root && containsAppJson(root) && isInside(root, filePath)) {
+      return root;
+    }
+  }
+
+  return undefined;
+}
+
+function isGraphAffectingPath(filePath) {
+  return GRAPH_AFFECTING_EXTENSIONS.has(path.extname(filePath));
 }
 
 async function buildProjectGraph(projectRoot) {
@@ -208,6 +232,15 @@ function publishPendingDiagnostics(projectRoot, diagnosticsForUri) {
     publishDiagnostics(uri, diagnosticsForUri(uri, document.path));
   }
   pending.clear();
+}
+
+function markOpenDocumentsPending(projectRoot, generation) {
+  const pending = pendingForRoot(projectRoot);
+  for (const [uri, document] of openDocuments) {
+    if (path.extname(document.path) !== ".wxml") continue;
+    if (!isInside(projectRoot, document.path)) continue;
+    pending.set(uri, generation);
+  }
 }
 
 async function runGraphBuild(projectRoot) {
@@ -312,6 +345,33 @@ function scheduleDiagnostics(uri, text = undefined) {
   state.latestGeneration += 1;
   pendingForRoot(projectRoot).set(uri, state.latestGeneration);
   runGraphBuild(projectRoot);
+}
+
+function refreshGraphForRoot(projectRoot) {
+  graphsByRoot.delete(projectRoot);
+  const state = stateForRoot(projectRoot);
+  state.latestGeneration += 1;
+  markOpenDocumentsPending(projectRoot, state.latestGeneration);
+  runGraphBuild(projectRoot);
+}
+
+function handleWatchedFilesChanged(params) {
+  const roots = new Set();
+  const changes = Array.isArray(params?.changes) ? params.changes : [];
+
+  for (const change of changes) {
+    const filePath = fileUriToPath(change?.uri);
+    if (!filePath || !isGraphAffectingPath(filePath)) continue;
+
+    const projectRoot = resolveMiniProgramRootForWatchedPath(filePath);
+    if (!projectRoot) continue;
+
+    roots.add(projectRoot);
+  }
+
+  for (const projectRoot of roots) {
+    refreshGraphForRoot(projectRoot);
+  }
 }
 
 function closeDocument(uri) {
@@ -494,6 +554,10 @@ function handleMessage(message) {
 
     case "textDocument/didSave":
       scheduleDiagnostics(message.params?.textDocument?.uri, message.params?.text);
+      break;
+
+    case "workspace/didChangeWatchedFiles":
+      handleWatchedFilesChanged(message.params);
       break;
 
     case "textDocument/didClose":
