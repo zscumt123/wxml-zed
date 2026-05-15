@@ -66,32 +66,45 @@ function lineCharToOffset(text, position) {
   return offset + position.character;
 }
 
-function assertMissingCardDiagnostic(diagnostic, sourceFile) {
-  assert(diagnostic, "Missing diagnostic");
+function assertMissingComponentDiagnostic(diagnostic, sourceFile, tag, value) {
+  assert(diagnostic, `Missing diagnostic for ${tag}`);
   assert(diagnostic.severity === 2, `Expected warning severity, got ${diagnostic.severity}`);
   assert(diagnostic.source === "wxml-zed", `Unexpected diagnostic source: ${diagnostic.source}`);
   assert(diagnostic.code === "missing-local-component", `Unexpected diagnostic code: ${diagnostic.code}`);
   assert(
-    diagnostic.message === 'Missing local component "missing-card": ../../components/missing-card/missing-card',
+    diagnostic.message === `Missing local component "${tag}": ${value}`,
     `Unexpected diagnostic message: ${diagnostic.message}`,
-  );
-
-  const expectedRange = {
-    start: { line: 14, character: 2 },
-    end: { line: 14, character: 43 },
-  };
-  assert(
-    JSON.stringify(diagnostic.range) === JSON.stringify(expectedRange),
-    `Unexpected diagnostic range: ${JSON.stringify(diagnostic.range)}`,
   );
 
   const text = fs.readFileSync(sourceFile, "utf8");
   const start = lineCharToOffset(text, diagnostic.range.start);
   const end = lineCharToOffset(text, diagnostic.range.end);
   assert(
-    text.slice(start, end) === '<missing-card reason="{{emptyReason}}" />',
-    `Diagnostic is not attached to missing-card in ${sourceFile}`,
+    text.slice(start, end).includes(`<${tag}`),
+    `Diagnostic is not attached to ${tag} in ${sourceFile}: ${text.slice(start, end)}`,
   );
+}
+
+function assertMissingCardDiagnostic(diagnostic, sourceFile) {
+  assertMissingComponentDiagnostic(
+    diagnostic,
+    sourceFile,
+    "missing-card",
+    "../../components/missing-card/missing-card",
+  );
+
+  const expectedRange = {
+    start: { line: 14, character: 2 },
+    end: { line: 14, character: 43 },
+  };
+  assertDeepEqual(diagnostic.range, expectedRange, "missing-card diagnostic range");
+}
+
+function diagnosticByCodeAndTag(diagnostics, tag) {
+  return diagnostics.find((diagnostic) => (
+    diagnostic.code === "missing-local-component" &&
+    diagnostic.message.includes(`"${tag}"`)
+  ));
 }
 
 function assertLocationTarget(result, targetPath) {
@@ -401,6 +414,15 @@ class LspClient {
     return uri;
   }
 
+  changeWatchedFiles(filePaths, type = 2) {
+    this.send("workspace/didChangeWatchedFiles", {
+      changes: filePaths.map((filePath) => ({
+        uri: pathToFileURL(filePath).href,
+        type,
+      })),
+    });
+  }
+
   closeDocument(filePath) {
     const uri = pathToFileURL(filePath).href;
     this.send("textDocument/didClose", { textDocument: { uri } });
@@ -518,6 +540,54 @@ async function assertNoLaterNonEmptyDiagnostics(client, uri, cursor, label, opti
     stale.length === 0,
     `${label}: received non-empty diagnostics after expected clear: ${JSON.stringify(stale)}`,
   );
+}
+
+function copyMiniProgramFixture(prefix) {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  fs.cpSync(MINIPROGRAM_ROOT, tempRoot, { recursive: true });
+  return tempRoot;
+}
+
+function homeWxmlIn(root) {
+  return path.join(root, "pages/home/home.wxml");
+}
+
+function homeJsonIn(root) {
+  return path.join(root, "pages/home/home.json");
+}
+
+function writeJson(filePath, value) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function assertNoConcurrentExtractorWithMax(events, maxStartCount, label) {
+  const stats = counterStats(events);
+  assert(stats.minActive >= 0, `${label}: extractor counter ended before start: ${JSON.stringify(events)}`);
+  assert(stats.active === 0, `${label}: extractor counter did not settle to zero: ${JSON.stringify(events)}`);
+  assert(stats.startCount === stats.endCount, `${label}: extractor counter start/end mismatch: ${JSON.stringify(events)}`);
+  assert(
+    stats.startCount <= maxStartCount,
+    `${label}: expected at most ${maxStartCount} graph extractor starts, saw ${stats.startCount}: ${JSON.stringify(events)}`,
+  );
+  assert(stats.maxActive <= 1, `${label}: expected no concurrent graph extractors, saw ${stats.maxActive}: ${JSON.stringify(events)}`);
+}
+
+async function waitForCounterEventsAfter(counterFile, previousEventCount, label, settleMs = SETTLE_MS) {
+  const deadline = Date.now() + TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const events = readCounterEvents(counterFile);
+    const nextEvents = events.slice(previousEventCount);
+    const stats = counterStats(nextEvents);
+    if (stats.startCount > 0 && stats.active === 0 && stats.startCount === stats.endCount) {
+      await sleep(settleMs);
+      return readCounterEvents(counterFile);
+    }
+    await sleep(25);
+  }
+
+  const events = readCounterEvents(counterFile);
+  assert(false, `${label}: expected graph build after event ${previousEventCount}, got ${JSON.stringify(events)}`);
 }
 
 async function testHomeComponentDefinition() {
@@ -796,6 +866,242 @@ async function testCompletionBuildDoesNotBlockRequestLoop() {
   });
 }
 
+async function testWatchedJsonUsingComponentsRefresh() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-json-");
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    await withClient({ rootPath: tempRoot }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      const first = await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched json initial diagnostics");
+      assertMissingCardDiagnostic(first.diagnostics[0], tempHome);
+
+      const config = JSON.parse(fs.readFileSync(tempHomeJson, "utf8"));
+      config.usingComponents["missing-card"] = "../../components/user-card/user-card";
+      writeJson(tempHomeJson, config);
+
+      const cursor = client.diagnosticCursor();
+      client.changeWatchedFiles([tempHomeJson]);
+      await client.waitForDiagnosticsAfter(uri, cursor, (items) => items.length === 0, "watched json clears diagnostics");
+
+      const completions = await client.completion(tempHome, { line: 14, character: 10 });
+      assertCompletionLabelsInclude(completions, ["missing-card"], "watched json completion refresh");
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedComponentCreationRefresh() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-create-");
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const missingDir = path.join(tempRoot, "components/missing-card");
+    const missingWxml = path.join(missingDir, "missing-card.wxml");
+    const missingJson = path.join(missingDir, "missing-card.json");
+    await withClient({ rootPath: tempRoot }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      const first = await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched create initial diagnostics");
+      assertMissingCardDiagnostic(first.diagnostics[0], tempHome);
+
+      fs.mkdirSync(missingDir, { recursive: true });
+      fs.writeFileSync(missingWxml, "<view />\n");
+      fs.writeFileSync(missingJson, "{\"component\":true}\n");
+
+      const cursor = client.diagnosticCursor();
+      client.changeWatchedFiles([missingWxml, missingJson], 1);
+      await client.waitForDiagnosticsAfter(uri, cursor, (items) => items.length === 0, "watched create clears diagnostics");
+
+      const completions = await client.completion(tempHome, { line: 14, character: 10 });
+      assertCompletionLabelsInclude(completions, ["missing-card"], "watched create completion refresh");
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedComponentDeletionRefresh() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-delete-");
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const userCardWxml = path.join(tempRoot, "components/user-card/user-card.wxml");
+    await withClient({ rootPath: tempRoot }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched delete initial diagnostics");
+
+      fs.rmSync(userCardWxml, { force: true });
+
+      const cursor = client.diagnosticCursor();
+      client.changeWatchedFiles([userCardWxml], 3);
+      const refreshed = await client.waitForDiagnosticsAfter(
+        uri,
+        cursor,
+        (items) => Boolean(diagnosticByCodeAndTag(items, "user-card")),
+        "watched delete user-card diagnostics",
+      );
+      assertMissingComponentDiagnostic(
+        diagnosticByCodeAndTag(refreshed.diagnostics, "user-card"),
+        tempHome,
+        "user-card",
+        "../../components/user-card/user-card",
+      );
+
+      const definition = await client.definition(tempHome, { line: 7, character: 3 });
+      assertNullDefinition(definition, "watched delete user-card definition");
+
+      const completions = await client.completion(tempHome, { line: 7, character: 6 });
+      assert(!completionLabels(completions).includes("user-card"), "watched delete should remove user-card completion");
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedRefreshCoalescesAndStaysResponsive() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-coalesce-");
+  const counterFile = path.join(os.tmpdir(), `wxml-zed-lsp-watch-counter-${process.pid}.jsonl`);
+  fs.rmSync(counterFile, { force: true });
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    const tempAppJson = path.join(tempRoot, "app.json");
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+        WXML_ZED_LSP_GRAPH_COUNTER_FILE: counterFile,
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched coalesce initial diagnostics");
+      fs.writeFileSync(tempHomeJson, fs.readFileSync(tempHomeJson, "utf8"));
+      fs.writeFileSync(tempAppJson, fs.readFileSync(tempAppJson, "utf8"));
+
+      client.changeWatchedFiles([tempHomeJson]);
+      client.changeWatchedFiles([tempAppJson]);
+      client.changeWatchedFiles([tempHomeJson, tempAppJson]);
+
+      const id = client.request("workspace/symbol", { query: "user-card" });
+      const response = await client.waitForResponse(id);
+      assert(response.error?.code === -32601, `Expected responsive -32601, got ${JSON.stringify(response)}`);
+
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched coalesce diagnostics settle");
+      const events = await waitForCounterCompletionOrSettle(counterFile);
+      assertNoConcurrentExtractorWithMax(events, 3, "watched coalesce");
+    });
+  } finally {
+    fs.rmSync(counterFile, { force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedRefreshRequestsWaitForFreshGraph() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-request-");
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_DELAY_MS: "250",
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched request initial diagnostics");
+
+      const config = JSON.parse(fs.readFileSync(tempHomeJson, "utf8"));
+      config.usingComponents["missing-card"] = "../../components/user-card/user-card";
+      writeJson(tempHomeJson, config);
+
+      const cursor = client.diagnosticCursor();
+      client.changeWatchedFiles([tempHomeJson]);
+      const completionPromise = client.completion(tempHome, { line: 14, character: 10 });
+
+      await client.waitForDiagnosticsAfter(uri, cursor, (items) => items.length === 0, "watched request diagnostics refresh");
+      const completions = await completionPromise;
+      assertCompletionLabelsInclude(completions, ["missing-card"], "watched request completion waits for fresh graph");
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedRefreshDoesNotPublishClosedDocumentDiagnostics() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-closed-");
+  const counterFile = path.join(os.tmpdir(), `wxml-zed-lsp-watch-closed-${process.pid}.jsonl`);
+  fs.rmSync(counterFile, { force: true });
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const tempHomeJson = homeJsonIn(tempRoot);
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_COUNTER_FILE: counterFile,
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched closed initial diagnostics");
+
+      const closeCursor = client.diagnosticCursor();
+      client.closeDocument(tempHome);
+      await client.waitForDiagnosticsAfter(uri, closeCursor, (items) => items.length === 0, "watched closed didClose diagnostics");
+
+      const eventCount = readCounterEvents(counterFile).length;
+      fs.writeFileSync(tempHomeJson, fs.readFileSync(tempHomeJson, "utf8"));
+      client.changeWatchedFiles([tempHomeJson]);
+      await waitForCounterEventsAfter(counterFile, eventCount, "watched closed refresh");
+
+      const later = client.diagnosticsSince(closeCursor, uri);
+      assert(
+        later.length === 1 && later[0].diagnostics.length === 0,
+        `closed document should only receive didClose diagnostics: ${JSON.stringify(later)}`,
+      );
+    });
+  } finally {
+    fs.rmSync(counterFile, { force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function testWatchedIrrelevantChangesIgnored() {
+  const tempRoot = copyMiniProgramFixture("wxml-zed-lsp-watch-ignore-");
+  const counterFile = path.join(os.tmpdir(), `wxml-zed-lsp-watch-ignore-${process.pid}.jsonl`);
+  const outsideFile = path.join(os.tmpdir(), `wxml-zed-outside-${process.pid}.json`);
+  fs.rmSync(counterFile, { force: true });
+  try {
+    const tempHome = homeWxmlIn(tempRoot);
+    const ignoredPng = path.join(tempRoot, "assets/ignored.png");
+    fs.mkdirSync(path.dirname(ignoredPng), { recursive: true });
+    fs.writeFileSync(ignoredPng, "");
+    fs.writeFileSync(outsideFile, "{}\n");
+
+    await withClient({
+      rootPath: tempRoot,
+      env: {
+        WXML_ZED_LSP_GRAPH_COUNTER_FILE: counterFile,
+      },
+    }, async (client) => {
+      const uri = client.openDocument(tempHome);
+      await client.waitForDiagnostics(uri, (items) => items.length === 1, "watched ignore initial diagnostics");
+      const eventCount = readCounterEvents(counterFile).length;
+      const cursor = client.diagnosticCursor();
+
+      client.changeWatchedFiles([ignoredPng, outsideFile]);
+      await sleep(SETTLE_MS);
+
+      assert(readCounterEvents(counterFile).length === eventCount, "irrelevant changes should not start graph build");
+      assert(
+        client.diagnosticsSince(cursor, uri).length === 0,
+        `irrelevant changes should not publish diagnostics: ${JSON.stringify(client.diagnosticsSince(cursor, uri))}`,
+      );
+    });
+  } finally {
+    fs.rmSync(counterFile, { force: true });
+    fs.rmSync(outsideFile, { force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 async function testRepositoryRootInitialization() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -966,6 +1272,13 @@ const scenarios = [
   ["didChange updates completion source", testDidChangeUpdatesCompletionSource],
   ["didSave preserves completion source", testDidSavePreservesCompletionSource],
   ["completion build does not block request loop", testCompletionBuildDoesNotBlockRequestLoop],
+  ["watched json usingComponents refresh", testWatchedJsonUsingComponentsRefresh],
+  ["watched component creation refresh", testWatchedComponentCreationRefresh],
+  ["watched component deletion refresh", testWatchedComponentDeletionRefresh],
+  ["watched refresh coalesces and stays responsive", testWatchedRefreshCoalescesAndStaysResponsive],
+  ["watched refresh requests wait for fresh graph", testWatchedRefreshRequestsWaitForFreshGraph],
+  ["watched refresh does not publish closed document diagnostics", testWatchedRefreshDoesNotPublishClosedDocumentDiagnostics],
+  ["watched irrelevant changes ignored", testWatchedIrrelevantChangesIgnored],
   ["repository root initialization", testRepositoryRootInitialization],
   ["mini program root initialization", testMiniProgramRootInitialization],
   ["subpackage global component diagnostics clean", testSubpackageGlobalComponentDiagnosticsClean],
