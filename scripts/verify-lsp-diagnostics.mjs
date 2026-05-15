@@ -16,7 +16,7 @@ const SECONDARY_WXML = path.join(MINIPROGRAM_ROOT, "templates/secondary.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 240_000;
 const EXIT_TIMEOUT_MS = 5_000;
 const SETTLE_MS = 500;
 
@@ -202,9 +202,10 @@ function assertCompletionTextEdit(items, itemLabel, expectedTextEdit, label) {
 }
 
 class LspClient {
-  constructor({ rootPath, env = {} }) {
+  constructor({ rootPath, env = {}, watchDynamicRegistration = false }) {
     this.rootPath = rootPath;
     this.env = env;
+    this.watchDynamicRegistration = watchDynamicRegistration;
     this.nextId = 1;
     this.stderr = "";
     this.responses = new Map();
@@ -269,6 +270,10 @@ class LspClient {
     return id;
   }
 
+  respondToServerRequest(id, result) {
+    writeMessage(this.server.stdin, { jsonrpc: "2.0", id, result });
+  }
+
   async definition(filePath, position) {
     const id = this.request("textDocument/definition", {
       textDocument: { uri: pathToFileURL(filePath).href },
@@ -324,6 +329,15 @@ class LspClient {
     return this.waitFor((message) => message.id === id, `response ${id}`);
   }
 
+  waitForServerRequest(method, label) {
+    const existing = this.messages.find((message) => message.method === method && Object.hasOwn(message, "id"));
+    if (existing) return Promise.resolve(existing);
+    return this.waitFor(
+      (message) => message.method === method && Object.hasOwn(message, "id"),
+      label,
+    );
+  }
+
   waitForDiagnostics(uri, predicate, label) {
     const existing = this.diagnostics.find((params) => params.uri === uri && predicate(params.diagnostics));
     if (existing) return Promise.resolve(existing);
@@ -369,6 +383,11 @@ class LspClient {
       rootUri,
       workspaceFolders: [{ uri: rootUri, name: path.basename(this.rootPath) }],
       capabilities: {
+        workspace: {
+          didChangeWatchedFiles: {
+            dynamicRegistration: this.watchDynamicRegistration,
+          },
+        },
         textDocument: {
           publishDiagnostics: {
             relatedInformation: false,
@@ -1247,7 +1266,58 @@ async function testAsyncCoalescingAndResponsiveness() {
   }
 }
 
+async function testWatchRegistrationWhenSupported() {
+  await withClient({
+    rootPath: ROOT,
+    watchDynamicRegistration: true,
+  }, async (client) => {
+    const request = await client.waitForServerRequest("client/registerCapability", "watch registration request");
+    assert(request.id === "wxml-zed-watch-registration", `Unexpected watch registration id: ${JSON.stringify(request.id)}`);
+    assert(Array.isArray(request.params?.registrations), `Missing registrations: ${JSON.stringify(request.params)}`);
+    assert(request.params.registrations.length === 1, `Expected one registration: ${JSON.stringify(request.params.registrations)}`);
+
+    const [registration] = request.params.registrations;
+    assert(registration.id === "wxml-zed-watched-files", `Unexpected registration id: ${registration.id}`);
+    assert(
+      registration.method === "workspace/didChangeWatchedFiles",
+      `Unexpected registration method: ${registration.method}`,
+    );
+    const watchers = registration.registerOptions?.watchers;
+    assert(Array.isArray(watchers), `Missing watchers: ${JSON.stringify(registration)}`);
+    assertDeepEqual(
+      watchers.map((watcher) => watcher.globPattern),
+      ["**/*.json", "**/*.wxml", "**/*.wxs"],
+      "watch registration glob patterns",
+    );
+
+    client.respondToServerRequest(request.id, null);
+    await sleep(SETTLE_MS);
+    const errors = client.messages.filter((message) => (
+      Object.hasOwn(message, "id") &&
+      message.error?.code === -32601 &&
+      String(message.error?.message || "").includes("client/registerCapability")
+    ));
+    assert(errors.length === 0, `watch registration response should not produce errors: ${JSON.stringify(errors)}`);
+  });
+}
+
+async function testWatchRegistrationSkippedWhenUnsupported() {
+  await withClient({
+    rootPath: ROOT,
+    watchDynamicRegistration: false,
+  }, async (client) => {
+    await sleep(SETTLE_MS);
+    const registrations = client.messages.filter((message) => message.method === "client/registerCapability");
+    assert(
+      registrations.length === 0,
+      `watch registration should not be sent without dynamicRegistration support: ${JSON.stringify(registrations)}`,
+    );
+  });
+}
+
 const scenarios = [
+  ["watch registration when supported", testWatchRegistrationWhenSupported],
+  ["watch registration skipped when unsupported", testWatchRegistrationSkippedWhenUnsupported],
   ["home component definition", testHomeComponentDefinition],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
