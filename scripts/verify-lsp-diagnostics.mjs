@@ -1362,14 +1362,62 @@ const scenarios = [
   ["coalesced async build behavior", testAsyncCoalescingAndResponsiveness],
 ];
 
+const SCENARIO_SUITES = {
+  fast: [
+    "watch registration when supported",
+    "watch registration skipped when unsupported",
+    "unsupported request behavior",
+  ],
+  smoke: [
+    "watch registration when supported",
+    "watch registration skipped when unsupported",
+    "home component definition",
+    "completion immediately after open",
+    "unsupported request behavior",
+  ],
+  full: scenarios.map(([name]) => name),
+};
+
+function parseArgs(args) {
+  const filters = [];
+  let suite = "full";
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--suite") {
+      const value = args[index + 1];
+      assert(value, "--suite requires one of: fast, smoke, full");
+      suite = value.toLowerCase();
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--suite=")) {
+      suite = arg.slice("--suite=".length).toLowerCase();
+      continue;
+    }
+
+    filters.push(arg.toLowerCase());
+  }
+
+  assert(
+    Object.hasOwn(SCENARIO_SUITES, suite),
+    `Unknown suite "${suite}". Expected one of: ${Object.keys(SCENARIO_SUITES).join(", ")}`,
+  );
+
+  return { filters, suite };
+}
+
 async function main() {
-  const filters = process.argv.slice(2).map((filter) => filter.toLowerCase());
+  const { filters, suite } = parseArgs(process.argv.slice(2));
+  const suiteNames = new Set(SCENARIO_SUITES[suite]);
+  const suiteScenarios = scenarios.filter(([name]) => suiteNames.has(name));
   const selectedScenarios = filters.length === 0
-    ? scenarios
-    : scenarios.filter(([name]) => filters.some((filter) => name.toLowerCase().includes(filter)));
+    ? suiteScenarios
+    : suiteScenarios.filter(([name]) => filters.some((filter) => name.toLowerCase().includes(filter)));
   assert(
     selectedScenarios.length > 0,
-    `No scenarios matched filters: ${JSON.stringify(process.argv.slice(2))}`,
+    `No scenarios matched suite "${suite}" and filters: ${JSON.stringify(filters)}`,
   );
 
   for (const [name, scenario] of selectedScenarios) {
