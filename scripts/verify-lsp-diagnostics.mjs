@@ -1366,9 +1366,13 @@ const SCENARIO_SUITES = {
   fast: [
     "watch registration when supported",
     "watch registration skipped when unsupported",
-    "unsupported request behavior",
   ],
   smoke: [
+    "watch registration when supported",
+    "watch registration skipped when unsupported",
+    "unsupported request behavior",
+  ],
+  "graph-smoke": [
     "watch registration when supported",
     "watch registration skipped when unsupported",
     "home component definition",
@@ -1386,7 +1390,7 @@ function parseArgs(args) {
     const arg = args[index];
     if (arg === "--suite") {
       const value = args[index + 1];
-      assert(value, "--suite requires one of: fast, smoke, full");
+      assert(value, `--suite requires one of: ${Object.keys(SCENARIO_SUITES).join(", ")}`);
       suite = value.toLowerCase();
       index += 1;
       continue;

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add fast/smoke/full LSP harness suites so routine verification avoids hour-long cold graph runs while full coverage remains explicit.
+**Goal:** Add fast/smoke/graph-smoke/full LSP harness suites so routine verification avoids hour-long cold graph runs while full coverage remains explicit.
 
-**Architecture:** Keep all scenarios in `scripts/verify-lsp-diagnostics.mjs`. Add suite metadata and a small CLI parser that selects a suite before applying existing substring filters. Update the wrapper and README to use the smoke suite for local verification.
+**Architecture:** Keep all scenarios in `scripts/verify-lsp-diagnostics.mjs`. Add suite metadata and a small CLI parser that selects a suite before applying existing substring filters. Keep routine smoke protocol-only, and make graph-backed smoke explicit as `graph-smoke`. Update the wrapper and README to use the smoke suite for local verification.
 
 **Tech Stack:** Node.js ESM, Bash, Markdown docs.
 
@@ -14,7 +14,7 @@
 
 - Modify `scripts/verify-lsp-diagnostics.mjs`
   - Add named suite scenario sets.
-  - Add `--suite <fast|smoke|full>` parsing.
+  - Add `--suite <fast|smoke|graph-smoke|full>` parsing.
   - Preserve existing no-argument full behavior and substring filters.
 - Modify `scripts/verify-tree-sitter.sh`
   - Run `node scripts/verify-lsp-diagnostics.mjs --suite smoke`.
@@ -28,12 +28,12 @@
 **Files:**
 - Modify: `scripts/verify-lsp-diagnostics.mjs`
 
-- [ ] Add `SCENARIO_SUITES` with `fast`, `smoke`, and `full`.
+- [ ] Add `SCENARIO_SUITES` with `fast`, `smoke`, `graph-smoke`, and `full`.
 - [ ] Add `parseArgs(argv)` that accepts `--suite <name>` and positional substring filters.
 - [ ] Select scenarios by suite first, then apply filters.
 - [ ] Run `node --check scripts/verify-lsp-diagnostics.mjs`.
 - [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite fast`.
-- [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite smoke completion`.
+- [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke completion`.
 - [ ] Commit with `test: add lsp harness suites`.
 
 ### Task 2: Routine Verification Wrapper
@@ -56,6 +56,6 @@
 - [ ] Run `node --check scripts/verify-lsp-diagnostics.mjs`.
 - [ ] Run `bash -n scripts/verify-tree-sitter.sh`.
 - [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite fast`.
-- [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite smoke completion`.
+- [ ] Run `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke completion`.
 - [ ] Run `git diff --check main..HEAD`.
 - [ ] Review changed files for test-infra-only scope.
