@@ -432,6 +432,6 @@ for (const [key, prefix] of Object.entries(required)) {
 ' "$ROOT_DIR/snippets/wxml.json"
 
 node "$ROOT_DIR/scripts/verify-wxml-language-service.mjs"
-node "$ROOT_DIR/scripts/verify-lsp-diagnostics.mjs"
+node "$ROOT_DIR/scripts/verify-lsp-diagnostics.mjs" --suite smoke
 
 echo "wxml-zed tree-sitter verification passed"

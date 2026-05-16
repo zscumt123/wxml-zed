@@ -55,13 +55,26 @@ the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
 models. It also verifies the pure WXML language-service mapping layer and starts
-the prototype WXML language server over stdio to verify missing local component
-diagnostics, go-to-definition for resolved local components, WXML
-import/include dependencies, external WXS dependencies, and static template
-definitions, plus flat document symbols for WXML declaration/dependency entries
-and baseline completion for tags, static templates, and common WXML attributes.
-The protocol harness also verifies watched-file graph refresh for JSON component
-registration changes and component file creation/deletion.
+the prototype WXML language server over stdio with the smoke protocol suite.
+That smoke suite verifies watcher registration, one graph-backed component
+definition flow, one graph-backed completion flow, and unsupported-request
+behavior without running every cold graph scenario.
+
+For targeted or exhaustive LSP protocol checks:
+
+```bash
+node scripts/verify-lsp-diagnostics.mjs --suite fast
+node scripts/verify-lsp-diagnostics.mjs --suite smoke
+node scripts/verify-lsp-diagnostics.mjs --suite full
+node scripts/verify-lsp-diagnostics.mjs --suite smoke completion
+```
+
+The no-argument LSP harness still runs the full suite for backward
+compatibility. The full suite covers diagnostics, go-to-definition for resolved
+local components, WXML import/include dependencies, external WXS dependencies,
+static template definitions, flat document symbols, baseline completion, and
+watched-file graph refresh. It can be slow because many scenarios intentionally
+start a fresh LSP process and rebuild the mini program project graph.
 
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
@@ -219,7 +232,7 @@ clean-room equivalents.
 - `server/wxml-lsp.mjs`: prototype stdio language server.
 - `server/wxml-language-service.mjs`: pure graph-to-LSP feature mapping for the Node LSP prototype.
 - `scripts/verify-wxml-language-service.mjs`: direct verification for the WXML language-service boundary.
-- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, document symbols, and completion.
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, document symbols, completion, and named fast/smoke/full suites.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 
