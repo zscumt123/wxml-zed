@@ -166,14 +166,15 @@ Two enhancements: (a) sort `files: [...]` by `.path` for deterministic compariso
   ```bash
   chmod +x /tmp/claude-501/npm-spike-cache/_npx/3c6034397c31e6a8/node_modules/tree-sitter-cli/tree-sitter 2>/dev/null || true
   ```
-- [ ] Capture the sorted file list to a variable, then run the legacy extractor once with all 11 files:
+- [ ] Run the legacy extractor once with all 11 files. **Note:** In zsh, an unquoted `$FILES` from `$(find ... | sort)` is NOT word-split — the whole newline-joined string becomes a single argv entry and the extractor reports `ENOENT`. Use `xargs` (POSIX-portable) so the shell does not matter:
   ```bash
-  FILES=$(find fixtures/miniprogram -type f -name "*.wxml" | sort)
-  NO_COLOR=1 WXML_ZED_HOME="$TMPDIR/wxml-home" NPM_CONFIG_CACHE="$TMPDIR/npm-spike-cache" NPM_CONFIG_PREFIX="$TMPDIR/npm-spike-prefix" \
-    node scripts/extract-wxml-symbols.mjs $FILES > "$TMPDIR/miniprogram-baseline.json" 2>/dev/null
+  find fixtures/miniprogram -type f -name "*.wxml" | sort | \
+    NO_COLOR=1 WXML_ZED_HOME="$TMPDIR/wxml-home" NPM_CONFIG_CACHE="$TMPDIR/npm-spike-cache" NPM_CONFIG_PREFIX="$TMPDIR/npm-spike-prefix" \
+    xargs node scripts/extract-wxml-symbols.mjs > "$TMPDIR/miniprogram-baseline.json" 2>/dev/null
   wc -c "$TMPDIR/miniprogram-baseline.json"
   ```
-  Expected: roughly 10×-50× the size of the single-file baseline (the home.wxml output was 3147 bytes; combined output likely 20KB-150KB depending on per-file content). Legacy runs ~6s per file → ~70s wall time for 11 files. If it returns in <1s with a small output, the color bug bit again — stop and diagnose.
+  Place the env vars on `xargs` (not on `find`) because the pipe scopes them to the left side only. Expected: roughly 6KB for 11 files (~6720 bytes observed 2026-05-16). If output is <1KB the color bug bit; if it's empty and exit is 1, the npx tree-sitter-cli binary's exec bit was reset (`chmod +x` it).
+  **Operational note from 2026-05-16:** the legacy extractor calls `npx tree-sitter-cli` with no version pin. On a cold npm cache, npx re-resolves per invocation and 11 files took ~40 min. Pre-install `tree-sitter-cli@0.26.8` into root `node_modules` (use 0.26.x — 0.25.x rejects the extractor's `--grammar-path` flag) with `NPM_CONFIG_CACHE="$TMPDIR/npm-spike-cache" npm install --no-save tree-sitter-cli@0.26.8` first; wall time then drops to ~22s.
 
 - [ ] Sanity-check the output:
   ```bash
@@ -190,10 +191,10 @@ Two enhancements: (a) sort `files: [...]` by `.path` for deterministic compariso
 
 **Files:** none (iteration on `scripts/poc-wasm-symbols.mjs` if needed)
 
-- [ ] Generate POC output with the same arg ordering as Task 3:
+- [ ] Generate POC output with the same arg ordering as Task 3 (also via xargs, for the zsh word-splitting reason noted in Task 3):
   ```bash
-  FILES=$(find fixtures/miniprogram -type f -name "*.wxml" | sort)
-  node scripts/poc-wasm-symbols.mjs $FILES > "$TMPDIR/poc-miniprogram.json"
+  find fixtures/miniprogram -type f -name "*.wxml" | sort | \
+    xargs node scripts/poc-wasm-symbols.mjs > "$TMPDIR/poc-miniprogram.json"
   wc -c "$TMPDIR/poc-miniprogram.json"
   ```
 - [ ] Diff:
@@ -209,7 +210,8 @@ Two enhancements: (a) sort `files: [...]` by `.path` for deterministic compariso
 - [ ] Iterate until the diff is clean. Cap at ~8 iterations; if mismatches keep surfacing past that, the wasm grammar likely produces a meaningfully different tree shape for some fixture and we need to investigate that fixture in isolation.
 - [ ] Once clean, run once more to confirm idempotency:
   ```bash
-  node scripts/poc-wasm-symbols.mjs $FILES > "$TMPDIR/poc-miniprogram-2.json"
+  find fixtures/miniprogram -type f -name "*.wxml" | sort | \
+    xargs node scripts/poc-wasm-symbols.mjs > "$TMPDIR/poc-miniprogram-2.json"
   diff "$TMPDIR/poc-miniprogram.json" "$TMPDIR/poc-miniprogram-2.json" && echo "idempotent"
   node scripts/diff-symbols-baseline.mjs "$TMPDIR/poc-miniprogram-2.json" fixtures/wasm-spike/miniprogram-symbols-baseline.json
   ```

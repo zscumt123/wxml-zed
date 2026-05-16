@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/test.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "./item.wxml",
+          "range": {
+            "start": {
+              "row": 62,
+              "column": 0
+            },
+            "end": {
+              "row": 62,
+              "column": 28
+            }
+          },
+          "normalized": "fixtures/item.wxml"
+        },
+        {
+          "kind": "include",
+          "value": "../common/header.wxml",
+          "range": {
+            "start": {
+              "row": 63,
+              "column": 0
+            },
+            "end": {
+              "row": 63,
+              "column": 39
+            }
+          },
+          "normalized": "common/header.wxml"
+        },
+        {
+          "kind": "wxs",
+          "value": "../common/utils.wxs",
+          "range": {
+            "start": {
+              "row": 89,
+              "column": 0
+            },
+            "end": {
+              "row": 89,
+              "column": 48
+            }
+          },
+          "normalized": "common/utils.wxs",
+          "module": "utils"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "userCard",
+          "range": {
+            "start": {
+              "row": 66,
+              "column": 0
+            },
+            "end": {
+              "row": 71,
+              "column": 11
+            }
+          }
+        },
+        {
+          "kind": "wxs",
+          "name": "utils",
+          "range": {
+            "start": {
+              "row": 89,
+              "column": 0
+            },
+            "end": {
+              "row": 89,
+              "column": 48
+            }
+          }
+        },
+        {
+          "kind": "wxs",
+          "name": "inline",
+          "range": {
+            "start": {
+              "row": 92,
+              "column": 0
+            },
+            "end": {
+              "row": 97,
+              "column": 6
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "userCard",
+          "range": {
+            "start": {
+              "row": 73,
+              "column": 0
+            },
+            "end": {
+              "row": 73,
+              "column": 45
+            }
+          },
+          "name": "userCard"
+        },
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "layout",
+          "range": {
+            "start": {
+              "row": 74,
+              "column": 0
+            },
+            "end": {
+              "row": 77,
+              "column": 11
+            }
+          },
+          "name": "layout"
+        },
+        {
+          "kind": "template",
+          "dynamic": true,
+          "raw": "{{cond ? 'tplA' : 'tplB'}}",
+          "range": {
+            "start": {
+              "row": 80,
+              "column": 0
+            },
+            "end": {
+              "row": 80,
+              "column": 63
+            }
+          }
+        }
+      ],
+      "components": [
+        {
+          "tag": "my-component",
+          "range": {
+            "start": {
+              "row": 53,
+              "column": 0
+            },
+            "end": {
+              "row": 53,
+              "column": 50
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

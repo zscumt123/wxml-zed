@@ -163,3 +163,37 @@ POC at `scripts/poc-wasm-symbols.mjs` now accepts N file args and matches the le
 - 0.25.10 (the version we used for wasm build) is NOT API-compatible here — the legacy extractor uses `--grammar-path` which 0.25.10 doesn't accept ("unexpected argument"). Had to pin 0.26.8 for the legacy path specifically. This drift between "version we built wasm with" and "version the legacy extractor uses" is fine because they're independent paths; only the wasm ABI matters for the POC, and 0.25.10's wasm loads correctly under `web-tree-sitter@0.25.10`.
 
 Step 3 of the WASM spike passed; extractor replacement (step 4) is unblocked.
+
+## Pre-Step-4 Alignment Pass
+
+Step 3 verified equivalence within `fixtures/miniprogram` but a review surfaced **5 silent semantic deltas** between POC and legacy that the miniprogram fixtures didn't exercise. Fixed in this alignment commit (no behavior change against the existing step-2/step-3 baselines — those remained byte-identical — but POC is now safe to substitute for the legacy extractor):
+
+1. **Dynamic template detection.** Legacy uses `value.includes("{{")` on the raw attribute value. POC was walking the syntax tree for an `interpolation` child node. The string-based check is now used (matches legacy exactly, even on pathological inputs).
+2. **`references[].name` on dynamic refs.** Legacy only sets `entry.name` when `!dynamic`. POC was setting it unconditionally. Fixed.
+3. **`dependencies[].normalized` gates.** Legacy only computes `normalized` when the src starts with `./` or `../` AND does not contain `{{`. POC was computing it for any src. Fixed.
+4. **Base path for `normalized`.** Legacy uses `ROOT` (script's repo-root, derived from `import.meta.url`) and explicit `path.posix.*` operations. POC was using `process.cwd()` and native `path.*`. Fixed — POC now matches legacy regardless of cwd or platform.
+5. **`BUILTIN_TAGS` filter on components.** Legacy excludes both control tags AND the WeChat mini-program built-in tags (`shared/wxml-builtins.mjs`: page-meta, navigation-bar, scroll-view, swiper-item, etc., 50+ tags). POC was only excluding control tags, so it was emitting `page-meta`, `navigation-bar`, `scroll-view` etc. as fake "components". Fixed by importing `BUILTIN_TAGS` from `shared/wxml-builtins.mjs`.
+
+Plus one POC bug that was orthogonal to the GPT findings but surfaced when widening the fixture set:
+
+6. **`wxs_inline` block handling.** Legacy emits a `symbols[].kind=wxs` entry for inline `<wxs module="X">...</wxs>` blocks (node type `wxs_inline` in the wasm parse tree, distinct from `wxs_external`). POC only handled `wxs_external`. Added a `wxs_inline` branch that emits the symbol only — no dependency, since there's no `src`.
+
+### Verification matrix (after fix)
+
+| Fixture set | Files | Legacy size | POC size | Byte-identical | Structural equivalent |
+|---|---|---|---|---|---|
+| `home.wxml` (step 2) | 1 | 3147 | 3147 | ✅ | ✅ |
+| `fixtures/miniprogram/` (step 3) | 11 | 6720 | 6720 | ✅ | ✅ |
+| `fixtures/test.wxml` (new) | 1 | 3401 | 3401 | ✅ | ✅ |
+| `fixtures/real-world/` (new, 3 of 4 — `edge-recovery.wxml` excluded; legacy errors on it too) | 3 | 5805 | 5805 | ✅ | ✅ |
+
+**Newly verified paths (vs step 3):**
+- Dynamic `<template is="{{expr}}">` → `references[].dynamic=true` with no `name` field (test.wxml has 1, real-world fixtures have 2 more)
+- `wxs_inline` blocks → `symbols[].kind=wxs` (test.wxml has 1)
+- Component filter correctly skips WeChat built-ins like `scroll-view`, `page-meta`, `navigation-bar`
+- `normalized` correctly skipped on absolute paths, non-relative paths, and dynamic `{{...}}` paths
+
+**Still unverified:**
+- UTF-16 vs byte column units — no non-ASCII fixture in repo. Synthetic fixture needed if/when it proves load-bearing.
+
+Step 4 (replacing `scripts/extract-wxml-symbols.mjs` internals) is now genuinely unblocked.

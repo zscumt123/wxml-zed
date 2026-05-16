@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/real-world/component.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [
+        {
+          "tag": "loading-spinner",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 4
+            },
+            "end": {
+              "row": 6,
+              "column": 36
+            }
+          }
+        },
+        {
+          "tag": "status-badge",
+          "range": {
+            "start": {
+              "row": 13,
+              "column": 6
+            },
+            "end": {
+              "row": 13,
+              "column": 74
+            }
+          }
+        },
+        {
+          "tag": "empty-state",
+          "range": {
+            "start": {
+              "row": 17,
+              "column": 4
+            },
+            "end": {
+              "row": 17,
+              "column": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/real-world/page.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "./templates.wxml",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 0,
+              "column": 33
+            }
+          },
+          "normalized": "fixtures/real-world/templates.wxml"
+        },
+        {
+          "kind": "include",
+          "value": "./shared/header.wxml",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 0
+            },
+            "end": {
+              "row": 1,
+              "column": 38
+            }
+          },
+          "normalized": "fixtures/real-world/shared/header.wxml"
+        },
+        {
+          "kind": "wxs",
+          "value": "./utils/format.wxs",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 48
+            }
+          },
+          "normalized": "fixtures/real-world/utils/format.wxs",
+          "module": "format"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "wxs",
+          "name": "format",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 48
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "loadingRow",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 6
+            },
+            "end": {
+              "row": 15,
+              "column": 64
+            }
+          },
+          "name": "loadingRow"
+        },
+        {
+          "kind": "template",
+          "dynamic": true,
+          "raw": "{{useCompact ? 'compactFooter' : 'fullFooter'}}",
+          "range": {
+            "start": {
+              "row": 42,
+              "column": 2
+            },
+            "end": {
+              "row": 42,
+              "column": 88
+            }
+          }
+        }
+      ],
+      "components": [
+        {
+          "tag": "user-card",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 32,
+              "column": 18
+            }
+          }
+        },
+        {
+          "tag": "price-row",
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 8
+            },
+            "end": {
+              "row": 31,
+              "column": 72
+            }
+          }
+        },
+        {
+          "tag": "empty-state",
+          "range": {
+            "start": {
+              "row": 34,
+              "column": 4
+            },
+            "end": {
+              "row": 34,
+              "column": 63
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/real-world/templates.wxml",
+      "dependencies": [],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "loadingRow",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 4,
+              "column": 11
+            }
+          }
+        },
+        {
+          "kind": "template",
+          "name": "compactFooter",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 0
+            },
+            "end": {
+              "row": 10,
+              "column": 11
+            }
+          }
+        },
+        {
+          "kind": "template",
+          "name": "fullFooter",
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 0
+            },
+            "end": {
+              "row": 17,
+              "column": 11
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "compactFooter",
+          "range": {
+            "start": {
+              "row": 19,
+              "column": 0
+            },
+            "end": {
+              "row": 19,
+              "column": 60
+            }
+          },
+          "name": "compactFooter"
+        },
+        {
+          "kind": "template",
+          "dynamic": true,
+          "raw": "{{expanded ? 'fullFooter' : 'compactFooter'}}",
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 0
+            },
+            "end": {
+              "row": 25,
+              "column": 11
+            }
+          }
+        }
+      ],
+      "components": []
+    }
+  ]
+}

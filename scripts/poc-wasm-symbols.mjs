@@ -3,11 +3,29 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 import { Parser, Language } from "web-tree-sitter";
+import { BUILTIN_TAGS } from "../shared/wxml-builtins.mjs";
 
-const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WASM = path.join(ROOT, "grammar/tree-sitter-wxml/tree-sitter-wxml.wasm");
 
-const RESERVED_TAGS = new Set(["template", "slot", "block", "import", "include", "wxs"]);
+const CONTROL_TAGS = new Set(["template", "wxs", "import", "include", "slot", "block"]);
+
+function toPosix(p) {
+  return p.split(path.sep).join(path.posix.sep);
+}
+
+function relativePathFromRoot(filePath) {
+  return toPosix(path.relative(ROOT, path.resolve(filePath)));
+}
+
+function normalizeDependency(filePath, value) {
+  if (!value || value.includes("{{") || !/^\.\.?\//.test(value)) {
+    return undefined;
+  }
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(relativePathFromRoot(filePath)), value),
+  );
+}
 
 function rangeOf(node) {
   return {
@@ -49,16 +67,6 @@ function attributeRawValue(attributeNode) {
   return unquote(valueNode.text);
 }
 
-function attributeIsDynamic(attributeNode) {
-  const valueNode = firstChildOfType(attributeNode, "quoted_attribute_value")
-    ?? firstChildOfType(attributeNode, "attribute_value");
-  if (!valueNode) return false;
-  for (let i = 0; i < valueNode.namedChildCount; i++) {
-    if (valueNode.namedChild(i).type === "interpolation") return true;
-  }
-  return false;
-}
-
 function findAttributeByName(parent, attributeNodeType, expectedName) {
   for (let i = 0; i < parent.namedChildCount; i++) {
     const child = parent.namedChild(i);
@@ -94,7 +102,7 @@ function collectComponents(rootNode) {
       const tag = firstChildOfType(node, "start_tag") ?? firstChildOfType(node, "self_closing_tag");
       if (tag) {
         const name = firstChildOfType(tag, "tag_name")?.text;
-        if (name && name.includes("-") && !RESERVED_TAGS.has(name)) {
+        if (name && name.includes("-") && !CONTROL_TAGS.has(name) && !BUILTIN_TAGS.has(name)) {
           out.push({ tag: name, range: rangeOf(node) });
         }
       }
@@ -115,11 +123,10 @@ function collectDependenciesAndSymbols(rootNode, inputAbs) {
       const srcAttr = findAnyAttribute(node, "src");
       const value = srcAttr ? attributeRawValue(srcAttr) : undefined;
       if (value !== undefined) {
-        const normalized = path.relative(
-          process.cwd(),
-          path.resolve(path.dirname(inputAbs), value),
-        );
-        dependencies.push({ kind, value, range: rangeOf(node), normalized });
+        const entry = { kind, value, range: rangeOf(node) };
+        const normalized = normalizeDependency(inputAbs, value);
+        if (normalized) entry.normalized = normalized;
+        dependencies.push(entry);
       }
     } else if (node.type === "wxs_external") {
       const inner = firstChildOfType(node, "wxs_external_self_closing_tag") ?? node;
@@ -130,14 +137,21 @@ function collectDependenciesAndSymbols(rootNode, inputAbs) {
       const moduleValue = moduleAttr ? attributeRawValue(moduleAttr) : undefined;
       const srcValue = srcAttr ? attributeRawValue(srcAttr) : undefined;
       if (srcValue !== undefined) {
-        const normalized = path.relative(
-          process.cwd(),
-          path.resolve(path.dirname(inputAbs), srcValue),
-        );
-        const entry = { kind: "wxs", value: srcValue, range: rangeOf(node), normalized };
+        const entry = { kind: "wxs", value: srcValue, range: rangeOf(node) };
+        const normalized = normalizeDependency(inputAbs, srcValue);
+        if (normalized) entry.normalized = normalized;
         if (moduleValue !== undefined) entry.module = moduleValue;
         dependencies.push(entry);
       }
+      if (moduleValue !== undefined) {
+        symbols.push({ kind: "wxs", name: moduleValue, range: rangeOf(node) });
+      }
+    } else if (node.type === "wxs_inline") {
+      const startTag = firstChildOfType(node, "wxs_inline_start_tag");
+      const moduleAttr = startTag
+        ? (findAttributeByName(startTag, "wxs_module_attribute", "module") ?? findAnyAttribute(startTag, "module"))
+        : null;
+      const moduleValue = moduleAttr ? attributeRawValue(moduleAttr) : undefined;
       if (moduleValue !== undefined) {
         symbols.push({ kind: "wxs", name: moduleValue, range: rangeOf(node) });
       }
@@ -168,14 +182,14 @@ function collectReferences(rootNode) {
         ?? findAnyAttribute(tag, "is");
       if (isAttr) {
         const raw = attributeRawValue(isAttr) ?? "";
-        const dynamic = attributeIsDynamic(isAttr);
+        const dynamic = raw.includes("{{");
         const entry = {
           kind: "template",
           dynamic,
           raw,
           range: rangeOf(node),
         };
-        entry.name = dynamic ? raw : raw;
+        if (!dynamic) entry.name = raw;
         out.push(entry);
       }
     }
