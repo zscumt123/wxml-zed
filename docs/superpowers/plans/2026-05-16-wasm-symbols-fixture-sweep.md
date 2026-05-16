@@ -53,7 +53,8 @@
 - [ ] Replace single-arg handling with N-arg loop. Specifically, change the `main` function so it:
   1. Initializes `Parser` and `Language` **once** (not per file)
   2. Iterates over `process.argv.slice(2)`, parsing each file, appending one entry to `files[]`
-  3. Preserves arg order (do NOT sort `files[]`)
+  3. After the loop, **sorts `files[]` by `path` ascending** (legacy does this at `scripts/extract-wxml-symbols.mjs:312`; without sorting, POC diverges from legacy on any caller that passes args out of path order)
+  4. Emits `files[].path` as a **repo-root-relative POSIX path** via the existing `relativePathFromRoot` helper, not via `path.relative(process.cwd(), ...)` (legacy uses `relativePath`/`toPosix`; cwd-relative output diverges on any call from a non-root cwd)
 
   Reference shape of the modified main (write the full function, not a sketch):
   ```js
@@ -72,7 +73,7 @@
     const files = [];
     for (const arg of args) {
       const inputAbs = path.resolve(process.cwd(), arg);
-      const inputRel = path.relative(process.cwd(), inputAbs);
+      const inputRel = relativePathFromRoot(inputAbs);
       const source = await fs.readFile(inputAbs, "utf8");
       const tree = parser.parse(source);
 
@@ -87,6 +88,8 @@
 
       files.push({ path: inputRel, dependencies, symbols, references, components });
     }
+
+    files.sort((a, b) => a.path.localeCompare(b.path));
 
     console.log(JSON.stringify({ version: 1, files }, null, 2));
   }
@@ -313,6 +316,6 @@ Two enhancements: (a) sort `files: [...]` by `.path` for deterministic compariso
 - Dynamic-is and multi-byte column risk remain unverified through step 3 — explicitly called out in the risk-coverage matrix and in Task 5's "still unverified" line. Not a plan bug; a documented scope choice.
 
 **Operational risks specific to step 3:**
-- Legacy extractor takes ~6s per file. 11 files ≈ 70s wall time per baseline regeneration. Task 3 timeout-tolerance is implicit; the build is run once and frozen.
-- The 0.26.x npx-cached `tree-sitter` binary's exec bit may have been reset since step 2; Task 3 starts with a defensive `chmod +x`.
+- Legacy extractor takes ~22s per file across 11 fixtures **after** `tree-sitter-cli@0.26.8` is pre-installed via `npm install --no-save`. Without that pre-install the per-file `npx tree-sitter-cli` cold-resolves on every fork and the same run takes ~40 min — Task 3 leads with the pre-install for that reason.
+- 0.25.x is NOT API-compatible for the legacy path: it rejects `--grammar-path` with "unexpected argument". Task 3 pins 0.26.8 explicitly.
 - If the legacy extractor's color bug bites again (NO_COLOR=1 not respected on some file), Task 3's sanity-check on `files: 11` and template-symbols counts catches it before the baseline gets frozen.
