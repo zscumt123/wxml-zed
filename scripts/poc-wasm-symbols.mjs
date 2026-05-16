@@ -220,7 +220,7 @@ async function main() {
   const files = [];
   for (const arg of args) {
     const inputAbs = path.resolve(process.cwd(), arg);
-    const inputRel = path.relative(process.cwd(), inputAbs);
+    const inputRel = relativePathFromRoot(inputAbs);
     const source = await fs.readFile(inputAbs, "utf8");
     const tree = parser.parse(source);
 
@@ -235,6 +235,8 @@ async function main() {
 
     files.push({ path: inputRel, dependencies, symbols, references, components });
   }
+
+  files.sort((a, b) => a.path.localeCompare(b.path));
 
   console.log(JSON.stringify({ version: 1, files }, null, 2));
 }

@@ -162,9 +162,10 @@ Two enhancements: (a) sort `files: [...]` by `.path` for deterministic compariso
 **Files:**
 - Create: `fixtures/wasm-spike/miniprogram-symbols-baseline.json`
 
-- [ ] Ensure the 0.26.x npx-cached `tree-sitter` binary has exec bit (it may have been reset; safe to re-chmod):
+- [ ] **Pre-install `tree-sitter-cli@0.26.8` into root `node_modules`** (not as a real devDep — `--no-save` keeps `package.json` clean). Without this, the legacy extractor's per-file `npx tree-sitter-cli` calls do a cold-resolve each invocation and 11 files take ~40 min instead of ~22s. 0.26.x is required because 0.25.x rejects the legacy extractor's `--grammar-path` flag.
   ```bash
-  chmod +x /tmp/claude-501/npm-spike-cache/_npx/3c6034397c31e6a8/node_modules/tree-sitter-cli/tree-sitter 2>/dev/null || true
+  NPM_CONFIG_CACHE="$TMPDIR/npm-spike-cache" npm install --no-save tree-sitter-cli@0.26.8
+  ls -la node_modules/tree-sitter-cli/tree-sitter   # confirm exec bit set
   ```
 - [ ] Run the legacy extractor once with all 11 files. **Note:** In zsh, an unquoted `$FILES` from `$(find ... | sort)` is NOT word-split — the whole newline-joined string becomes a single argv entry and the extractor reports `ENOENT`. Use `xargs` (POSIX-portable) so the shell does not matter:
   ```bash

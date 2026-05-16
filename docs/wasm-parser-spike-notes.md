@@ -197,3 +197,17 @@ Plus one POC bug that was orthogonal to the GPT findings but surfaced when widen
 - UTF-16 vs byte column units — no non-ASCII fixture in repo. Synthetic fixture needed if/when it proves load-bearing.
 
 Step 4 (replacing `scripts/extract-wxml-symbols.mjs` internals) is now genuinely unblocked.
+
+### Alignment Pass 2 — cwd-independence and files[] ordering
+
+The first alignment pass fixed `dependencies[].normalized`'s base path but missed two more places where POC still diverged from legacy:
+
+7. **`files[].path` was cwd-relative**, not repo-root-relative. Legacy uses `relativePath(filePath)` (repo-root + POSIX). POC was using `path.relative(process.cwd(), inputAbs)`. Empirical confirmation: running `node ../scripts/poc-wasm-symbols.mjs ../fixtures/test.wxml` from `grammar/` produced `files[].path = "../fixtures/test.wxml"` while legacy produced `"fixtures/test.wxml"`. Fixed by routing through the existing `relativePathFromRoot` helper that was already used for `normalized`.
+8. **`files[]` was emitted in argv order, not sorted by path.** Legacy line 312 does `model.files.sort((a, b) => a.path.localeCompare(b.path))` as the last step. POC was preserving argv order. Currently invisible in tests because every call site pipes `find … | sort | xargs`, but a behavioral divergence the moment any caller hands files in a different order. Fixed.
+
+**Verification after pass 2:**
+- All 4 baselines still byte-identical to legacy (no regression — the existing baselines were generated from repo root with sorted args, so the bugs didn't manifest in them either)
+- Run from `grammar/` cwd: output now identical to repo-root run
+- Run with shuffled args (`templates.wxml component.wxml page.wxml`): output now identical to sorted-args run
+
+Step 4 prerequisites are now actually complete: POC matches legacy on output shape, normalization rules, dynamic-detection semantics, built-in-tag filter, inline wxs handling, cwd, AND arg order.
