@@ -80,6 +80,22 @@ document symbols, baseline completion, and watched-file graph refresh. It can be
 slow because many scenarios intentionally start a fresh LSP process and rebuild
 the mini program project graph.
 
+To profile project graph extraction before changing LSP performance-sensitive
+code, run:
+
+```bash
+node scripts/profile-wxml-project-graph.mjs fixtures/miniprogram
+```
+
+The profiler runs the existing graph extractor with `WXML_ZED_PROFILE=1`, keeps
+extractor JSON output out of the report, and summarizes total graph time, symbol
+extractor child time, Tree-sitter CST time, and the slowest WXML files. Direct
+extractor profiling is also available with:
+
+```bash
+WXML_ZED_PROFILE=1 node scripts/extract-wxml-project-graph.mjs fixtures/miniprogram >/tmp/wxml-graph.json
+```
+
 The prototype LSP requires `node` on `PATH`. Zed launches the Node stdio server
 through `language_server_command`; this extension does not package a Node
 runtime. The server builds the mini program project graph asynchronously on

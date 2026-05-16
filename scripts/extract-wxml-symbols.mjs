@@ -2,14 +2,28 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import { BUILTIN_TAGS } from "../shared/wxml-builtins.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAMMAR_DIR = path.join(ROOT, "grammar/tree-sitter-wxml");
+const PROFILE_ENABLED = process.env.WXML_ZED_PROFILE === "1";
 
 const CONTROL_TAGS = new Set(["template", "wxs", "import", "include", "slot", "block"]);
+
+function elapsedMs(start) {
+  return Number((performance.now() - start).toFixed(2));
+}
+
+function profileEvent(event) {
+  if (!PROFILE_ENABLED) return;
+  process.stderr.write(`WXML_ZED_PROFILE ${JSON.stringify({
+    source: "extract-wxml-symbols",
+    ...event,
+  })}\n`);
+}
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join(path.posix.sep);
@@ -214,9 +228,18 @@ function pushComponentCandidate(fileModel, node) {
 }
 
 function extractFile(filePath) {
+  const totalStart = performance.now();
   const resolved = path.resolve(filePath);
+  const readStart = performance.now();
   const lines = readSourceLines(resolved);
-  const tree = parseCst(runTreeSitterCst(resolved));
+  const readMs = elapsedMs(readStart);
+  const cstStart = performance.now();
+  const cstOutput = runTreeSitterCst(resolved);
+  const cstMs = elapsedMs(cstStart);
+  const parseStart = performance.now();
+  const tree = parseCst(cstOutput);
+  const parseMs = elapsedMs(parseStart);
+  const extractStart = performance.now();
   const fileModel = {
     path: relativePath(resolved),
     dependencies: [],
@@ -266,6 +289,16 @@ function extractFile(filePath) {
     if (tagNameFrom(tag)) pushComponentCandidate(fileModel, node);
   }
 
+  profileEvent({
+    type: "symbol-file",
+    path: relativePath(resolved),
+    readMs,
+    cstMs,
+    parseMs,
+    extractMs: elapsedMs(extractStart),
+    totalMs: elapsedMs(totalStart),
+  });
+
   return fileModel;
 }
 
@@ -286,9 +319,16 @@ if (inputFiles.length === 0) {
   process.exit(2);
 }
 
+const totalStart = performance.now();
 const model = sortModel({
   version: 1,
   files: inputFiles.map(extractFile),
+});
+
+profileEvent({
+  type: "symbol-total",
+  fileCount: inputFiles.length,
+  totalMs: elapsedMs(totalStart),
 });
 
 process.stdout.write(`${JSON.stringify(model, null, 2)}\n`);

@@ -2,10 +2,24 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SYMBOL_EXTRACTOR = path.join(ROOT, "scripts/extract-wxml-symbols.mjs");
+const PROFILE_ENABLED = process.env.WXML_ZED_PROFILE === "1";
+
+function elapsedMs(start) {
+  return Number((performance.now() - start).toFixed(2));
+}
+
+function profileEvent(event) {
+  if (!PROFILE_ENABLED) return;
+  process.stderr.write(`WXML_ZED_PROFILE ${JSON.stringify({
+    source: "extract-wxml-project-graph",
+    ...event,
+  })}\n`);
+}
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join(path.posix.sep);
@@ -61,6 +75,7 @@ function runSymbolExtractor(files) {
     return { version: 1, files: [] };
   }
 
+  const start = performance.now();
   const output = execFileSync(
     "node",
     [SYMBOL_EXTRACTOR, ...files],
@@ -76,7 +91,15 @@ function runSymbolExtractor(files) {
     },
   );
 
-  return JSON.parse(output);
+  const model = JSON.parse(output);
+  profileEvent({
+    type: "graph-symbol-batch",
+    fileCount: files.length,
+    files: files.map(repoRelative),
+    returnedFileCount: model.files.length,
+    totalMs: elapsedMs(start),
+  });
+  return model;
 }
 
 function createUnresolved(kind, data) {
@@ -208,6 +231,7 @@ function effectiveUsingComponentDeclarations(appJsonPath, appUsingComponents, ow
 }
 
 function extractProject(projectRootInput) {
+  const totalStart = performance.now();
   const projectRoot = path.resolve(projectRootInput);
   const appJsonPath = path.join(projectRoot, "app.json");
   const appJson = readJsonIfExists(appJsonPath);
@@ -356,6 +380,17 @@ function extractProject(projectRootInput) {
     (a.value || "").localeCompare(b.value || "")
   ));
   graph.wxml = sortByPath([...wxmlByPath.values()]);
+
+  profileEvent({
+    type: "graph-total",
+    root: repoRelative(projectRoot),
+    pageCount: graph.pages.length,
+    configCount: graph.configs.length,
+    wxmlCount: graph.wxml.length,
+    usingComponentCount: graph.usingComponents.length,
+    unresolvedCount: graph.unresolved.length,
+    totalMs: elapsedMs(totalStart),
+  });
 
   return graph;
 }
