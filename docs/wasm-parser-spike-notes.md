@@ -233,6 +233,7 @@ Step 4 prerequisites are now actually complete: POC matches legacy on output sha
 - `scripts/verify-wxml-language-service.mjs` passes.
 - `node scripts/verify-lsp-diagnostics.mjs --suite smoke` passes.
 - `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke` passes in ~2s (the README previously warned this "can still take minutes"; the legacy CLI fork was the only minute-scale work in the path).
+- `node scripts/verify-lsp-diagnostics.mjs --suite full` passes (41 test cases) in ~17s.
 
 ### Profile-event field semantics
 
