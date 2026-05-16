@@ -5,6 +5,9 @@ function sortDeterministic(value) {
   if (Array.isArray(value)) {
     const sorted = value.map(sortDeterministic);
     sorted.sort((a, b) => {
+      if (typeof a?.path === "string" && typeof b?.path === "string" && a.path !== b.path) {
+        return a.path.localeCompare(b.path);
+      }
       const ar = a?.range?.start, br = b?.range?.start;
       if (ar && br) {
         if (ar.row !== br.row) return ar.row - br.row;
@@ -32,7 +35,9 @@ function firstDiff(a, b, p = "$") {
   if (Array.isArray(a)) {
     if (a.length !== b.length) return `${p}: length ${a.length} vs ${b.length}`;
     for (let i = 0; i < a.length; i++) {
-      const d = firstDiff(a[i], b[i], `${p}[${i}]`);
+      const child = a[i];
+      const label = (typeof child?.path === "string") ? `[${child.path}]` : `[${i}]`;
+      const d = firstDiff(a[i], b[i], `${p}${label}`);
       if (d) return d;
     }
     return null;

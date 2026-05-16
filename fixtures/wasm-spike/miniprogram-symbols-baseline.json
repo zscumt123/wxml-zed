@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/miniprogram/components/global-badge/global-badge.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/components/local-badge/local-badge.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/components/status-badge/status-badge.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/components/user-card/user-card.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [
+        {
+          "tag": "status-badge",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 2
+            },
+            "end": {
+              "row": 2,
+              "column": 43
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [
+        {
+          "tag": "global-badge",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 2
+            },
+            "end": {
+              "row": 1,
+              "column": 31
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/miniprogram/pages/detail/detail.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "../../templates/unrelated.wxml",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 0,
+              "column": 47
+            }
+          },
+          "normalized": "fixtures/miniprogram/templates/unrelated.wxml"
+        }
+      ],
+      "symbols": [],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/pages/home/home.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "../../templates/common.wxml",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 0,
+              "column": 44
+            }
+          },
+          "normalized": "fixtures/miniprogram/templates/common.wxml"
+        },
+        {
+          "kind": "include",
+          "value": "../../templates/secondary.wxml",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 0
+            },
+            "end": {
+              "row": 1,
+              "column": 48
+            }
+          },
+          "normalized": "fixtures/miniprogram/templates/secondary.wxml"
+        },
+        {
+          "kind": "wxs",
+          "value": "../../utils/format.wxs",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 52
+            }
+          },
+          "normalized": "fixtures/miniprogram/utils/format.wxs",
+          "module": "format"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "wxs",
+          "name": "format",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 52
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "loadingRow",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 2
+            },
+            "end": {
+              "row": 5,
+              "column": 66
+            }
+          },
+          "name": "loadingRow"
+        },
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "secondaryRow",
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 0
+            },
+            "end": {
+              "row": 21,
+              "column": 60
+            }
+          },
+          "name": "secondaryRow"
+        }
+      ],
+      "components": [
+        {
+          "tag": "user-card",
+          "range": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 4
+            }
+          }
+        },
+        {
+          "tag": "missing-card",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 2
+            },
+            "end": {
+              "row": 14,
+              "column": 43
+            }
+          }
+        },
+        {
+          "tag": "global-badge",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 2
+            },
+            "end": {
+              "row": 15,
+              "column": 41
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/miniprogram/shared/header.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/templates/common.wxml",
+      "dependencies": [],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "loadingRow",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 4,
+              "column": 11
+            }
+          }
+        }
+      ],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/templates/secondary.wxml",
+      "dependencies": [],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "secondaryRow",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 4,
+              "column": 11
+            }
+          }
+        }
+      ],
+      "references": [],
+      "components": []
+    },
+    {
+      "path": "fixtures/miniprogram/templates/unrelated.wxml",
+      "dependencies": [],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "loadingRow",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 4,
+              "column": 11
+            }
+          }
+        }
+      ],
+      "references": [],
+      "components": []
+    }
+  ]
+}

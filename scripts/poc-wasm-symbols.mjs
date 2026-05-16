@@ -192,42 +192,37 @@ function byPosition(a, b) {
 }
 
 async function main() {
-  const inputArg = process.argv[2];
-  if (!inputArg) {
-    console.error("Usage: node scripts/poc-wasm-symbols.mjs <file.wxml>");
+  const args = process.argv.slice(2);
+  if (args.length === 0) {
+    console.error("Usage: node scripts/poc-wasm-symbols.mjs <file.wxml> [<file2.wxml> ...]");
     process.exit(1);
   }
-  const inputAbs = path.resolve(process.cwd(), inputArg);
-  const inputRel = path.relative(process.cwd(), inputAbs);
-  const source = await fs.readFile(inputAbs, "utf8");
 
   await Parser.init();
   const language = await Language.load(WASM);
   const parser = new Parser();
   parser.setLanguage(language);
-  const tree = parser.parse(source);
 
-  const { dependencies, symbols } = collectDependenciesAndSymbols(tree.rootNode, inputAbs);
-  const references = collectReferences(tree.rootNode);
-  const components = collectComponents(tree.rootNode);
+  const files = [];
+  for (const arg of args) {
+    const inputAbs = path.resolve(process.cwd(), arg);
+    const inputRel = path.relative(process.cwd(), inputAbs);
+    const source = await fs.readFile(inputAbs, "utf8");
+    const tree = parser.parse(source);
 
-  dependencies.sort(byPosition);
-  symbols.sort(byPosition);
-  references.sort(byPosition);
-  components.sort(byPosition);
+    const { dependencies, symbols } = collectDependenciesAndSymbols(tree.rootNode, inputAbs);
+    const references = collectReferences(tree.rootNode);
+    const components = collectComponents(tree.rootNode);
 
-  const model = {
-    version: 1,
-    files: [{
-      path: inputRel,
-      dependencies,
-      symbols,
-      references,
-      components,
-    }],
-  };
+    dependencies.sort(byPosition);
+    symbols.sort(byPosition);
+    references.sort(byPosition);
+    components.sort(byPosition);
 
-  console.log(JSON.stringify(model, null, 2));
+    files.push({ path: inputRel, dependencies, symbols, references, components });
+  }
+
+  console.log(JSON.stringify({ version: 1, files }, null, 2));
 }
 
 main().catch((err) => {

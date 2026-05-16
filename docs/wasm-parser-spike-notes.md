@@ -123,3 +123,43 @@ POC at `scripts/poc-wasm-symbols.mjs` reproduces the legacy `extract-wxml-symbol
 - Interpolation in attribute values appears as a named child of `quoted_attribute_value` with type `interpolation`. The POC uses this to distinguish dynamic vs static `template is="..."`.
 
 Step 2 of the WASM spike passed; broader fixture compare (step 3) is unblocked.
+
+## Step 3 Outcome (Fixture Sweep)
+
+POC at `scripts/poc-wasm-symbols.mjs` now accepts N file args and matches the legacy extractor's combined output for all 11 fixtures in `fixtures/miniprogram/`. Verified via `scripts/diff-symbols-baseline.mjs` against `fixtures/wasm-spike/miniprogram-symbols-baseline.json`.
+
+**Result:** byte-identical (6720 bytes both sides) on first run, idempotent across re-runs. Zero iterations needed.
+
+**Newly verified paths (vs step 2):**
+- `template_definition` → symbols[].kind=template (exercised by `templates/common.wxml` → `loadingRow`, `templates/secondary.wxml` → `secondaryRow`, `templates/unrelated.wxml` → `loadingRow`)
+- Multi-file output: `files: [...]` preserves arg order across 11 entries
+- Diff harness now reports diffs with file path (`$.files[<path>].…`); not exercised because there were no diffs to report
+
+**Per-fixture counts captured during sanity check:**
+
+| File | deps | syms | refs | comps |
+|---|---|---|---|---|
+| components/global-badge/global-badge.wxml | 0 | 0 | 0 | 0 |
+| components/local-badge/local-badge.wxml | 0 | 0 | 0 | 0 |
+| components/status-badge/status-badge.wxml | 0 | 0 | 0 | 0 |
+| components/user-card/user-card.wxml | 0 | 0 | 0 | 1 |
+| packages/shop/pages/list/list.wxml | 0 | 0 | 0 | 1 |
+| pages/detail/detail.wxml | 1 | 0 | 0 | 0 |
+| pages/home/home.wxml | 3 | 1 | 2 | 3 |
+| shared/header.wxml | 0 | 0 | 0 | 0 |
+| templates/common.wxml | 0 | 1 | 0 | 0 |
+| templates/secondary.wxml | 0 | 1 | 0 | 0 |
+| templates/unrelated.wxml | 0 | 1 | 0 | 0 |
+
+**Still unverified after step 3:**
+- Dynamic `<template is="{{expr}}">` → no fixture exercises this. Implementation is in place but unproven. Synthetic fixture needed in a focused later step if the path proves load-bearing.
+- UTF-16 vs byte column units → no non-ASCII fixture. Same situation; defer to a synthetic fixture step.
+
+**Anomalies / iterations during Task 4:** none — clean on first run.
+
+**Operational gotcha hit during baseline generation (not a POC issue):**
+- Legacy extractor calls `npx tree-sitter-cli parse` without a version pin. On a cold npm cache, npx re-resolves and re-fetches metadata per invocation; for 11 files this took ~40 min before being killed.
+- Workaround: `npm install --no-save tree-sitter-cli@0.26.8` into the root `node_modules` so npx finds a local install and resolves instantly. Wall time dropped to 22s.
+- 0.25.10 (the version we used for wasm build) is NOT API-compatible here — the legacy extractor uses `--grammar-path` which 0.25.10 doesn't accept ("unexpected argument"). Had to pin 0.26.8 for the legacy path specifically. This drift between "version we built wasm with" and "version the legacy extractor uses" is fine because they're independent paths; only the wasm ABI matters for the POC, and 0.25.10's wasm loads correctly under `web-tree-sitter@0.25.10`.
+
+Step 3 of the WASM spike passed; extractor replacement (step 4) is unblocked.
