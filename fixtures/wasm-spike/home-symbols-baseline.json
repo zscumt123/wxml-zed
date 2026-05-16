@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/miniprogram/pages/home/home.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "../../templates/common.wxml",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 0,
+              "column": 44
+            }
+          },
+          "normalized": "fixtures/miniprogram/templates/common.wxml"
+        },
+        {
+          "kind": "include",
+          "value": "../../templates/secondary.wxml",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 0
+            },
+            "end": {
+              "row": 1,
+              "column": 48
+            }
+          },
+          "normalized": "fixtures/miniprogram/templates/secondary.wxml"
+        },
+        {
+          "kind": "wxs",
+          "value": "../../utils/format.wxs",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 52
+            }
+          },
+          "normalized": "fixtures/miniprogram/utils/format.wxs",
+          "module": "format"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "wxs",
+          "name": "format",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 52
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "loadingRow",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 2
+            },
+            "end": {
+              "row": 5,
+              "column": 66
+            }
+          },
+          "name": "loadingRow"
+        },
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "secondaryRow",
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 0
+            },
+            "end": {
+              "row": 21,
+              "column": 60
+            }
+          },
+          "name": "secondaryRow"
+        }
+      ],
+      "components": [
+        {
+          "tag": "user-card",
+          "range": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 4
+            }
+          }
+        },
+        {
+          "tag": "missing-card",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 2
+            },
+            "end": {
+              "row": 14,
+              "column": 43
+            }
+          }
+        },
+        {
+          "tag": "global-badge",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 2
+            },
+            "end": {
+              "row": 15,
+              "column": 41
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
