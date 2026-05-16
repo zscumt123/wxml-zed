@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/real-world/edge-recovery.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": []
+    }
+  ]
+}

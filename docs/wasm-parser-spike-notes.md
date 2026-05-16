@@ -252,3 +252,28 @@ Step 4 prerequisites are now actually complete: POC matches legacy on output sha
 - This is now the first commit where `grammar/tree-sitter-wxml/tree-sitter-wxml.wasm` is **load-bearing for LSP runtime behavior**. Removing or corrupting that file silently breaks symbol extraction. It is in git, gitignored properly via the `!tree-sitter-wxml.wasm` negation added in step 1, and verified at load time by the smoke script.
 
 Step 4 complete; the wasm path is now the production code path for symbol extraction.
+
+### Intentional behavior change on parse-error inputs
+
+Legacy `extract-wxml-symbols.mjs` exited 1 whenever `tree-sitter-cli parse --cst` failed — which happens on any file with parse errors (e.g. `fixtures/real-world/edge-recovery.wxml`). The new in-process path **does not exit 1 on parse errors**; it walks the partial SyntaxNode tree that tree-sitter's error recovery produced and emits whatever symbol structure it can identify. For `edge-recovery.wxml` specifically the result is an empty symbol model (`dependencies: [], symbols: [], references: [], components: []`) at exit 0 — see `fixtures/wasm-spike/edge-recovery-symbols-baseline.json`.
+
+**Why this is the right choice, not just an oversight:**
+
+1. **LSP graph builds must tolerate partial input.** Users edit WXML one keystroke at a time. Any keystroke can put a file in temporarily-broken state. If the symbol extractor exits 1 on a single broken file, `extract-wxml-project-graph.mjs` (which uses `execFileSync`) throws and the entire project's graph build collapses. With the new behavior, only that one file contributes no symbols and the rest of the project still gets indexed.
+2. **tree-sitter's whole reason for being is error recovery.** The legacy CLI's exit-1 was tool-side politeness, not a semantic correctness signal. Using error recovery is the point of the technology.
+3. **The fixture is literally named `edge-recovery`.** Its purpose is to verify recovery, not to enforce abort-on-error.
+
+**Observed partial-extraction behavior on `edge-recovery.wxml`:** The wasm parse tree has `rootNode.hasError === true` and `rootNode.type === "ERROR"`. Even with 4 named children visible at root (`wxs_fallback`, two bare `start_tag`s, an `interpolation`), the extractor emits no symbols because:
+- The grammar's error recovery rewrites the broken `<wxs>` as node type `wxs_fallback`, not `wxs_external` — the extractor doesn't recognize that recovery node type.
+- The mismatched `<user-card>...</user-card-mismatch>` produces bare `start_tag` without an `element` wrapper — the extractor only emits components for elements with a recognizable open/close pair.
+
+These behaviors are acceptable for the LSP use case: when the user finishes typing and the tags balance, the parser produces a clean tree and symbols appear. Until then, no false positives leak into completion/definition results.
+
+**Regression anchor:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of this output. To verify the behavior hasn't drifted:
+```bash
+node scripts/extract-wxml-symbols.mjs fixtures/real-world/edge-recovery.wxml > /tmp/edge.json
+diff /tmp/edge.json fixtures/wasm-spike/edge-recovery-symbols-baseline.json
+echo "exit code should be 0, baseline should be unchanged"
+```
+
+If a future change wants to **add** symbol extraction from recovered tree shapes (e.g. teach the extractor about `wxs_fallback`), the baseline updates and the rationale gets recorded here. If a future change accidentally reverts to "exit 1 on hasError", this baseline catches the regression.

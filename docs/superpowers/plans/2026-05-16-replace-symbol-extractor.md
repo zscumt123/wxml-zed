@@ -26,7 +26,7 @@
 
 - Modify: `scripts/extract-wxml-symbols.mjs`
   - Replace `execFileSync`/`parseCst`/all text-CST helpers with `Parser`+`Language` + SyntaxNode walks
-  - Keep CLI surface (argv handling, exit codes, stdout JSON shape)
+  - Keep CLI surface (argv handling, stdout JSON shape). **Exit code on parse-error inputs is intentionally changed** — see "Intentional behavior change" in `docs/wasm-parser-spike-notes.md`. Successful parses still exit 0, usage error still exits 2, unexpected failure still exits 1.
   - Keep `WXML_ZED_PROFILE` event emission with the same field names (`symbol-file` with readMs/cstMs/parseMs/extractMs/totalMs, `symbol-total` with fileCount/totalMs)
   - Set `parseMs: 0` for every `symbol-file` event since there's no longer a text-CST parsing step
   - Wrap top-level in an async `main()` since `Parser.init()` and `Language.load()` are async
@@ -66,7 +66,7 @@
 
 This is the substantive task. The current 334-line file shrinks to roughly 200 lines because all the text-CST scaffolding goes away. Write the file as a single rewrite — easier than patching in place.
 
-**Reference:** the POC at `scripts/poc-wasm-symbols.mjs` is the source of truth for symbol-walking logic. The legacy extractor at `scripts/extract-wxml-symbols.mjs` is the source of truth for CLI surface (argv handling, exit codes) and profile-event emission.
+**Reference:** the POC at `scripts/poc-wasm-symbols.mjs` is the source of truth for symbol-walking logic. The legacy extractor at `scripts/extract-wxml-symbols.mjs` is the source of truth for CLI surface (argv handling) and profile-event emission. **Exit code on parse-error inputs is the one deliberate divergence**: legacy exited 1 (because tree-sitter-cli exited 1); the new path exits 0 with whatever partial symbol model the wasm parser recovered from the broken tree. This is correct for the LSP use case (graph build should not crash on a user mid-edit) — see notes doc for the full justification.
 
 - [ ] Replace the entire `extract-wxml-symbols.mjs` content with the structure below. Field names in profile events must match exactly so `scripts/profile-wxml-project-graph.mjs` keeps working without changes.
 
@@ -443,7 +443,11 @@ The fast suite covers protocol-level basics; smoke and graph-smoke cover the LSP
   milliseconds.
 
   CLI surface, JSON output shape, profile-event field names, and exit
-  codes are preserved. parseMs is now always 0 because text-CST
+  codes are preserved for the happy paths. Parse-error inputs intentionally
+  changed from exit 1 to exit 0 with partial extraction so LSP graph
+  builds tolerate users mid-edit; see notes doc.
+
+  parseMs is now always 0 because text-CST
   parsing is no longer a step; preserved as a field for compatibility
   with scripts/profile-wxml-project-graph.mjs.
 
@@ -480,7 +484,7 @@ The full suite is slow but worth running once after the commit to catch anything
 
 **Spec coverage:**
 - POC logic merged into extractor → Task 2 ✅
-- CLI surface preserved → Task 2 (argv/exit codes unchanged) ✅
+- CLI surface preserved → Task 2 (argv unchanged; exit-code change on parse-error inputs is the one deliberate divergence, documented) ✅
 - JSON output identical → Task 3 (all 4 baselines) ✅
 - Profile events preserved → Task 2 (same field names) + Task 6 (profile run) ✅
 - Runtime dep promotion → Task 1 ✅
