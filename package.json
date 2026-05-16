@@ -1,0 +1,8 @@
+{
+  "name": "wxml-zed",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "web-tree-sitter": "0.25.10"
+  }
+}

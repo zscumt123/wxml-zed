@@ -42,6 +42,8 @@ zig-out/
 *.wasm
 *.obj
 *.o
+# Allow the WXML parser wasm as a committed artifact for wxml-zed LSP distribution
+!tree-sitter-wxml.wasm
 
 # Archives
 *.tar.gz
