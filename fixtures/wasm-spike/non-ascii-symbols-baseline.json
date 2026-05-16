@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/wasm-spike/non-ascii.wxml",
+      "dependencies": [
+        {
+          "kind": "import",
+          "value": "./公共/通用.wxml",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 0
+            },
+            "end": {
+              "row": 1,
+              "column": 29
+            }
+          },
+          "normalized": "fixtures/wasm-spike/公共/通用.wxml"
+        },
+        {
+          "kind": "include",
+          "value": "./片段/底部.wxml",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 30
+            }
+          },
+          "normalized": "fixtures/wasm-spike/片段/底部.wxml"
+        },
+        {
+          "kind": "wxs",
+          "value": "./工具/格式化.wxs",
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 0
+            },
+            "end": {
+              "row": 3,
+              "column": 39
+            }
+          },
+          "normalized": "fixtures/wasm-spike/工具/格式化.wxs",
+          "module": "格式化"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "wxs",
+          "name": "格式化",
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 0
+            },
+            "end": {
+              "row": 3,
+              "column": 39
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "加载行",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 2
+            },
+            "end": {
+              "row": 6,
+              "column": 49
+            }
+          },
+          "name": "加载行"
+        }
+      ],
+      "components": []
+    }
+  ]
+}

@@ -269,7 +269,23 @@ Legacy `extract-wxml-symbols.mjs` exited 1 whenever `tree-sitter-cli parse --cst
 
 These behaviors are acceptable for the LSP use case: when the user finishes typing and the tags balance, the parser produces a clean tree and symbols appear. Until then, no false positives leak into completion/definition results.
 
-**Regression anchor:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of this output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 5 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
+### UTF-16 column units — confirmed and locked in
+
+The notes previously flagged "UTF-16 vs byte column units" as the last remaining unverified risk after step 4. Step-4-followup investigation resolved it:
+
+**Empirical test:** parsed `"你好 <import src=\"./a.wxml\" />"` with `web-tree-sitter@0.25.10` loading `tree-sitter-wxml.wasm`. `import_statement` reported `startPosition.column = 3`. UTF-16 code units predict col 3 (`你`=0, `好`=1, ` `=2, `<`=3); UTF-8 bytes would predict col 7 (你=0-2, 好=3-5, ` `=6, `<`=7).
+
+**Conclusion:** `web-tree-sitter` emits column counts in **UTF-16 code units**. This matches the LSP protocol's default `positionEncoding` (UTF-16), so the extractor's `column` field can flow into the LSP `character` field with **zero conversion**.
+
+**LSP link verified:** `server/wxml-language-service.mjs:54` is `character: range.start.column` — direct pass-through. The reverse direction (`line.slice(0, position.character)` at line 257) is also correct because JavaScript strings are internally UTF-16 and `String.prototype.slice` indexes by code unit.
+
+**Regression anchor:** `fixtures/wasm-spike/non-ascii.wxml` and its frozen baseline `non-ascii-symbols-baseline.json` are checked by `scripts/verify-wasm-symbol-baselines.mjs` (case 6). If a future `web-tree-sitter` upgrade changes column units to UTF-8 bytes, this baseline diff catches it before merge.
+
+### Grammar limitation surfaced during this fixture work (not a spike blocker)
+
+While constructing the non-ASCII fixture, found that `tree-sitter-wxml` grammar rejects both Chinese tag names (`<用户-卡片>`) and Chinese attribute names (`数据="x"`) — the parser drops into ERROR state. This is a grammar-side gap, not an extractor bug. WeChat WXML spec arguably allows non-ASCII identifiers per JS identifier rules, but it's an unusual pattern in production WXML. Recorded here so a future grammar improvement task starts from a known scope. Fixture deliberately avoids these constructs to keep the column verification clean.
+
+**Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 5 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
 ```bash

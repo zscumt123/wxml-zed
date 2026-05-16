@@ -1,0 +1,15 @@
+<!-- 顶部注释:中文不会影响后续行的 column -->
+<import src="./公共/通用.wxml" />
+<include src="./片段/底部.wxml" />
+<wxs module="格式化" src="./工具/格式化.wxs" />
+
+<view class="主页">
+  <template is="加载行" data="{{message: '加载中'}}" />
+  <用户-卡片 data-id="{{id}}" 备注="纯文本中文">
+    <text>中文文本{{中文表达式}}</text>
+  </用户-卡片>
+</view>
+
+<template name="加载行">
+  <view class="加载">{{message}}</view>
+</template>

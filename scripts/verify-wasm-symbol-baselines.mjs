@@ -45,6 +45,12 @@ const CASES = [
     baseline: "edge-recovery-symbols-baseline.json",
     expectExit: 0,
   },
+  {
+    name: "non-ascii.wxml (UTF-16 column units)",
+    files: ["fixtures/wasm-spike/non-ascii.wxml"],
+    baseline: "non-ascii-symbols-baseline.json",
+    expectExit: 0,
+  },
 ];
 
 async function collectGlobFiles(dir) {
