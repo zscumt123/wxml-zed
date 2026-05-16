@@ -269,11 +269,13 @@ Legacy `extract-wxml-symbols.mjs` exited 1 whenever `tree-sitter-cli parse --cst
 
 These behaviors are acceptable for the LSP use case: when the user finishes typing and the tags balance, the parser produces a clean tree and symbols appear. Until then, no false positives leak into completion/definition results.
 
-**Regression anchor:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of this output. To verify the behavior hasn't drifted:
+**Regression anchor:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of this output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 5 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
+
+For ad-hoc local verification of just the parse-error case:
 ```bash
 node scripts/extract-wxml-symbols.mjs fixtures/real-world/edge-recovery.wxml > /tmp/edge.json
 diff /tmp/edge.json fixtures/wasm-spike/edge-recovery-symbols-baseline.json
 echo "exit code should be 0, baseline should be unchanged"
 ```
 
-If a future change wants to **add** symbol extraction from recovered tree shapes (e.g. teach the extractor about `wxs_fallback`), the baseline updates and the rationale gets recorded here. If a future change accidentally reverts to "exit 1 on hasError", this baseline catches the regression.
+If a future change wants to **add** symbol extraction from recovered tree shapes (e.g. teach the extractor about `wxs_fallback`), the baseline updates and the rationale gets recorded here. The verifier catches the change at CI time so the decision is explicit.
