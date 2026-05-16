@@ -4,9 +4,11 @@
 
 **Goal:** Identify a working `tree-sitter-cli` + `web-tree-sitter` minor-version pair, build a WXML wasm parser from the vendored grammar, and prove the wasm loads in Node with a matching `LANGUAGE_VERSION`. This is step 1 of an 8-step plan to replace the runtime `npx tree-sitter-cli parse --cst` shell-out (currently 60s for 10 files in `fixtures/miniprogram`) with an in-process WASM parser.
 
-**Architecture:** Default to the minor version line that the vendored grammar was tested against (`tree-sitter-cli ^0.25.8` per `grammar/tree-sitter-wxml/package.json`). Use the matching `web-tree-sitter@0.25.x`. Only escalate to a newer minor (0.26.x) if 0.25.x fails the ABI load. Build wasm with `tree-sitter build --wasm --docker` (local Docker is available; no Emscripten needed). Persist `web-tree-sitter` as a real devDependency in a new root `package.json` so the committed smoke script runs on a fresh clone. Smoke script discovers the actual ABI surface at runtime (logs both `language.version`/`language.abiVersion` and any package-level `LANGUAGE_VERSION`/`MIN_COMPATIBLE_VERSION` exports) instead of asserting a specific field name. Steps 2-8 of the broader spike (extractor rewrite, full fixture compare, profile re-run, LSP suite) are out of scope and will be re-planned after step 1's outcome.
+**Architecture:** Default to the minor version line that the vendored grammar was tested against (`tree-sitter-cli ^0.25.8` per `grammar/tree-sitter-wxml/package.json`). Use the matching `web-tree-sitter@0.25.x`. Only escalate to a newer minor (0.26.x) if 0.25.x fails the ABI load. Build wasm with `tree-sitter build --wasm`; the preferred path is `--docker` (Docker is already installed at 28.5.2) so no host-side Emscripten is required, with **local Emscripten as a documented fallback** when Docker Hub is unreachable. Persist `web-tree-sitter` as a real devDependency in a new root `package.json` so the committed smoke script runs on a fresh clone. Smoke script discovers the actual ABI surface at runtime (logs both `language.version`/`language.abiVersion` and any package-level `LANGUAGE_VERSION`/`MIN_COMPATIBLE_VERSION` exports) instead of asserting a specific field name. Steps 2-8 of the broader spike (extractor rewrite, full fixture compare, profile re-run, LSP suite) are out of scope and will be re-planned after step 1's outcome.
 
-**Tech Stack:** `tree-sitter-cli` (via `npx`, locked to grammar's tested minor), `web-tree-sitter` (real devDependency in new root `package.json`), Docker (already installed: 28.5.2), Node.js ESM.
+> **Actual execution path on 2026-05-16:** Docker Hub was unreachable (TLS handshake timeout pulling `emscripten/emsdk:4.0.4`). Step 1 was completed via the local Emscripten fallback. See `docs/wasm-parser-spike-notes.md` ("Build Outcome") for the exact commands and the `EM_CACHE` override required when Emscripten is installed under `/opt/homebrew/Cellar`.
+
+**Tech Stack:** `tree-sitter-cli` (via `npx`, locked to grammar's tested minor), `web-tree-sitter` (real devDependency in new root `package.json`), Docker **OR** Emscripten (whichever is reachable), Node.js ESM.
 
 **Out of scope:**
 - Modifying `scripts/extract-wxml-symbols.mjs` or `extract-wxml-project-graph.mjs`
@@ -57,12 +59,22 @@
 **Files:**
 - Create: `grammar/tree-sitter-wxml/tree-sitter-wxml.wasm`
 
+**Preferred path (Docker):**
 - [ ] Confirm Docker is running: `docker ps` (should not error).
 - [ ] From `grammar/tree-sitter-wxml/`, run:
   ```bash
   npx -y tree-sitter-cli@<CLI_VERSION> build --wasm --docker
   ```
   This pulls an Emscripten Docker image on first run (slow), then emits `tree-sitter-wxml.wasm` in the current directory.
+
+**Fallback path (local Emscripten) — use if Docker Hub is unreachable:**
+- [ ] `brew install emscripten` (or any path that puts `emcc` on `PATH`).
+- [ ] Export `EM_CACHE` to a writable location: `export EM_CACHE="$TMPDIR/em-cache" && mkdir -p "$EM_CACHE"`. The Homebrew-installed Emscripten cannot write inside its own cellar; without this override, `emcc` errors with `Operation not permitted: '/opt/homebrew/Cellar/emscripten/.../libexec/cache'`.
+- [ ] From `grammar/tree-sitter-wxml/`, run **without** `--docker`:
+  ```bash
+  npx -y tree-sitter-cli@<CLI_VERSION> build --wasm
+  ```
+  Produces the same `tree-sitter-wxml.wasm` (~31KB on 2026-05-16 for the current grammar).
 - [ ] Verify the artifact exists and is non-empty:
   ```bash
   ls -lh grammar/tree-sitter-wxml/tree-sitter-wxml.wasm
@@ -253,7 +265,7 @@ The script must NOT hardcode whether ABI is exposed as `language.version`, `lang
 
 **Spec coverage:**
 - Match grammar's tested toolchain (0.25.x default, 0.26.x only on failure) → Task 1 ✅
-- Build wasm without local Emscripten → Task 2 (uses `--docker`) ✅
+- Build wasm via Docker preferred, local Emscripten as documented fallback → Task 2 ✅
 - Reproducible deps (real devDep, gitignored node_modules, locked patch) → Task 3 ✅
 - ABI-discovery smoke that doesn't bet on a specific field name → Task 4 ✅
 - Verify load via `web-tree-sitter` ABI-correctly → Task 5 ✅
