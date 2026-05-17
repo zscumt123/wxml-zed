@@ -248,7 +248,7 @@ Step 4 prerequisites are now actually complete: POC matches legacy on output sha
 
 ### Known remaining risk
 
-- UTF-16 vs byte column units still unverified — no fixture has non-ASCII. After the swap, columns the extractor emits flow through to LSP responses (definitions/diagnostics/document symbols). A synthetic non-ASCII fixture is the right way to surface this if it ever bites.
+- ~~UTF-16 vs byte column units still unverified~~ — **resolved in a step-4 follow-up commit**: column units confirmed as UTF-16 code units, matching LSP protocol default; `fixtures/wasm-spike/non-ascii.wxml` is the regression anchor. See "UTF-16 column units — confirmed and locked in" below for details.
 - This is now the first commit where `grammar/tree-sitter-wxml/tree-sitter-wxml.wasm` is **load-bearing for LSP runtime behavior**. Removing or corrupting that file silently breaks symbol extraction. It is in git, gitignored properly via the `!tree-sitter-wxml.wasm` negation added in step 1, and verified at load time by the smoke script.
 
 Step 4 complete; the wasm path is now the production code path for symbol extraction.
@@ -285,7 +285,7 @@ The notes previously flagged "UTF-16 vs byte column units" as the last remaining
 
 While constructing the non-ASCII fixture, found that `tree-sitter-wxml` grammar rejects both Chinese tag names (`<用户-卡片>`) and Chinese attribute names (`数据="x"`) — the parser drops into ERROR state. This is a grammar-side gap, not an extractor bug. WeChat WXML spec arguably allows non-ASCII identifiers per JS identifier rules, but it's an unusual pattern in production WXML. Recorded here so a future grammar improvement task starts from a known scope. Fixture deliberately avoids these constructs to keep the column verification clean.
 
-**Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 5 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
+**Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
 ```bash

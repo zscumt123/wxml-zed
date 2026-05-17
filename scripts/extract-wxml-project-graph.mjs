@@ -82,11 +82,6 @@ function runSymbolExtractor(files) {
     {
       cwd: ROOT,
       encoding: "utf8",
-      env: {
-        ...process.env,
-        HOME: process.env.WXML_ZED_HOME || "/private/tmp",
-        npm_config_cache: process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache",
-      },
       stdio: ["ignore", "pipe", "inherit"],
     },
   );

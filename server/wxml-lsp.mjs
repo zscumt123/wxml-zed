@@ -103,14 +103,6 @@ function appendCounterEvent(projectRoot, event) {
   }
 }
 
-function graphExtractorEnv() {
-  return {
-    ...process.env,
-    HOME: process.env.WXML_ZED_HOME || "/private/tmp",
-    npm_config_cache: process.env.NPM_CONFIG_CACHE || process.env.npm_config_cache || "/private/tmp/npm-cache",
-  };
-}
-
 function stateForRoot(projectRoot) {
   let state = buildStateByRoot.get(projectRoot);
   if (!state) {
@@ -221,7 +213,6 @@ async function buildProjectGraph(projectRoot) {
       execFile(process.execPath, [GRAPH_EXTRACTOR, projectRoot], {
         cwd: EXTENSION_ROOT,
         encoding: "utf8",
-        env: graphExtractorEnv(),
         stdio: ["ignore", "pipe", "pipe"],
       }, (error, stdout, stderr) => {
         if (error) {
