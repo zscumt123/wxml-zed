@@ -368,6 +368,82 @@ Anyone extending the extractor needs this list to know what's deliberately not h
 
 Stage B passes; Stage C (project graph integration) is unblocked.
 
+## Stage C Outcome (Data Model Integration)
+
+Three sub-commits landed (`d62a642`, `2a41cce`, plus the Stage C3 graph integration commit). Together they complete the Event Handler Intelligence v1 data model — every piece a downstream LSP feature would need is now in the project graph output, with no LSP feature code added.
+
+### C1 — JS extractor productionization
+
+- `shared/js-method-extractor.mjs` exposes a pure `extractMethods(parser, source)` function. The Stage B POC's walk logic moved here verbatim with one addition: every method entry now carries a `nameRange` field (the `property_identifier` range) in addition to `range` (the whole `method_definition` / `pair`). LSP definition layers eventually jump to `nameRange`.
+- `scripts/poc-js-method-extractor.mjs` becomes a thin wrapper around the shared module — same CLI surface, same JSON shape (plus the new `nameRange`), no duplicate logic.
+- `fixtures/wasm-spike/broken-page.js` adds a trailing-dot syntax error in one method body. Tree-sitter recovery extracts all three methods (`onLoad`, `onShow`, `onReady`) despite the broken middle one, locking in the `hasError === true` tolerance Stage A's design constraint required but no fixture had exercised.
+- Baseline regenerated with `nameRange` field everywhere + new `broken-page.js` entry.
+- Verifier label updated from "sample-page + sample-component" to "N fixtures" so it stays accurate as the fixture list grows.
+
+### C2 — WXML eventHandlers schema bump
+
+- `scripts/extract-wxml-symbols.mjs` gains an `eventHandlers[]` array per file alongside `dependencies`/`symbols`/`references`/`components`. Each entry: `{event, handler, binding, dynamic, range, nameRange}`.
+- All 9 WXML binding prefixes detected via ordered regex patterns:
+
+  | Form | binding | event | example match |
+  |---|---|---|---|
+  | `bindXXX` | `bind` | `XXX` | `bindtap="onTap"` |
+  | `bind:XXX` | `bind:` | `XXX` | `bind:tap="onTap"` |
+  | `catchXXX` | `catch` | `XXX` | `catchtap="onCancel"` |
+  | `catch:XXX` | `catch:` | `XXX` | `catch:tap="onCancel"` |
+  | `mut-bind:XXX` | `mut-bind:` | `XXX` | `mut-bind:tap="onMutTap"` |
+  | `capture-bindXXX` | `capture-bind` | `XXX` | `capture-bindtap="onCapTap"` |
+  | `capture-bind:XXX` | `capture-bind:` | `XXX` | `capture-bind:tap="onCapTap"` |
+  | `capture-catchXXX` | `capture-catch` | `XXX` | `capture-catchtap="onCC"` |
+  | `capture-catch:XXX` | `capture-catch:` | `XXX` | `capture-catch:tap="onCC"` |
+
+- Regex order matters: capture-* must precede plain bind/catch so `capture-bindtap` isn't misparsed as `bind` with event `apture-bindtap`. The 9 forms are exercised end-to-end by `fixtures/test.wxml` lines 42-51.
+- `nameRange` shrinks the `quoted_attribute_value` range by one column on each side so it points at the inner handler text (e.g. `onTap` for `bindtap="onTap"`). Multi-line attribute values fall back to the full node range.
+- All 6 wasm symbol baselines regenerated. `test.wxml` baseline grew from 5805 to 8570 bytes; `real-world.wxml` baseline picked up handlers from page/component/templates fixtures.
+
+### C3 — Graph integration
+
+- `scripts/extract-wxml-project-graph.mjs` adds an async post-processing step `attachScripts(graph)` that:
+  1. Iterates `graph.configs[]` skipping the app config
+  2. For each non-app config, resolves the sibling `.js` by swapping the `.wxml` extension
+  3. Reads the JS source (missing file → field omitted, not error)
+  4. Lazily initializes the JS wasm parser the first time a JS source is found (zero cost for projects without companion JS)
+  5. Calls `extractMethods` and attaches result as `configs[i].script = {path, methods}`
+- 7 new `.js` fixtures populate the miniprogram tree (3 pages + 4 components). `home.js` deliberately exposes `handleSelect` to match `home.wxml`'s `bind:select="handleSelect"` binding on `<user-card>` — the cross-reference can now be resolved end-to-end through the graph.
+- `verify-wxml-language-service.mjs` gains `assertHomeConfigScript()`:
+  - `graph.configs` has the home page entry
+  - Its `script` field exists, points at `home.js`
+  - Methods include `handleSelect` (the actual cross-ref target)
+  - Every method has a `nameRange`
+
+### End-to-end cross-reference resolution (now possible without any LSP code)
+
+```
+home.wxml line 12:  bind:select="handleSelect"
+                            |
+                            v
+graph.configs[home].owner = home.wxml
+graph.configs[home].script.path = home.js
+graph.configs[home].script.methods includes {name: "handleSelect", nameRange: {...}}
+```
+
+A future LSP definition feature (Phase 2) reads the WXML side from `graph.wxml[].eventHandlers[]` and the JS side from `graph.configs[].script.methods[]`. The connection is via shared `owner` path. No additional extraction work required.
+
+### Phase 2+ explicitly out of scope
+
+What this data model intentionally does NOT do:
+
+- **LSP textDocument/definition for event handlers** — Phase 2. Should read the data model and emit Location.
+- **Diagnostic for "handler bound in WXML but missing in JS"** — Phase 2 (carefully, per the false-positive concerns raised during planning).
+- **Completion at `bindtap="|"` cursor position** — Phase 2.
+- **No graph baseline** — currently only the language-service test covers graph behavior. Adding a frozen graph baseline + verifier would be a useful follow-up but is scope creep here.
+
+### v2 candidates (still on hold)
+
+The Stage B "out of scope" list carries forward unchanged: `Object.assign` / spread / dynamic options, computed property keys, `this.X = ...` / prototype assignment, `behaviors: [...]` inheritance, imported helpers via spread, TS / TSX source files, inline closures. Each row maps to a real codebase pattern; none are uncommon.
+
+Stage C complete. The Event Handler Intelligence v1 data model is wholly in place. Phase 2 LSP feature work can begin without further extractor changes.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
