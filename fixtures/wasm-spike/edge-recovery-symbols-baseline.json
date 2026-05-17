@@ -6,7 +6,8 @@
       "dependencies": [],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     }
   ]
 }

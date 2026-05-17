@@ -6,21 +6,24 @@
       "dependencies": [],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/components/local-badge/local-badge.wxml",
       "dependencies": [],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/components/status-badge/status-badge.wxml",
       "dependencies": [],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/components/user-card/user-card.wxml",
@@ -41,7 +44,8 @@
             }
           }
         }
-      ]
+      ],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
@@ -62,7 +66,8 @@
             }
           }
         }
-      ]
+      ],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/pages/detail/detail.wxml",
@@ -85,7 +90,8 @@
       ],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/pages/home/home.wxml",
@@ -227,6 +233,34 @@
             }
           }
         }
+      ],
+      "eventHandlers": [
+        {
+          "event": "select",
+          "handler": "handleSelect",
+          "binding": "bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 11,
+              "column": 4
+            },
+            "end": {
+              "row": 11,
+              "column": 30
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 11,
+              "column": 17
+            },
+            "end": {
+              "row": 11,
+              "column": 29
+            }
+          }
+        }
       ]
     },
     {
@@ -234,7 +268,8 @@
       "dependencies": [],
       "symbols": [],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/templates/common.wxml",
@@ -256,7 +291,8 @@
         }
       ],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/templates/secondary.wxml",
@@ -278,7 +314,8 @@
         }
       ],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     },
     {
       "path": "fixtures/miniprogram/templates/unrelated.wxml",
@@ -300,7 +337,8 @@
         }
       ],
       "references": [],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     }
   ]
 }

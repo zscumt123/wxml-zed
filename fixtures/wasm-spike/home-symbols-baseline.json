@@ -141,6 +141,34 @@
             }
           }
         }
+      ],
+      "eventHandlers": [
+        {
+          "event": "select",
+          "handler": "handleSelect",
+          "binding": "bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 11,
+              "column": 4
+            },
+            "end": {
+              "row": 11,
+              "column": 30
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 11,
+              "column": 17
+            },
+            "end": {
+              "row": 11,
+              "column": 29
+            }
+          }
+        }
       ]
     }
   ]

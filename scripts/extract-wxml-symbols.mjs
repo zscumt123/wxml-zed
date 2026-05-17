@@ -13,6 +13,46 @@ const PROFILE_ENABLED = process.env.WXML_ZED_PROFILE === "1";
 
 const CONTROL_TAGS = new Set(["template", "wxs", "import", "include", "slot", "block"]);
 
+// WXML event binding attribute prefixes, ordered most-specific first.
+// Capture forms must precede plain bind/catch so that e.g. `capture-bindtap`
+// is parsed as binding=capture-bind/event=tap, not binding=bind/event=apture-bindtap.
+const EVENT_PATTERNS = [
+  { re: /^(capture-(?:bind|catch)):(.+)$/, bindingFromMatch: (m) => `${m[1]}:`, eventFromMatch: (m) => m[2] },
+  { re: /^(capture-(?:bind|catch))(.+)$/,  bindingFromMatch: (m) => m[1],       eventFromMatch: (m) => m[2] },
+  { re: /^mut-bind:(.+)$/,                  bindingFromMatch: () => "mut-bind:", eventFromMatch: (m) => m[1] },
+  { re: /^(bind|catch):(.+)$/,              bindingFromMatch: (m) => `${m[1]}:`, eventFromMatch: (m) => m[2] },
+  { re: /^(bind|catch)(.+)$/,               bindingFromMatch: (m) => m[1],       eventFromMatch: (m) => m[2] },
+];
+
+function matchEventBinding(attrName) {
+  for (const p of EVENT_PATTERNS) {
+    const m = attrName.match(p.re);
+    if (m) return { binding: p.bindingFromMatch(m), event: p.eventFromMatch(m) };
+  }
+  return null;
+}
+
+function innerValueRange(quotedValueNode) {
+  // quoted_attribute_value spans the full "..." (or '...'). Shrink by one
+  // column on each side so nameRange points at the inner handler text.
+  // Multi-line attribute values fall back to the full node range.
+  const text = quotedValueNode.text;
+  if (text.length >= 2
+      && (text[0] === '"' || text[0] === "'")
+      && text[text.length - 1] === text[0]
+      && quotedValueNode.startPosition.row === quotedValueNode.endPosition.row) {
+    return {
+      start: { row: quotedValueNode.startPosition.row, column: quotedValueNode.startPosition.column + 1 },
+      end:   { row: quotedValueNode.endPosition.row,   column: quotedValueNode.endPosition.column - 1 },
+    };
+  }
+  // Fallback (we hit this for non-stdlib quote chars or multi-line values).
+  return {
+    start: { row: quotedValueNode.startPosition.row, column: quotedValueNode.startPosition.column },
+    end:   { row: quotedValueNode.endPosition.row,   column: quotedValueNode.endPosition.column },
+  };
+}
+
 function elapsedMs(start) {
   return Number((performance.now() - start).toFixed(2));
 }
@@ -102,8 +142,31 @@ function collectFile(tree, inputAbs) {
   const symbols = [];
   const references = [];
   const components = [];
+  const eventHandlers = [];
 
   const walk = (node) => {
+    if (node.type === "attribute") {
+      // Event-handler attribute? Detect via prefix regex on attribute_name.
+      const nameNode = firstChildOfType(node, "attribute_name");
+      if (nameNode) {
+        const matched = matchEventBinding(nameNode.text);
+        if (matched) {
+          const valueNode = firstChildOfType(node, "quoted_attribute_value")
+            ?? firstChildOfType(node, "attribute_value");
+          if (valueNode) {
+            const handler = attributeRawValue(node) ?? "";
+            eventHandlers.push({
+              event: matched.event,
+              handler,
+              binding: matched.binding,
+              dynamic: handler.includes("{{"),
+              range: rangeOf(node),
+              nameRange: innerValueRange(valueNode),
+            });
+          }
+        }
+      }
+    }
     if (node.type === "import_statement" || node.type === "include_statement") {
       const kind = node.type === "import_statement" ? "import" : "include";
       const srcAttr = findAnyAttribute(node, "src");
@@ -180,8 +243,9 @@ function collectFile(tree, inputAbs) {
   symbols.sort(byPosition);
   references.sort(byPosition);
   components.sort(byPosition);
+  eventHandlers.sort(byPosition);
 
-  return { dependencies, symbols, references, components };
+  return { dependencies, symbols, references, components, eventHandlers };
 }
 
 async function extractFile(parser, filePath) {
@@ -198,7 +262,7 @@ async function extractFile(parser, filePath) {
   const cstMs = elapsedMs(cstStart);
 
   const extractStart = performance.now();
-  const { dependencies, symbols, references, components } = collectFile(tree, inputAbs);
+  const { dependencies, symbols, references, components, eventHandlers } = collectFile(tree, inputAbs);
   const extractMs = elapsedMs(extractStart);
 
   profileEvent({
@@ -211,7 +275,7 @@ async function extractFile(parser, filePath) {
     totalMs: elapsedMs(totalStart),
   });
 
-  return { path: inputRel, dependencies, symbols, references, components };
+  return { path: inputRel, dependencies, symbols, references, components, eventHandlers };
 }
 
 async function main() {

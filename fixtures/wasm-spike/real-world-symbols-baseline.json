@@ -46,6 +46,138 @@
             }
           }
         }
+      ],
+      "eventHandlers": [
+        {
+          "event": "tap",
+          "handler": "onBodyTap",
+          "binding": "catch:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 23
+            },
+            "end": {
+              "row": 10,
+              "column": 44
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 10,
+              "column": 34
+            },
+            "end": {
+              "row": 10,
+              "column": 43
+            }
+          }
+        },
+        {
+          "event": "change",
+          "handler": "onStatusChange",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 13,
+              "column": 44
+            },
+            "end": {
+              "row": 13,
+              "column": 71
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 13,
+              "column": 56
+            },
+            "end": {
+              "row": 13,
+              "column": 70
+            }
+          }
+        },
+        {
+          "event": "retry",
+          "handler": "onRetry",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 17,
+              "column": 38
+            },
+            "end": {
+              "row": 17,
+              "column": 57
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 17,
+              "column": 49
+            },
+            "end": {
+              "row": 17,
+              "column": 56
+            }
+          }
+        },
+        {
+          "event": "tap",
+          "handler": "onConfirm",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 22,
+              "column": 12
+            },
+            "end": {
+              "row": 22,
+              "column": 31
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 22,
+              "column": 21
+            },
+            "end": {
+              "row": 22,
+              "column": 30
+            }
+          }
+        },
+        {
+          "event": "tap",
+          "handler": "onCancel",
+          "binding": "catch",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 12
+            },
+            "end": {
+              "row": 23,
+              "column": 31
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 23,
+              "column": 22
+            },
+            "end": {
+              "row": 23,
+              "column": 30
+            }
+          }
+        }
       ]
     },
     {
@@ -187,6 +319,190 @@
             }
           }
         }
+      ],
+      "eventHandlers": [
+        {
+          "event": "scrolltolower",
+          "handler": "loadMore",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 11,
+              "column": 4
+            },
+            "end": {
+              "row": 11,
+              "column": 32
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 11,
+              "column": 23
+            },
+            "end": {
+              "row": 11,
+              "column": 31
+            }
+          }
+        },
+        {
+          "event": "touchstart",
+          "handler": "onCaptureStart",
+          "binding": "capture-bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 4
+            },
+            "end": {
+              "row": 12,
+              "column": 44
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 12,
+              "column": 29
+            },
+            "end": {
+              "row": 12,
+              "column": 43
+            }
+          }
+        },
+        {
+          "event": "select",
+          "handler": "onSelectUser",
+          "binding": "bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 27,
+              "column": 8
+            },
+            "end": {
+              "row": 27,
+              "column": 34
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 27,
+              "column": 21
+            },
+            "end": {
+              "row": 27,
+              "column": 33
+            }
+          }
+        },
+        {
+          "event": "tap",
+          "handler": "onCardTap",
+          "binding": "catch",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 28,
+              "column": 8
+            },
+            "end": {
+              "row": 28,
+              "column": 28
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 28,
+              "column": 18
+            },
+            "end": {
+              "row": 28,
+              "column": 27
+            }
+          }
+        },
+        {
+          "event": "expanded",
+          "handler": "onExpandedChange",
+          "binding": "mut-bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 29,
+              "column": 8
+            },
+            "end": {
+              "row": 29,
+              "column": 44
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 29,
+              "column": 27
+            },
+            "end": {
+              "row": 29,
+              "column": 43
+            }
+          }
+        },
+        {
+          "event": "retry",
+          "handler": "reload",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 34,
+              "column": 42
+            },
+            "end": {
+              "row": 34,
+              "column": 60
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 34,
+              "column": 53
+            },
+            "end": {
+              "row": 34,
+              "column": 59
+            }
+          }
+        },
+        {
+          "event": "tap",
+          "handler": "onShareTap",
+          "binding": "capture-catch",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 38,
+              "column": 51
+            },
+            "end": {
+              "row": 38,
+              "column": 80
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 38,
+              "column": 69
+            },
+            "end": {
+              "row": 38,
+              "column": 79
+            }
+          }
+        }
       ]
     },
     {
@@ -269,7 +585,35 @@
           }
         }
       ],
-      "components": []
+      "components": [],
+      "eventHandlers": [
+        {
+          "event": "tap",
+          "handler": "onFooterTap",
+          "binding": "bind",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 12
+            },
+            "end": {
+              "row": 15,
+              "column": 33
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 15,
+              "column": 21
+            },
+            "end": {
+              "row": 15,
+              "column": 32
+            }
+          }
+        }
+      ]
     }
   ]
 }

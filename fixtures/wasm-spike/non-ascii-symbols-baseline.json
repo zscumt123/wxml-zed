@@ -85,7 +85,8 @@
           "name": "加载行"
         }
       ],
-      "components": []
+      "components": [],
+      "eventHandlers": []
     }
   ]
 }
