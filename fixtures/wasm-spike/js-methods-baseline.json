@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/wasm-spike/sample-component.js",
+      "methods": [
+        {
+          "name": "attached",
+          "kind": "component-lifecycle",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 2
+            },
+            "end": {
+              "row": 10,
+              "column": 3
+            }
+          }
+        },
+        {
+          "name": "ready",
+          "kind": "component-lifecycle",
+          "range": {
+            "start": {
+              "row": 11,
+              "column": 2
+            },
+            "end": {
+              "row": 13,
+              "column": 3
+            }
+          }
+        },
+        {
+          "name": "handleTap",
+          "kind": "component-method",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 4
+            },
+            "end": {
+              "row": 17,
+              "column": 5
+            }
+          }
+        },
+        {
+          "name": "handleSelect",
+          "kind": "component-method",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 4
+            },
+            "end": {
+              "row": 20,
+              "column": 5
+            }
+          }
+        },
+        {
+          "name": "reset",
+          "kind": "component-method",
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 4
+            },
+            "end": {
+              "row": 23,
+              "column": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": "fixtures/wasm-spike/sample-page.js",
+      "methods": [
+        {
+          "name": "onLoad",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 11,
+              "column": 3
+            }
+          }
+        },
+        {
+          "name": "onShow",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 2
+            },
+            "end": {
+              "row": 14,
+              "column": 3
+            }
+          }
+        },
+        {
+          "name": "refresh",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 2
+            },
+            "end": {
+              "row": 17,
+              "column": 3
+            }
+          }
+        },
+        {
+          "name": "handleSubmit",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 2
+            },
+            "end": {
+              "row": 20,
+              "column": 3
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

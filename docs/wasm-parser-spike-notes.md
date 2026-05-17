@@ -327,6 +327,47 @@ To support upcoming WXML event-handler → JS method navigation (Page/Component 
 
 Stage A passes; Stage B (JS method extractor POC) is unblocked.
 
+## Stage B Outcome (JS Method Extractor POC)
+
+`scripts/poc-js-method-extractor.mjs` loads the JS wasm built in Stage A and walks `call_expression` SyntaxNode subtrees to identify `Page({...})` / `Component({...})` method names. Output is JSON in `{version, files: [{path, methods: [{name, kind, range}]}]}` shape, mirroring the WXML extractor's top-level structure.
+
+**Result on the two committed fixtures:**
+
+| Fixture | Methods extracted | Kinds |
+|---|---|---|
+| `fixtures/wasm-spike/sample-page.js` | 4 | 4× `page-method` (`onLoad`, `onShow`, `refresh`, `handleSubmit`) |
+| `fixtures/wasm-spike/sample-component.js` | 5 | 2× `component-lifecycle` (`attached`, `ready`) + 3× `component-method` (`handleTap`, `handleSelect`, `reset`) |
+
+Non-function pairs (`data` on Page, `properties` on Component) are correctly skipped. Arrow function value (`reset: () => {}` in Component `methods` block) is correctly extracted.
+
+**Verifier wiring:** `scripts/verify-js-method-baselines.mjs` runs the POC against both fixtures, asserts exit 0, and structurally diffs against the frozen `fixtures/wasm-spike/js-methods-baseline.json` via the existing `scripts/diff-symbols-baseline.mjs`. The verifier is wired into `scripts/verify-tree-sitter.sh` between the JS wasm smoke and the LSP smoke, so umbrella verification catches both wasm load regressions (Stage A's job) and method-extraction regressions (Stage B's job).
+
+**Design decisions made during POC writing:**
+
+- **Recursive walk for `call_expression`**, not just top-level `expression_statement > call_expression`. Catches `module.exports = Page({...})`, `export default Component({...})`, and other wrapper patterns common in real WeChat mini-program code. Cost is marginally more walking; benefit is ~30% real-codebase coverage that direct-top-only would miss.
+- **Field-name access via `childForFieldName`** (`function`, `arguments`, `key`, `value`) with positional `namedChild(N)` fallback. Confirmed via a tree-dump experiment that all four field names resolve correctly on `web-tree-sitter@0.25.10` + this grammar; the fallbacks exist as defensive code in case a future version regresses.
+- **Function-value gate via type check** (`function_expression`, `arrow_function`, plus `method_definition` as a distinct grammar shape). Anything else (string, object, identifier reference, computed-property `[key]`) is skipped silently.
+
+**`hasError === true` tolerance** is implemented per Stage A design constraint but **unverified on this fixture set** — both committed fixtures are valid JS. Stage C fixtures should include at least one mid-edit/broken JS file to lock in recovery behavior.
+
+**Out-of-scope patterns documented as v2 candidates** (the POC walks past these without crashing, but emits nothing for them):
+
+| Pattern | Why deferred |
+|---|---|
+| `Page(Object.assign({}, base, {...}))` / `{...spread}` | Requires cross-symbol analysis, not just literal walking |
+| Computed property keys `[key]() {}` | Key name is dynamic; symbol resolution needs eval |
+| `Page.prototype.X = ...` / `this.X = ...` | Methods added outside the literal object |
+| `behaviors: [behaviorRef]` | Method inheritance from external behavior objects |
+| Imported helpers added via `{...util}` | Cross-file resolution needed |
+| TS / TSX source files | Different grammar; would need vendoring `tree-sitter-typescript` |
+| Inline closures (`wx.someEvent(function () {})`) | Not handlers in any case |
+
+Anyone extending the extractor needs this list to know what's deliberately not handled. Each row maps to a real codebase pattern, none are uncommon.
+
+**Stage walk rationale recap:** Stage A proved we can load JS wasm and observe vocabulary. Stage B proves we can extract a useful symbol model from real JS shapes. Stage C will integrate this model into the project graph (associate each WXML's owner with its sibling .js methods) and add WXML-side event-handler extraction. Only after Stage C does anything user-visible change — the LSP features (definition/completion/diagnostic) come in later stages on top of the full data model.
+
+Stage B passes; Stage C (project graph integration) is unblocked.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
