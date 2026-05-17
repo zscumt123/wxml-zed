@@ -21,6 +21,7 @@
 - Create: `grammar/tree-sitter-javascript/` — vendored tree-sitter-javascript grammar source at a pinned commit. Mirrors the layout of `grammar/tree-sitter-wxml/`.
 - Create: `grammar/tree-sitter-javascript/tree-sitter-javascript.wasm` — built artifact, committed via the same `!tree-sitter-javascript.wasm` negation pattern as the WXML wasm.
 - Create: `scripts/verify-js-wasm-parser.mjs` — smoke script: loads both WXML and JS wasms in the same Parser.init(), parses a minimal `Page({...})` JS source, dumps node types relevant to method detection (call_expression, object, pair, method_definition, function, identifier, property_identifier).
+- Modify: `scripts/verify-tree-sitter.sh` — wire the new smoke into the umbrella verification suite alongside `verify-wasm-symbol-baselines.mjs`, so JS wasm load failures (artifact deleted/corrupted, ABI drift on future web-tree-sitter upgrade) are caught without anyone re-running the smoke manually.
 - Modify: `docs/wasm-parser-spike-notes.md` — append "JS parser ABI" section recording version pair, build outcome, smoke report, node-type vocabulary findings.
 
 ---
@@ -143,6 +144,13 @@ The smoke script loads BOTH wasms in a single Parser.init() — this validates t
   ```
 
 - [ ] `node --check scripts/verify-js-wasm-parser.mjs` → exit 0.
+- [ ] Wire the smoke into `scripts/verify-tree-sitter.sh` so the umbrella suite catches future JS wasm regressions. Append the call directly after the existing baseline verifier line:
+  ```bash
+  node "$ROOT_DIR/scripts/verify-wxml-language-service.mjs"
+  node "$ROOT_DIR/scripts/verify-wasm-symbol-baselines.mjs"
+  node "$ROOT_DIR/scripts/verify-js-wasm-parser.mjs"   # <- new
+  node "$ROOT_DIR/scripts/verify-lsp-diagnostics.mjs" --suite smoke
+  ```
 
 ### Task 4: Run Smoke and Record
 
@@ -172,12 +180,14 @@ The smoke script loads BOTH wasms in a single Parser.init() — this validates t
   - `?? grammar/tree-sitter-javascript/` (all vendored files)
   - `?? scripts/verify-js-wasm-parser.mjs`
   - `?? docs/superpowers/plans/2026-05-17-js-parser-abi-spike.md`
+  - `M scripts/verify-tree-sitter.sh`
   - `M docs/wasm-parser-spike-notes.md`
   - `node_modules/` MUST NOT appear
 - [ ] Stage explicitly:
   ```bash
   git add grammar/tree-sitter-javascript/ \
           scripts/verify-js-wasm-parser.mjs \
+          scripts/verify-tree-sitter.sh \
           docs/wasm-parser-spike-notes.md \
           docs/superpowers/plans/2026-05-17-js-parser-abi-spike.md
   ```
