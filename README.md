@@ -30,6 +30,7 @@ git submodule.
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
 | Prototype LSP completion for built-in tags, resolved local components, direct-scope static templates, and common attributes | Yes |
 | Prototype watched-file graph refresh for open-document diagnostics, definition, and completion | Yes |
+| In-process WASM symbol extraction (no `tree-sitter-cli` fork at runtime) | Yes |
 | Dynamic template completion/navigation, recursive/full template visibility, npm/plugin component support, and full component resolution navigation | Planned |
 
 ## Install
@@ -54,7 +55,9 @@ The script parses `fixtures/test.wxml`, runs the grammar corpus tests, validates
 the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
-models. It also verifies the pure WXML language-service mapping layer and starts
+models. It also verifies the pure WXML language-service mapping layer, runs the
+automated WASM symbol baseline verifier (6 fixture cases covering legacy-
+equivalent, parse-error recovery, and UTF-16 column semantics), and starts
 the prototype WXML language server over stdio with the smoke protocol suite.
 That smoke suite verifies watcher registration and unsupported-request behavior
 without running cold graph scenarios. Use `graph-smoke` when you explicitly want
@@ -159,6 +162,13 @@ The LSP host can also refresh the cached project graph from
 and `.wxs` files, then republish diagnostics for already-open WXML documents.
 With capable clients, it dynamically registers those watched-file patterns
 instead of running its own file watcher.
+
+Symbol extraction runs in-process via `web-tree-sitter` loading the committed
+`grammar/tree-sitter-wxml/tree-sitter-wxml.wasm` artifact; there is no
+`tree-sitter-cli` fork on the LSP runtime path. Parse-error inputs yield a
+partial symbol model rather than aborting graph build, so user mid-edit
+keystrokes do not crash the project graph.
+
 It intentionally does not provide symbol indexing, dynamic template
 completion/navigation, recursive/full template visibility, expression
 completion, WXS module completion, hover, nested structural document symbols,
