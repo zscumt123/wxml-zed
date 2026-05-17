@@ -285,6 +285,50 @@ The notes previously flagged "UTF-16 vs byte column units" as the last remaining
 
 While constructing the non-ASCII fixture, found that `tree-sitter-wxml` grammar rejects both Chinese tag names (`<用户-卡片>`) and Chinese attribute names (`数据="x"`) — the parser drops into ERROR state. This is a grammar-side gap, not an extractor bug. WeChat WXML spec arguably allows non-ASCII identifiers per JS identifier rules, but it's an unusual pattern in production WXML. Recorded here so a future grammar improvement task starts from a known scope. Fixture deliberately avoids these constructs to keep the column verification clean.
 
+## JS Parser ABI (Event Handler Intelligence v1, Stage A)
+
+To support upcoming WXML event-handler → JS method navigation (Page/Component method extraction), we vendor `tree-sitter-javascript` alongside `tree-sitter-wxml` and confirm both parsers load under the same `web-tree-sitter@0.25.10` runtime.
+
+**Version pair:**
+- `tree-sitter-javascript`: **0.25.0** (only published 0.25.x patch as of 2026-05-17)
+- `web-tree-sitter`: 0.25.10 (unchanged — already runtime dep)
+- Built with the same `tree-sitter-cli@0.25.10` we use for WXML, via local Emscripten 5.0.7 (`EM_CACHE` override required, same as WXML build)
+
+**Artifact:** `grammar/tree-sitter-javascript/tree-sitter-javascript.wasm`, 402KB (~13× the size of the 31KB WXML wasm — JS grammar exposes 265 node types vs WXML's much smaller surface).
+
+**Smoke verification** (`scripts/verify-js-wasm-parser.mjs`):
+
+```json
+{
+  "wxmlAbi": 15,
+  "jsAbi": 15,
+  "jsNodeTypeCount": 265,
+  "nodeTypesPresent": {
+    "call_expression": 3,
+    "identifier": 3,
+    "arguments": 3,
+    "object": 5,
+    "pair": 6,
+    "property_identifier": 11,
+    "method_definition": 2,
+    "function_expression": 2,
+    "arrow_function": 0,
+    "string": 0,
+    "string_fragment": 0
+  }
+}
+```
+
+- Both wasms loaded in the same `Parser.init()` without conflict
+- ABI matches exactly (15 == 15), not just within compat range
+- All node types Stage B (method extractor) needs are present in the sample's parse tree: `call_expression` for `Page(...)` / `Component(...)`, `object` for the argument literal, `method_definition` for `onTap() {}` style, `pair` + `function_expression` for `onLoad: function () {}` style
+
+**Vendoring scope:** copied `LICENSE`, `README.md`, `binding.gyp`, `grammar.js`, `package.json`, `tree-sitter.json`, `bindings/`, `queries/`, `src/` from the published 0.25.0 tarball. Excluded `prebuilds/` (native binding, we use wasm) and the tarball's prebuilt wasm (we self-build for ABI control). Grammar gitignore mirrors the WXML pattern: ignore `*.wasm` as build volatile, negate `!tree-sitter-javascript.wasm` so the committed artifact tracks.
+
+Stage A passes; Stage B (JS method extractor POC) is unblocked.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:

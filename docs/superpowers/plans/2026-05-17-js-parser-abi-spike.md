@@ -1,0 +1,223 @@
+# JS Parser ABI Spike Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Add a working `tree-sitter-javascript` wasm parser alongside the existing WXML one. Verify ABI compatibility with the same `web-tree-sitter@0.25.10` runtime we already depend on, and prove a minimal Page({...}) JS file parses to a usable SyntaxNode tree. Stage A of Phase 1 (Event Handler Intelligence v1) data-model work.
+
+**Architecture:** Mirror the successful WXML wasm spike approach (`2026-05-16-wasm-parser-abi-spike.md`). Pin `tree-sitter-cli` and `tree-sitter-javascript` to a 0.25.x minor that matches our `web-tree-sitter` runtime. Vendor `tree-sitter-javascript` as a sibling of `grammar/tree-sitter-wxml/` (committed source — same first-party treatment), build `tree-sitter-javascript.wasm` via local Emscripten (already installed from previous spike), commit the wasm artifact. Smoke script loads both wasms in the same `Parser.init()` and parses a minimal `Page({ onTap() {} })` JS file, asserting ABI compatibility and dumping method-related node types so the next stage (POC method extractor) can be designed against real grammar.
+
+**Out of scope:**
+- Method extraction logic (Stage B)
+- Modifying `extract-wxml-symbols.mjs` or graph extractor (Stages C-D)
+- Adding `.ts` / `.tsx` support — defer to a later phase
+- Any LSP feature work (definition/completion/diagnostic) — phases 2-4
+
+**Tech Stack:** `tree-sitter-cli@0.25.10` (already installed locally via the WXML spike's `npm install --no-save`), `web-tree-sitter@0.25.10` (already runtime dep), `tree-sitter-javascript` grammar (vendored fresh), local Emscripten 5.0.7 (already installed).
+
+---
+
+## File Structure
+
+- Create: `grammar/tree-sitter-javascript/` — vendored tree-sitter-javascript grammar source at a pinned commit. Mirrors the layout of `grammar/tree-sitter-wxml/`.
+- Create: `grammar/tree-sitter-javascript/tree-sitter-javascript.wasm` — built artifact, committed via the same `!tree-sitter-javascript.wasm` negation pattern as the WXML wasm.
+- Create: `scripts/verify-js-wasm-parser.mjs` — smoke script: loads both WXML and JS wasms in the same Parser.init(), parses a minimal `Page({...})` JS source, dumps node types relevant to method detection (call_expression, object, pair, method_definition, function, identifier, property_identifier).
+- Modify: `docs/wasm-parser-spike-notes.md` — append "JS parser ABI" section recording version pair, build outcome, smoke report, node-type vocabulary findings.
+
+---
+
+### Task 1: Pick tree-sitter-javascript Version
+
+**Files:**
+- None (research only; outcome recorded in notes after smoke passes)
+
+**Selection rule:** Default to 0.25.x line matching our `web-tree-sitter@0.25.10` runtime. WXML spike confirmed ABI 15 works under 0.25.x.
+
+- [ ] Run `npm view tree-sitter-javascript@0.25 version --json`. Pick the highest 0.25.x patch published. Call it `JS_GRAMMAR_VERSION`. If 0.25.x is empty, fall back to 0.24.x (and document the divergence — ABI compatibility may still work, but flag the difference).
+- [ ] Decide vendoring source: clone `https://github.com/tree-sitter/tree-sitter-javascript` at the matching tag, OR fetch the npm tarball and unpack. Either is fine; pick whichever leaves a clean `grammar/tree-sitter-javascript/` directory structure (no node_modules, no test fixtures we don't need).
+- [ ] Record chosen tag/commit in notes.
+
+### Task 2: Vendor and Build the JS WASM
+
+**Files:**
+- Create: `grammar/tree-sitter-javascript/` (vendored source)
+- Create: `grammar/tree-sitter-javascript/tree-sitter-javascript.wasm`
+
+- [ ] Vendor `grammar/tree-sitter-javascript/` source. Minimum needed: `src/parser.c`, `src/scanner.c` (if present), `src/grammar.json`, `src/node-types.json`, `grammar.js`, `binding.gyp`, `package.json`, `bindings/node/`, `queries/` if present.
+- [ ] Modify `grammar/tree-sitter-javascript/.gitignore` if it inherits a `*.wasm` ignore from the upstream template — add `!tree-sitter-javascript.wasm` negation so our committed artifact is tracked (same pattern as WXML grammar).
+- [ ] Build:
+  ```bash
+  export EM_CACHE="$TMPDIR/em-cache"
+  cd grammar/tree-sitter-javascript
+  npx -y tree-sitter-cli@0.25.10 build --wasm
+  cd ../..
+  ```
+  No `--docker` flag — local Emscripten is already installed from the WXML spike.
+- [ ] Verify artifact:
+  ```bash
+  ls -lh grammar/tree-sitter-javascript/tree-sitter-javascript.wasm
+  xxd grammar/tree-sitter-javascript/tree-sitter-javascript.wasm | head -1
+  ```
+  Expected: file in 100KB-2MB range, starts with `0061 736d` (WASM magic).
+
+### Task 3: Write Combined Smoke Script
+
+**Files:**
+- Create: `scripts/verify-js-wasm-parser.mjs`
+
+The smoke script loads BOTH wasms in a single Parser.init() — this validates that loading two languages in the same process doesn't conflict (which it shouldn't, but worth confirming) and gives us the parser stack the real extractor will use.
+
+- [ ] Create `scripts/verify-js-wasm-parser.mjs`:
+
+  ```js
+  import path from "node:path";
+  import { fileURLToPath } from "node:url";
+  import { Parser, Language } from "web-tree-sitter";
+
+  const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const WXML_WASM = path.join(ROOT, "grammar/tree-sitter-wxml/tree-sitter-wxml.wasm");
+  const JS_WASM = path.join(ROOT, "grammar/tree-sitter-javascript/tree-sitter-javascript.wasm");
+
+  const SAMPLE_JS = `
+  Page({
+    data: { count: 0 },
+    onLoad: function () {},
+    onTap() {
+      this.setData({ count: this.data.count + 1 });
+    },
+  });
+
+  Component({
+    methods: {
+      handleSelect() {},
+      handleChange: function (e) {},
+    },
+  });
+  `;
+
+  async function main() {
+    await Parser.init();
+    const wxmlLang = await Language.load(WXML_WASM);
+    const jsLang = await Language.load(JS_WASM);
+
+    const report = {
+      wxmlAbi: wxmlLang.abiVersion,
+      jsAbi: jsLang.abiVersion,
+      jsNodeTypeCount: jsLang.nodeTypeCount,
+    };
+
+    const parser = new Parser();
+    parser.setLanguage(jsLang);
+    const tree = parser.parse(SAMPLE_JS);
+
+    if (tree.rootNode.hasError) {
+      console.error("FAIL: JS parse tree has errors");
+      console.error(JSON.stringify(report, null, 2));
+      process.exit(1);
+    }
+
+    // Dump node types we expect to need for method extraction.
+    const seen = new Map();
+    const walk = (n) => {
+      seen.set(n.type, (seen.get(n.type) || 0) + 1);
+      for (let i = 0; i < n.namedChildCount; i++) walk(n.namedChild(i));
+    };
+    walk(tree.rootNode);
+
+    const interesting = ["call_expression", "identifier", "arguments", "object", "pair",
+                         "property_identifier", "method_definition", "function_expression",
+                         "arrow_function", "string", "string_fragment"];
+    report.nodeTypesPresent = Object.fromEntries(
+      interesting.map((t) => [t, seen.get(t) ?? 0])
+    );
+    report.allNodeTypes = Array.from(seen.keys()).sort();
+
+    console.log(JSON.stringify(report, null, 2));
+
+    if (report.wxmlAbi !== report.jsAbi) {
+      console.error(`WARN: WXML ABI ${report.wxmlAbi} != JS ABI ${report.jsAbi}`);
+      // Not necessarily fatal — web-tree-sitter compat range may cover both
+    }
+  }
+
+  main().catch((e) => { console.error("FAIL:", e?.message || e); process.exit(1); });
+  ```
+
+- [ ] `node --check scripts/verify-js-wasm-parser.mjs` → exit 0.
+
+### Task 4: Run Smoke and Record
+
+**Files:**
+- Modify: `docs/wasm-parser-spike-notes.md`
+
+- [ ] Run:
+  ```bash
+  node scripts/verify-js-wasm-parser.mjs
+  ```
+- [ ] **Pass criteria:** exit 0, `wxmlAbi` and `jsAbi` both numeric, `nodeTypesPresent.call_expression >= 2`, `nodeTypesPresent.method_definition >= 2` (one for `onTap()`, one for `handleSelect()`), `nodeTypesPresent.pair >= 2` (one for `onLoad: function(){}`, one for `handleChange: function(){}`), tree has no errors.
+- [ ] If `wxmlAbi !== jsAbi` and JS load succeeded: record both and note that web-tree-sitter's compat range covers the gap. If JS load failed with ABI mismatch: try a different JS grammar minor (0.24.x or whatever the runtime claims supports) and rebuild.
+- [ ] Append a "JS Parser ABI" section to `docs/wasm-parser-spike-notes.md` containing:
+  - Chosen `JS_GRAMMAR_VERSION` (tag/commit)
+  - Build outcome (artifact size, ABI version)
+  - Smoke report (the JSON output)
+  - The 4 critical node types confirmed present: `call_expression`, `object`, `method_definition`, `pair`
+  - One-line readiness statement: "Stage A passes; Stage B (JS method extractor POC) is unblocked"
+
+### Task 5: Single Commit
+
+- [ ] Inspect:
+  ```bash
+  git status
+  ```
+  Expected:
+  - `?? grammar/tree-sitter-javascript/` (all vendored files)
+  - `?? scripts/verify-js-wasm-parser.mjs`
+  - `?? docs/superpowers/plans/2026-05-17-js-parser-abi-spike.md`
+  - `M docs/wasm-parser-spike-notes.md`
+  - `node_modules/` MUST NOT appear
+- [ ] Stage explicitly:
+  ```bash
+  git add grammar/tree-sitter-javascript/ \
+          scripts/verify-js-wasm-parser.mjs \
+          docs/wasm-parser-spike-notes.md \
+          docs/superpowers/plans/2026-05-17-js-parser-abi-spike.md
+  ```
+- [ ] `git diff --cached --stat`. Expect the vendored grammar to dominate the line count.
+- [ ] Commit:
+  ```bash
+  git commit -m "$(cat <<'EOF'
+  spike: vendor tree-sitter-javascript and verify wasm load
+
+  Stage A of Event Handler Intelligence v1 Phase 1 (data model). Vendors
+  tree-sitter-javascript at the 0.25.x patch matching our existing
+  web-tree-sitter runtime, builds the wasm via local Emscripten, and
+  smoke-loads both WXML and JS wasms in the same Parser.init() to
+  confirm ABI compatibility and node-type vocabulary needed for the
+  upcoming Page/Component method extractor.
+
+  No symbol extractor, project graph, or LSP code touched. Stage B
+  (single-file JS method extractor POC) is unblocked next.
+
+  Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+  EOF
+  )"
+  ```
+
+---
+
+## Self-Review
+
+**Spec coverage:**
+- Pin matching JS grammar version → Task 1 ✅
+- Vendor + build wasm → Task 2 ✅
+- Smoke load both wasms in same process → Task 3 ✅
+- Verify node types needed for method extraction → Task 3 + 4 ✅
+- Record outcome → Task 4 ✅
+- Single commit → Task 5 ✅
+
+**Placeholders:** `JS_GRAMMAR_VERSION` is a Task 1 output, recorded in notes after Task 4 succeeds. The "expected node types" list in Task 4's pass criteria is concrete (4 specific types with count thresholds), not vague.
+
+**Type consistency:** Smoke script uses the same `Parser` / `Language` API surface validated in the WXML spike (`language.abiVersion`, `Language.load()`, `parser.setLanguage()`). No new API patterns.
+
+**Known fragility:**
+- `tree-sitter-javascript` grammar may not have a 0.25.x release tag matching our runtime exactly — Task 1 has a fallback. If the JS grammar ABI is incompatible with `web-tree-sitter@0.25.10`, the spike halts here and we'd need to escalate runtime version (which would re-trigger WXML ABI verification).
+- Vendoring the whole grammar source adds material to the repo. We don't need its tests or fixtures — Task 2 calls out keeping the layout minimal.

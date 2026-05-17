@@ -1,0 +1,20 @@
+# Build artifacts and tooling state
+build/
+prebuilds/
+node_modules/
+target/
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.o
+*.obj
+
+# Generated wasm (build volatiles)
+*.wasm
+# Allow the JS parser wasm as a committed artifact for wxml-zed LSP distribution
+!tree-sitter-javascript.wasm
+
+# macOS
+.DS_Store
