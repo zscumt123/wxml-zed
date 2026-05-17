@@ -12,6 +12,7 @@ const BASELINE = path.join(ROOT, "fixtures/wasm-spike/js-methods-baseline.json")
 const FIXTURES = [
   "fixtures/wasm-spike/sample-page.js",
   "fixtures/wasm-spike/sample-component.js",
+  "fixtures/wasm-spike/broken-page.js",
 ];
 
 function runNode(scriptPath, args) {
@@ -27,7 +28,7 @@ function runNode(scriptPath, args) {
 }
 
 async function main() {
-  process.stdout.write("[verify-js-method-baselines] sample-page + sample-component ... ");
+  process.stdout.write(`[verify-js-method-baselines] ${FIXTURES.length} fixtures ... `);
   const extractor = await runNode(EXTRACTOR, FIXTURES);
   if (extractor.code !== 0) {
     process.stdout.write("FAIL\n");

@@ -2,6 +2,83 @@
   "version": 1,
   "files": [
     {
+      "path": "fixtures/wasm-spike/broken-page.js",
+      "methods": [
+        {
+          "name": "onLoad",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 2
+            },
+            "end": {
+              "row": 8,
+              "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 6,
+              "column": 2
+            },
+            "end": {
+              "row": 6,
+              "column": 8
+            }
+          }
+        },
+        {
+          "name": "onShow",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 11,
+              "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 9,
+              "column": 8
+            }
+          }
+        },
+        {
+          "name": "onReady",
+          "kind": "page-method",
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 2
+            },
+            "end": {
+              "row": 14,
+              "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 12,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 9
+            }
+          }
+        }
+      ]
+    },
+    {
       "path": "fixtures/wasm-spike/sample-component.js",
       "methods": [
         {
@@ -15,6 +92,16 @@
             "end": {
               "row": 10,
               "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 8,
+              "column": 2
+            },
+            "end": {
+              "row": 8,
+              "column": 10
             }
           }
         },
@@ -30,6 +117,16 @@
               "row": 13,
               "column": 3
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 11,
+              "column": 2
+            },
+            "end": {
+              "row": 11,
+              "column": 7
+            }
           }
         },
         {
@@ -43,6 +140,16 @@
             "end": {
               "row": 17,
               "column": 5
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 15,
+              "column": 4
+            },
+            "end": {
+              "row": 15,
+              "column": 13
             }
           }
         },
@@ -58,6 +165,16 @@
               "row": 20,
               "column": 5
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 18,
+              "column": 4
+            },
+            "end": {
+              "row": 18,
+              "column": 16
+            }
           }
         },
         {
@@ -71,6 +188,16 @@
             "end": {
               "row": 23,
               "column": 5
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 21,
+              "column": 4
+            },
+            "end": {
+              "row": 21,
+              "column": 9
             }
           }
         }
@@ -91,6 +218,16 @@
               "row": 11,
               "column": 3
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 9,
+              "column": 8
+            }
           }
         },
         {
@@ -104,6 +241,16 @@
             "end": {
               "row": 14,
               "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 12,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 8
             }
           }
         },
@@ -119,6 +266,16 @@
               "row": 17,
               "column": 3
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 15,
+              "column": 2
+            },
+            "end": {
+              "row": 15,
+              "column": 9
+            }
           }
         },
         {
@@ -132,6 +289,16 @@
             "end": {
               "row": 20,
               "column": 3
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 18,
+              "column": 2
+            },
+            "end": {
+              "row": 18,
+              "column": 14
             }
           }
         }
