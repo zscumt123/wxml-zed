@@ -839,7 +839,31 @@ function assertInvalidCompletionInputsReturnEmpty(graph) {
   );
 }
 
+function assertHomeConfigScript(graph) {
+  const homeConfig = graph.configs.find(
+    (c) => c.owner === "fixtures/miniprogram/pages/home/home.wxml",
+  );
+  assert(homeConfig, "graph.configs missing home page config");
+  assert(homeConfig.script, "home page config missing script field");
+  assert(
+    homeConfig.script.path === "fixtures/miniprogram/pages/home/home.js",
+    `home script path: expected home.js, got ${homeConfig.script.path}`,
+  );
+  const methodNames = homeConfig.script.methods.map((m) => m.name);
+  assert(
+    methodNames.includes("handleSelect"),
+    `home script methods missing handleSelect (target of bind:select in home.wxml); got [${methodNames.join(", ")}]`,
+  );
+  for (const m of homeConfig.script.methods) {
+    assert(
+      m.nameRange && typeof m.nameRange.start.row === "number",
+      `home script method ${m.name} missing nameRange`,
+    );
+  }
+}
+
 const graph = loadGraph();
+assertHomeConfigScript(graph);
 assertMissingCardDiagnostic(graph);
 assertShopListDiagnosticsClean(graph);
 assertDefinition(graph);

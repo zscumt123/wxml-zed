@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
+import { Parser, Language } from "web-tree-sitter";
+import { extractMethods } from "../shared/js-method-extractor.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SYMBOL_EXTRACTOR = path.join(ROOT, "scripts/extract-wxml-symbols.mjs");
+const JS_WASM = path.join(ROOT, "grammar/tree-sitter-javascript/tree-sitter-javascript.wasm");
 const PROFILE_ENABLED = process.env.WXML_ZED_PROFILE === "1";
 
 function elapsedMs(start) {
@@ -390,6 +394,46 @@ function extractProject(projectRootInput) {
   return graph;
 }
 
+function toPosixPath(p) {
+  return p.split(path.sep).join(path.posix.sep);
+}
+
+async function attachScripts(graph) {
+  // For each non-app config that has a .wxml owner, look for a sibling .js
+  // (path with .wxml extension swapped for .js) and attach extracted
+  // Page/Component methods as configs[i].script = {path, methods}.
+  // Missing sibling, unreadable file, or wasm load failure → field omitted.
+  let parser;
+  let jsLanguage;
+  for (const config of graph.configs) {
+    if (config.kind === "app" || !config.owner) continue;
+    const ownerAbs = path.resolve(ROOT, config.owner);
+    const jsAbs = ownerAbs.replace(/\.wxml$/, ".js");
+    let source;
+    try {
+      source = await fsp.readFile(jsAbs, "utf8");
+    } catch {
+      continue;
+    }
+    if (!parser) {
+      await Parser.init();
+      jsLanguage = await Language.load(JS_WASM);
+      parser = new Parser();
+      parser.setLanguage(jsLanguage);
+    }
+    let methods;
+    try {
+      methods = extractMethods(parser, source);
+    } catch {
+      continue;
+    }
+    config.script = {
+      path: toPosixPath(path.relative(ROOT, jsAbs)),
+      methods,
+    };
+  }
+}
+
 const [projectRoot] = process.argv.slice(2);
 if (!projectRoot) {
   console.error("Usage: node scripts/extract-wxml-project-graph.mjs <project-root>");
@@ -397,4 +441,5 @@ if (!projectRoot) {
 }
 
 const graph = extractProject(projectRoot);
+await attachScripts(graph);
 process.stdout.write(`${JSON.stringify(graph, null, 2)}\n`);
