@@ -444,6 +444,40 @@ The Stage B "out of scope" list carries forward unchanged: `Object.assign` / spr
 
 Stage C complete. The Event Handler Intelligence v1 data model is wholly in place. Phase 2 LSP feature work can begin without further extractor changes.
 
+## Phase 2 Stage A Outcome (LSP Event Handler Definition v1)
+
+First user-visible feature on top of the Phase 1 data model: LSP `textDocument/definition` jumps from a WXML event-handler binding (`bind:select="handleSelect"`) to the matching method's `nameRange` in the sibling `.js`. Lowest-risk pick of the Phase 2 trio (definition / completion / diagnostic) because the failure mode is silent (returns null on miss) — false negatives don't damage user trust.
+
+### Architecture decision: authoritative branch, no fall-through
+
+The event-handler branch in `server/wxml-language-service.mjs`'s `getDefinition()` sits **first** in dispatch order and is **authoritative**: once the cursor is inside an `eventHandlers[].nameRange`, the function returns either a `Location` or `null` — it never falls through to the next branch.
+
+Why this matters: the component-element check covers the whole element range including its attributes, so naively chaining branches caused a real bug caught by my own negative-path assertion. With a handler-name cursor whose handler had no matching method, the code fell through to the component branch and returned the *element's* declaration site (e.g. `user-card.wxml`) instead of `null`. That would have been silently wrong user-facing behavior — definition jumping to a "related" but wrong location, which is worse than null.
+
+Fix: inlined the lookup into the branch and added an `if (eventHandlerMatch) { return ... ?? null; }` shape so the semantic ("most specific match wins authoritatively") is visible at the dispatch site.
+
+### Dynamic handlers → null
+
+`bind:tap="{{name}}"` (data model `dynamic: true`) returns `null`. No static name to resolve. Documented as silent rather than a diagnostic — Phase 2 Stage C decides whether dynamic handlers also escape the "missing handler" diagnostic.
+
+### Verification — two layers, two suites
+
+- `scripts/verify-wxml-language-service.mjs::assertEventHandlerDefinition` — in-process unit test against home → handleSelect cross-reference. Plus `assertEventHandlerDefinitionMissingMethod` which mutates `graph.configs[home].script.methods` in-memory to force the null path (the assertion that caught the fall-through bug above).
+- `scripts/verify-lsp-diagnostics.mjs::testEventHandlerDefinition` — JSON-RPC protocol test mirroring `testHomeComponentDefinition`. Locks URI formatting, response shape, and the routing through `server/wxml-lsp.mjs`'s `textDocument/definition` handler.
+
+Dynamic-binding negative case **skipped** — no miniprogram fixture has a dynamic handler, and the Stage B/C precedent ("don't synthesize fixtures for data-model branches the tests don't need yet") carries forward. The data-model layer already covers the dynamic flag in unit-level coverage.
+
+### Post-merge suite-wiring fix
+
+The protocol test was registered in `graph-smoke` and `full` suites, but `scripts/verify-tree-sitter.sh` was still running `--suite smoke` (which intentionally stays graph-free as a server-lifecycle smoke). Result: the umbrella verifier passed without ever exercising the new wiring.
+
+Fix: umbrella switched to `--suite graph-smoke` — adds ~3s, covers home component + event handler definition + completion. Same commit also synced the plan doc whose Verification section incorrectly claimed `smoke / graph-smoke / full` all picked up the test. (This sync-after-inline-fix pattern is now a saved feedback memory.)
+
+### Phase 2 Stage B/C carry-over
+
+- Stage B (completion at `bindtap="|"` cursor): data model has everything needed (eventHandlers ranges + script.methods). New work: detect "cursor inside attribute value of an event-binding attribute" — slightly trickier than definition because there's no name match to anchor on.
+- Stage C (diagnostic for handler-bound-but-missing): needs careful false-positive controls — dynamic handlers, behaviors, spread/Object.assign all need to suppress the warning. Path: start strict (warn only when graph has a script with no match), iterate from there.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
