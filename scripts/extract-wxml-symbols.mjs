@@ -6,31 +6,13 @@ import { fileURLToPath } from "node:url";
 import { Parser, Language } from "web-tree-sitter";
 
 import { BUILTIN_TAGS } from "../shared/wxml-builtins.mjs";
+import { matchEventBinding } from "../shared/event-binding-patterns.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WASM = path.join(ROOT, "grammar/tree-sitter-wxml/tree-sitter-wxml.wasm");
 const PROFILE_ENABLED = process.env.WXML_ZED_PROFILE === "1";
 
 const CONTROL_TAGS = new Set(["template", "wxs", "import", "include", "slot", "block"]);
-
-// WXML event binding attribute prefixes, ordered most-specific first.
-// Capture forms must precede plain bind/catch so that e.g. `capture-bindtap`
-// is parsed as binding=capture-bind/event=tap, not binding=bind/event=apture-bindtap.
-const EVENT_PATTERNS = [
-  { re: /^(capture-(?:bind|catch)):(.+)$/, bindingFromMatch: (m) => `${m[1]}:`, eventFromMatch: (m) => m[2] },
-  { re: /^(capture-(?:bind|catch))(.+)$/,  bindingFromMatch: (m) => m[1],       eventFromMatch: (m) => m[2] },
-  { re: /^mut-bind:(.+)$/,                  bindingFromMatch: () => "mut-bind:", eventFromMatch: (m) => m[1] },
-  { re: /^(bind|catch):(.+)$/,              bindingFromMatch: (m) => `${m[1]}:`, eventFromMatch: (m) => m[2] },
-  { re: /^(bind|catch)(.+)$/,               bindingFromMatch: (m) => m[1],       eventFromMatch: (m) => m[2] },
-];
-
-function matchEventBinding(attrName) {
-  for (const p of EVENT_PATTERNS) {
-    const m = attrName.match(p.re);
-    if (m) return { binding: p.bindingFromMatch(m), event: p.eventFromMatch(m) };
-  }
-  return null;
-}
 
 function innerValueRange(quotedValueNode) {
   // quoted_attribute_value spans the full "..." (or '...'). Shrink by one
