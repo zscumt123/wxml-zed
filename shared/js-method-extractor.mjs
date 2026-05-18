@@ -1,6 +1,13 @@
 const FUNCTION_VALUE_TYPES = new Set(["function_expression", "arrow_function"]);
 const FACTORY_NAMES = new Set(["Page", "Component"]);
 
+// Method `kind` field values produced by extractMethods(). Consumers
+// (e.g. completion in server/wxml-language-service.mjs) compare against
+// these — import the constants rather than retyping the strings.
+export const METHOD_KIND_PAGE = "page-method";
+export const METHOD_KIND_COMPONENT_LIFECYCLE = "component-lifecycle";
+export const METHOD_KIND_COMPONENT_METHOD = "component-method";
+
 function rangeOf(node) {
   return {
     start: { row: node.startPosition.row, column: node.startPosition.column },
@@ -86,12 +93,12 @@ export function extractMethods(parser, source) {
         const opts = optionsObject(node);
         if (opts) {
           if (factory === "Page") {
-            out.push(...methodEntriesFromObject(opts, "page-method"));
+            out.push(...methodEntriesFromObject(opts, METHOD_KIND_PAGE));
           } else {
-            out.push(...methodEntriesFromObject(opts, "component-lifecycle"));
+            out.push(...methodEntriesFromObject(opts, METHOD_KIND_COMPONENT_LIFECYCLE));
             const methodsBlock = methodsBlockOf(opts);
             if (methodsBlock) {
-              out.push(...methodEntriesFromObject(methodsBlock, "component-method"));
+              out.push(...methodEntriesFromObject(methodsBlock, METHOD_KIND_COMPONENT_METHOD));
             }
           }
         }

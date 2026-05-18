@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 import { BUILTIN_TAG_NAMES } from "../shared/wxml-builtins.mjs";
 import { isEventHandlerCompletionTrigger } from "../shared/event-binding-patterns.mjs";
+import { METHOD_KIND_COMPONENT_LIFECYCLE } from "../shared/js-method-extractor.mjs";
 
 const WARNING = 2;
 const DOCUMENT_SYMBOL_KIND_FILE = 1;
@@ -305,16 +306,24 @@ function attributeContext(sourceText, position) {
   };
 }
 
+// Hot-path bound: getCompletions fires per keystroke. A full
+// `sourceText.slice(0, offset)` would allocate the entire file prefix every
+// call. 4KB covers any realistic multi-line opening tag — if `<` is further
+// back than this, the cursor is not inside an opening tag.
+const HANDLER_VALUE_SCAN_BACK = 4096;
+
 function eventHandlerValueContext(sourceText, position) {
   // Multi-line aware: WXML opens like `<user-card\n  bind:select="..."` are
-  // common. Walk back through the source slice up to the cursor to find the
-  // nearest unterminated `<` (with no unquoted `>` between it and the cursor).
+  // common. Walk back through the bounded slice ending at the cursor to find
+  // the nearest unterminated `<` (with no unquoted `>` between it and the
+  // cursor).
   const offset = offsetAt(sourceText, position);
   if (offset === undefined) return undefined;
-  const slice = sourceText.slice(0, offset);
+  const scanStart = Math.max(0, offset - HANDLER_VALUE_SCAN_BACK);
+  const slice = sourceText.slice(scanStart, offset);
   const openIndex = slice.lastIndexOf("<");
   if (openIndex === -1) return undefined;
-  if (slice.slice(openIndex).startsWith("</")) return undefined;
+  if (slice.slice(openIndex, openIndex + 2) === "</") return undefined;
 
   // Reject if any `>` outside an attribute-value quote appears between the
   // `<` and the cursor — that would mean the tag was already closed.
@@ -439,10 +448,17 @@ function attributeCompletionItems(range) {
   ));
 }
 
-function eventHandlerCompletionItems(graph, documentGraphPath, range) {
-  const ownerConfig = graph.configs.find((c) => (
+// Locate the owner config (page/component .json) for a WXML document's
+// graph path, returning null if it has no sibling JS script. Shared by the
+// event-handler definition (getDefinition) and completion paths.
+function findOwnerConfigWithScript(graph, documentGraphPath) {
+  return graph.configs.find((c) => (
     c.owner === documentGraphPath && c.script && Array.isArray(c.script.methods)
-  ));
+  )) ?? null;
+}
+
+function eventHandlerCompletionItems(graph, documentGraphPath, range) {
+  const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
   if (!ownerConfig) return [];
 
   const seen = new Set();
@@ -453,7 +469,7 @@ function eventHandlerCompletionItems(graph, documentGraphPath, range) {
     // live alongside `methods:` in the same options object. They are not event
     // handlers. Page-method kind is not filtered: extractor cannot distinguish
     // Page lifecycle (onLoad/onShow) from custom handlers by kind today.
-    if (method.kind === "component-lifecycle") continue;
+    if (method.kind === METHOD_KIND_COMPONENT_LIFECYCLE) continue;
     if (seen.has(method.name)) continue;
     seen.add(method.name);
     items.push(completionItem(method.name, COMPLETION_ITEM_KIND_FUNCTION, "method", range));
@@ -566,7 +582,7 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
     .find((entry) => containsPosition(entry.nameRange, position));
   if (eventHandlerMatch) {
     if (eventHandlerMatch.dynamic) return null;
-    const ownerConfig = graph.configs.find((c) => c.owner === documentGraphPath && c.script);
+    const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
     if (!ownerConfig) return null;
     const method = ownerConfig.script.methods.find((m) => m.name === eventHandlerMatch.handler);
     if (!method) return null;

@@ -257,104 +257,72 @@ function assertEventHandlerCompletionEmptyTyped(graph) {
   );
 }
 
-function assertEventHandlerCompletionShortFormBindtap(graph) {
-  // No-colon shorthand bindtap — suffix `tap` is in BUILTIN_EVENT_NAMES.
-  const { source, position } = sourceWithCursor('<view bindtap="hand|"></view>\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  const labels = items.map((item) => item.label);
-  assert(
-    labels.includes("handleSelect"),
-    `event handler completion (bindtap short form): missing handleSelect; got ${JSON.stringify(labels)}`,
-  );
-}
+// Table-driven cases for the synthetic-source completion paths. Each entry
+// tests one regression class. `expect` is "include" (handleSelect appears),
+// "exclude" (handleSelect must not appear), or "empty" (no items at all).
+const SYNTHETIC_HANDLER_COMPLETION_CASES = [
+  {
+    label: "bindtap short form",
+    marked: '<view bindtap="hand|"></view>\n',
+    expect: "include",
+    // suffix `tap` is in BUILTIN_EVENT_NAMES — strict trigger accepts.
+  },
+  {
+    label: "class attr",
+    marked: '<view class="my-cl|">\n',
+    expect: "exclude",
+  },
+  {
+    label: "binding attr",
+    marked: '<view binding="hand|"></view>\n',
+    expect: "exclude",
+    // suffix "ing" not in whitelist — strict trigger rejects.
+  },
+  {
+    label: "dynamic {{...}}",
+    marked: '<view bindtap="{{ha|n}}"></view>\n',
+    expect: "empty",
+    // suppressed by isExcludedCompletionContext before the handler branch.
+  },
+  {
+    label: "stray <",
+    marked: 'text < bindtap="hand|"\n',
+    expect: "exclude",
+    // tag-name guard rejects: `< b` is not a valid tag opening.
+  },
+  {
+    label: "empty event-name colon form",
+    marked: '<view bind:="hand|"></view>\n',
+    expect: "exclude",
+    // colon form requires `.+$` after the colon.
+  },
+];
 
-function assertEventHandlerCompletionInClassAttr(graph) {
-  const { source, position } = sourceWithCursor('<view class="my-cl|">\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  const labels = items.map((item) => item.label);
-  assert(
-    !labels.includes("handleSelect"),
-    `event handler completion (class attr): leaked handleSelect into class value; got ${JSON.stringify(labels)}`,
-  );
-}
-
-function assertEventHandlerCompletionBindingAttrIsNotEvent(graph) {
-  // `binding` — suffix "ing" not in built-in event whitelist. Strict trigger rejects.
-  const { source, position } = sourceWithCursor('<view binding="hand|"></view>\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  const labels = items.map((item) => item.label);
-  assert(
-    !labels.includes("handleSelect"),
-    `event handler completion (binding attr): leaked handleSelect into binding="..."; got ${JSON.stringify(labels)}`,
-  );
-}
-
-function assertEventHandlerCompletionInDynamicExpression(graph) {
-  // Cursor inside {{...}} — suppressed by isExcludedCompletionContext.
-  const { source, position } = sourceWithCursor('<view bindtap="{{ha|n}}"></view>\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  assert(
-    Array.isArray(items) && items.length === 0,
-    `event handler completion (dynamic {{...}}): expected suppression to return []; got ${JSON.stringify(items)}`,
-  );
-}
-
-function assertEventHandlerCompletionStrayLessThan(graph) {
-  // Stray `<` in text content — tag-name guard must reject.
-  const { source, position } = sourceWithCursor('text < bindtap="hand|"\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  const labels = items.map((item) => item.label);
-  assert(
-    !labels.includes("handleSelect"),
-    `event handler completion (stray <): leaked handleSelect on non-tag context; got ${JSON.stringify(labels)}`,
-  );
-}
-
-function assertEventHandlerCompletionEmptyEventNameColon(graph) {
-  // `bind:=` — colon form with empty event name; strict trigger requires `.+$`.
-  const { source, position } = sourceWithCursor('<view bind:="hand|"></view>\n');
-  const items = getCompletions({
-    graph,
-    documentPath: HOME_WXML,
-    position,
-    sourceText: source,
-    extensionRoot: ROOT,
-  });
-  const labels = items.map((item) => item.label);
-  assert(
-    !labels.includes("handleSelect"),
-    `event handler completion (empty event-name colon form): leaked handleSelect on \`bind:=\`; got ${JSON.stringify(labels)}`,
-  );
+function assertSyntheticHandlerCompletionCases(graph) {
+  for (const { label, marked, expect } of SYNTHETIC_HANDLER_COMPLETION_CASES) {
+    const { source, position } = sourceWithCursor(marked);
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    });
+    if (expect === "empty") {
+      assert(
+        Array.isArray(items) && items.length === 0,
+        `event handler completion (${label}): expected []; got ${JSON.stringify(items)}`,
+      );
+      continue;
+    }
+    const labels = items.map((item) => item.label);
+    const has = labels.includes("handleSelect");
+    if (expect === "include") {
+      assert(has, `event handler completion (${label}): missing handleSelect; got ${JSON.stringify(labels)}`);
+    } else {
+      assert(!has, `event handler completion (${label}): leaked handleSelect; got ${JSON.stringify(labels)}`);
+    }
+  }
 }
 
 function assertEventHandlerCompletionNoSiblingScript(graph) {
@@ -1177,11 +1145,6 @@ assertInvalidCompletionInputsReturnEmpty(graph);
 // Phase 2 Stage B — Event handler value completion
 assertEventHandlerCompletion(graph);
 assertEventHandlerCompletionEmptyTyped(graph);
-assertEventHandlerCompletionShortFormBindtap(graph);
-assertEventHandlerCompletionInClassAttr(graph);
-assertEventHandlerCompletionBindingAttrIsNotEvent(graph);
-assertEventHandlerCompletionInDynamicExpression(graph);
-assertEventHandlerCompletionStrayLessThan(graph);
-assertEventHandlerCompletionEmptyEventNameColon(graph);
+assertSyntheticHandlerCompletionCases(graph);
 assertEventHandlerCompletionNoSiblingScript(graph);
 assertEventHandlerCompletionSkipsComponentLifecycle(graph);
