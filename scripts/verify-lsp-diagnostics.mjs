@@ -822,6 +822,29 @@ async function testTagCompletion() {
   });
 }
 
+async function testEventHandlerCompletion() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 1,
+      "home diagnostics before event handler completion",
+    );
+    // home.wxml line 12 `    bind:select="handleSelect"` — cursor after `hand`.
+    const result = await client.completion(HOME_WXML, { line: 11, character: 21 });
+    assertCompletionLabelsInclude(result, ["handleSelect"], "event handler completion");
+    assertCompletionTextEdit(
+      result,
+      "handleSelect",
+      {
+        range: { start: { line: 11, character: 17 }, end: { line: 11, character: 21 } },
+        newText: "handleSelect",
+      },
+      "event handler completion",
+    );
+  });
+}
+
 async function testTemplateCompletion() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1379,6 +1402,7 @@ const scenarios = [
   ["didSave refresh clears fixed component", testDidSaveRefreshClearsFixedComponent],
   ["unsupported request behavior", testUnsupportedRequest],
   ["coalesced async build behavior", testAsyncCoalescingAndResponsiveness],
+  ["event handler completion", testEventHandlerCompletion],
 ];
 
 const SCENARIO_SUITES = {
@@ -1397,6 +1421,7 @@ const SCENARIO_SUITES = {
     "home component definition",
     "event handler definition",
     "completion immediately after open",
+    "event handler completion",
     "unsupported request behavior",
   ],
   full: scenarios.map(([name]) => name),
