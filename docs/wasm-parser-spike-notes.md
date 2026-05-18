@@ -557,6 +557,52 @@ For the diagnostic that warns "handler bound in WXML but missing in JS":
 - False-positive controls needed: dynamic handlers (suppress), `behaviors: [...]` inheritance (suppress until extractor handles them), spread / `Object.assign` (suppress likewise).
 - Start strict, iterate based on real false-positive reports.
 
+## Phase 2 Stage C Outcome (LSP Event Handler Diagnostic v1)
+
+Closes the Event Handler Intelligence v1 trio: Definition (A) + Completion (B) + Diagnostic (C). Warning-level LSP diagnostic on the handler text when `bind:tap="onTap"` references a method that does not exist in the sibling `.js` Page/Component factory.
+
+### Two-phase architecture
+
+**Phase C1 — extractor signal.** Diagnostics without false-positive controls would be unshippable: real WeChat code uses `methods: { ...common, custom() {} }` and `Component({ behaviors: [...] })`. So `shared/js-method-extractor.mjs::extractMethods` changed signature from `MethodEntry[]` to `{methods, hasDynamicMethods}`. The flag is `true` when the factory options cannot be statically enumerated.
+
+**Phase C2 — language-service consumer.** `getDiagnostics` concatenates the existing `missing-local-component` branch with the new `eventHandlerDiagnostics` branch. Both end up on one `publishDiagnostics` channel.
+
+### Suppression mechanisms expanded after review
+
+The first plan draft covered three triggers: options/methods-block spread, non-empty `behaviors: [...]` array, non-object factory arg. Two more emerged from review pass that caught real-world false-positive surfaces:
+
+| Trigger | Why it suppresses |
+|---|---|
+| `spread_element` direct child of options object | `{...base, methods: ...}` may pull in arbitrary properties from `base` |
+| `spread_element` direct child of methods sub-object | `methods: { ...common, custom() {} }` is the dominant shared-methods pattern in real WeChat code |
+| `behaviors: [...]` array literal with length > 0 | Imported behavior modules can inject methods we can't see without cross-file resolution |
+| `behaviors: <anything-not-array-literal>` | Variable reference (`behaviors: commonBehaviors`) or call result is opaque; if behaviors is opaque, suppress |
+| `methods: <anything-not-object-literal>` | Existing `methodsBlockOf` returns null on identifier or call values, so methods extraction silently produces []; without this trigger every bound handler would falsely warn |
+| Factory first arg is not an inline object | `Component(Object.assign({}, base, {...}))` — methods can't be enumerated at all |
+
+Combined detector lives in `dynamicMethodsViaProperty(opts)` (one pair walk handles both `behaviors` and `methods` properties).
+
+### Asymmetry vs. Stage B's lifecycle filter
+
+Stage B's completion filters out `kind: "component-lifecycle"` methods because suggesting `attached` as a tap handler in the picker is bad UX. Stage C's diagnostic does NOT filter: if a user genuinely wrote `bind:tap="attached"` and `attached` IS defined in the component, the name resolves and we shouldn't warn — calling lifecycle methods via tap is unusual but valid JS. Different semantic surface, different filter.
+
+### Test infrastructure
+
+- `scripts/verify-js-script-info.mjs` (new) — programmatic, 12 in-process cases against synthetic JS sources. One verifier line in the umbrella covers each detector trigger. No fixture files; no spawn overhead.
+- `scripts/verify-wxml-language-service.mjs` — 7 new assertions reuse the Stage A `assertEventHandlerDefinitionMissingMethod` graph-mutation pattern. No new fixture files. Both strict-gate branches (colon + no-colon shorthand) are positively locked because regressions in `attrNameFromHandler` or `isEventHandlerCompletionTrigger`'s no-colon branch would otherwise slip past a colon-only positive case.
+
+### No new LSP protocol test
+
+Diagnostics share one `textDocument/publishDiagnostics` channel; the existing `assertMissingCardDiagnostic` already exercises the routing. Adding a second diagnostic *type* doesn't change the protocol path — the channel-shape verification is the same. Skipping the protocol test saves a fixture commit and a baseline regen (the miniprogram-symbols baseline scans the whole fixtures/miniprogram tree, so adding a new page there forces baseline update).
+
+### Phase 2 trio complete
+
+Event Handler Intelligence v1 is done. Next directions when Phase 3 starts:
+- Cross-file `behaviors: [...]` resolution (currently we suppress; v2 could read the imported behavior modules and union their methods)
+- Quick-fix code action ("create stub method in .js") — uses the same data already exposed
+- Diagnostic on `wx:if`/`wx:for` expressions that reference unknown identifiers — different data flow but similar architecture
+- TS/TSX sibling support — would require swapping/extending the JS wasm grammar
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
