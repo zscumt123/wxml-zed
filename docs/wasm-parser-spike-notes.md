@@ -478,6 +478,85 @@ Fix: umbrella switched to `--suite graph-smoke` — adds ~3s, covers home compon
 - Stage B (completion at `bindtap="|"` cursor): data model has everything needed (eventHandlers ranges + script.methods). New work: detect "cursor inside attribute value of an event-binding attribute" — slightly trickier than definition because there's no name match to anchor on.
 - Stage C (diagnostic for handler-bound-but-missing): needs careful false-positive controls — dynamic handlers, behaviors, spread/Object.assign all need to suppress the warning. Path: start strict (warn only when graph has a script with no match), iterate from there.
 
+## Phase 2 Stage B Outcome (LSP Event Handler Completion v1)
+
+Typing inside an event-binding attribute value (`bind:tap="|"`, `bindchange="hand|"`) now surfaces method names from the sibling `.js` file's `Page({...})` / `Component({...})` factory. Builds on Stage A's data flow: `graph.configs[owner].script.methods[]` is the source of truth; the context matcher is what determines whether to consult it.
+
+### Architecture decision: source-text scan, not AST
+
+Same reasoning that drove the existing `tagNameContext` / `attributeContext` / `templateIsContext` matchers: mid-typing positions don't always have a usable AST node — the user is *in the middle of editing*, the tree is broken or recovering, and `fileModel.eventHandlers[]` may not have an entry for what the user is currently typing. Source-text regex is the right tool. The new `eventHandlerValueContext` is the **first** content-context branch in `getCompletions()` (after the `findWxmlFileModel` guard).
+
+### Implementation surprise: multi-line tag opens
+
+The existing `attributeContext` uses only `currentLinePrefix(sourceText, position)` and `prefix.lastIndexOf("<")`. That works when the user is typing `<view bindtap="..."` on one line — but it silently no-ops on multi-line opening tags like home.wxml's:
+
+```
+<user-card
+  wx:for="{{users}}"
+  wx:key="id"
+  user="{{item}}"
+  bind:select="handleSelect"
+/>
+```
+
+The `<` is on line 7, the `bind:select` attribute is on line 11. Cursor positions on line 11 have no `<` in their line prefix. The existing `attributeContext` would not fire there either — that's a quiet limitation in the current single-line dispatch.
+
+For event-handler-value completion this matters more: multi-line attribute layout is the norm for custom-component WeChat patterns, not the exception. So `eventHandlerValueContext` walks back through the full source slice up to the cursor offset to find the nearest unterminated `<` (rejecting if any unquoted `>` appears between it and the cursor — that would mean the tag was already closed). Quote-state tracking in the scan correctly handles `>` inside attribute values.
+
+The `typed` portion must not span newlines, otherwise the textEdit range computation (`position.character - typed.length`) would point to a different line. Enforced with an explicit `typed.includes("\n")` guard.
+
+This divergence from `attributeContext` is deliberate. A future change could promote the multi-line scan into a shared helper and bring `attributeContext` along, but that's scope creep here.
+
+### Trigger gate: strict whitelist
+
+The completion path uses a stricter helper (`isEventHandlerCompletionTrigger`) than the data-model path (`matchEventBinding`):
+
+- **Colon forms** (`bind:foo` / `catch:foo` / `capture-bind:foo` / `capture-catch:foo` / `mut-bind:foo`): accept any non-empty event name. Custom-component events go here.
+- **No-colon shorthand** (`bindtap` / `catchchange` / `capture-bindtouchstart`): accept only when the suffix is in `BUILTIN_EVENT_NAMES` — a conservative seed of WeChat built-in events.
+
+The data-model loose matcher is kept unchanged so Phase 1 baselines stay byte-identical. The completion-side strict gate exists because completion is a user-facing UI surface: false-positives like a methods menu popping up on `<custom-comp binding="...">` (where `binding` is a prop name, not an event) are visually invasive. The trade-off — false-negative on `<my-comp bindselect="..."` for a custom-component `select` event — is silent and easy to work around (use the colon form, which is also the official recommendation).
+
+### Method filter: skip component-lifecycle
+
+`Component({...})` lifecycle hooks (`attached` / `ready` / `detached` / `moved` / etc.) live in the same options object as `methods: { ... }`. The JS extractor tags them with `kind: "component-lifecycle"`. The completion items builder skips this kind.
+
+`page-method` kind is **not** filtered. WeChat Page lifecycle (`onLoad` / `onShow` / `onUnload`) shares the same options object as custom page methods; the extractor cannot distinguish them by kind today. Future kind-refinement (e.g. mark known Page lifecycle by name → `page-lifecycle`) would let us tighten further.
+
+### Test infrastructure: `sourceWithCursor()`
+
+All synthetic-source assertions use the existing `sourceWithCursor()` helper at `scripts/verify-wxml-language-service.mjs:48`. Pattern:
+
+```js
+const { source, position } = sourceWithCursor('<view bindtap="hand|"></view>\n');
+```
+
+The `|` marker is the source of truth for cursor position. Hand-computing column offsets is a class of bug to avoid — the v1 plan draft caught off-by-one mistakes in the inline column comments precisely this way. Two fixture-driven assertions (`assertEventHandlerCompletion`, `assertEventHandlerCompletionEmptyTyped`) keep hand-coded line/column coordinates because they read the real `home.wxml` fixture and the multi-line scan requires hitting specific source positions — those coordinates are pinned in the assertion comments and re-verifiable against `fixtures/miniprogram/pages/home/home.wxml` line 12.
+
+### Negative-case matrix
+
+| Case | Mechanism that rejects |
+|---|---|
+| `class="..."` value | `isEventHandlerCompletionTrigger` rejects `class` |
+| `binding="..."` / `bindable="..."` / `catching="..."` | Strict-vs-loose: suffix not in `BUILTIN_EVENT_NAMES` |
+| `bind:="..."` (empty event name) | Strict colon regex requires `.+$` |
+| Cursor inside `{{...}}` | Pre-existing `isExcludedCompletionContext` guard fires before the event-handler branch |
+| Stray `<` in text content (`text < bindtap=...`) | Tag-name guard `/^[A-Za-z][\w-]*(?:\s|$)/u` (copied from `attributeContext`) |
+| `component-lifecycle` methods in script | `eventHandlerCompletionItems` filters `method.kind === "component-lifecycle"` |
+| No sibling `.js` script | `ownerConfig` lookup returns undefined → `[]` |
+
+Total: 10 unit-level assertions + 1 LSP-protocol e2e test.
+
+### Suite wiring
+
+The protocol test is registered in `graph-smoke` and `full` suites of `verify-lsp-diagnostics.mjs`. `verify-tree-sitter.sh` already runs `--suite graph-smoke` (Stage A's post-merge fix), so the umbrella picks it up automatically. Both `node scripts/verify-wxml-language-service.mjs` (~5s) and the umbrella (~2-3min, dominated by wasm rebuild) end green.
+
+### Stage C carry-over
+
+For the diagnostic that warns "handler bound in WXML but missing in JS":
+- Should reuse the same strict trigger gate as completion. Otherwise the diagnostic would warn on `binding="foo"` thinking `foo` is a missing handler (because the loose `matchEventBinding` would have classified `binding` as an event binding upstream).
+- False-positive controls needed: dynamic handlers (suppress), `behaviors: [...]` inheritance (suppress until extractor handles them), spread / `Object.assign` (suppress likewise).
+- Start strict, iterate based on real false-positive reports.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
