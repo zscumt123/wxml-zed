@@ -12,14 +12,21 @@ REAL_WORLD_PAGE="$REAL_WORLD_DIR/page.wxml"
 REAL_WORLD_COMPONENT="$REAL_WORLD_DIR/component.wxml"
 REAL_WORLD_TEMPLATES="$REAL_WORLD_DIR/templates.wxml"
 REAL_WORLD_RECOVERY="$REAL_WORLD_DIR/edge-recovery.wxml"
-CACHE_DIR="${NPM_CONFIG_CACHE:-/private/tmp/npm-cache}"
-SYMBOL_MODEL="/tmp/wxml-zed-symbols.json"
-PROJECT_GRAPH="/tmp/wxml-zed-project-graph.json"
+# Session-stable workspace under TMPDIR (macOS per-user, persistent across
+# /tmp wipes). Previously these were hardcoded to /private/tmp/* and broke
+# whenever the OS cleaned that directory between runs. Env-var overrides
+# WXML_ZED_HOME, WXML_ZED_OUT_DIR, NPM_CONFIG_CACHE still take precedence.
+TMP_BASE="${TMPDIR:-/tmp}"
+TMP_BASE="${TMP_BASE%/}"
+OUT_DIR="${WXML_ZED_OUT_DIR:-$TMP_BASE/wxml-zed-verify}"
+CACHE_DIR="${NPM_CONFIG_CACHE:-$TMP_BASE/wxml-zed-npm-cache}"
+SYMBOL_MODEL="$OUT_DIR/symbols.json"
+PROJECT_GRAPH="$OUT_DIR/project-graph.json"
 MINIPROGRAM_DIR="$ROOT_DIR/fixtures/miniprogram"
 
-export HOME="${WXML_ZED_HOME:-/private/tmp}"
+export HOME="${WXML_ZED_HOME:-$TMP_BASE/wxml-zed-home}"
 export npm_config_cache="$CACHE_DIR"
-mkdir -p "$HOME/.cache/tree-sitter/lock" "$npm_config_cache"
+mkdir -p "$HOME/.cache/tree-sitter/lock" "$npm_config_cache" "$OUT_DIR"
 
 node "$ROOT_DIR/scripts/verify-wxml-builtins.mjs"
 
@@ -39,159 +46,159 @@ assert_count_eq() {
   test "${count:-0}" -eq "$3"
 }
 
-npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$FIXTURE" >/tmp/wxml-zed-parse.out
-npx tree-sitter-cli test --grammar-path "$GRAMMAR_DIR" >/tmp/wxml-zed-corpus-test.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$FIXTURE" >/tmp/wxml-zed-highlights-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$FIXTURE" >/tmp/wxml-zed-outline-query.out
+npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$FIXTURE" >$OUT_DIR/parse.out
+npx tree-sitter-cli test --grammar-path "$GRAMMAR_DIR" >$OUT_DIR/corpus-test.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$FIXTURE" >$OUT_DIR/highlights-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$FIXTURE" >$OUT_DIR/outline-query.out
 
 if [ -f "$ROOT_DIR/languages/wxml/textobjects.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/textobjects.scm" "$FIXTURE" >/tmp/wxml-zed-textobjects-query.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/textobjects.scm" "$FIXTURE" >$OUT_DIR/textobjects-query.out
 fi
 if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$FIXTURE" >/tmp/wxml-zed-injections-query.out
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$INJECTION_FIXTURE" >/tmp/wxml-zed-wxs-injections-query.out
-  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$INJECTION_FIXTURE" >/tmp/wxml-zed-wxs-injection-parse.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$FIXTURE" >$OUT_DIR/injections-query.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$INJECTION_FIXTURE" >$OUT_DIR/wxs-injections-query.out
+  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$INJECTION_FIXTURE" >$OUT_DIR/wxs-injection-parse.out
 
-  test "$(rg -c 'capture: .*injection\.content' /tmp/wxml-zed-wxs-injections-query.out)" -ge 4
-  rg -n 'text: ` user\.name \|\| "Guest" `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'text: ` math\.double\(count\) `' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'capture: injection\.content, start: \(3, 2\), end: \(7, 0\)' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n 'capture: injection\.content, start: \(12, 2\), end: \(13, 0\)' /tmp/wxml-zed-wxs-injections-query.out >/dev/null
-  rg -n '\(wxs_inline' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
-  rg -n '\(wxs_fallback' /tmp/wxml-zed-wxs-injection-parse.out >/dev/null
-  test "$(rg -c '\(raw_text' /tmp/wxml-zed-wxs-injection-parse.out)" -ge 2
-  test "$(rg -c '\(expression' /tmp/wxml-zed-wxs-injection-parse.out)" -ge 2
+  test "$(rg -c 'capture: .*injection\.content' $OUT_DIR/wxs-injections-query.out)" -ge 4
+  rg -n 'text: ` user\.name \|\| "Guest" `' $OUT_DIR/wxs-injections-query.out >/dev/null
+  rg -n 'text: ` math\.double\(count\) `' $OUT_DIR/wxs-injections-query.out >/dev/null
+  rg -n 'capture: injection\.content, start: \(3, 2\), end: \(7, 0\)' $OUT_DIR/wxs-injections-query.out >/dev/null
+  rg -n 'capture: injection\.content, start: \(12, 2\), end: \(13, 0\)' $OUT_DIR/wxs-injections-query.out >/dev/null
+  rg -n '\(wxs_inline' $OUT_DIR/wxs-injection-parse.out >/dev/null
+  rg -n '\(wxs_fallback' $OUT_DIR/wxs-injection-parse.out >/dev/null
+  test "$(rg -c '\(raw_text' $OUT_DIR/wxs-injection-parse.out)" -ge 2
+  test "$(rg -c '\(expression' $OUT_DIR/wxs-injection-parse.out)" -ge 2
 fi
 if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$FIXTURE" >/tmp/wxml-zed-indents-query.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$FIXTURE" >$OUT_DIR/indents-query.out
 fi
 if [ ! -f "$BRACKETS_QUERY" ]; then
   echo "Missing required WXML bracket query: $BRACKETS_QUERY" >&2
   exit 1
 fi
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$FIXTURE" >/tmp/wxml-zed-brackets-query.out
-npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-parse.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$TAG_EDITING_FIXTURE" >/tmp/wxml-zed-tag-editing-brackets-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$FIXTURE" >$OUT_DIR/brackets-query.out
+npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$TAG_EDITING_FIXTURE" >$OUT_DIR/tag-editing-parse.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$TAG_EDITING_FIXTURE" >$OUT_DIR/tag-editing-brackets-query.out
 
-rg -n '\(element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(block_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(slot_element' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(template_definition' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(template_usage' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(template_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(wxs_inline' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(wxs_fallback' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-rg -n '\(comment' /tmp/wxml-zed-tag-editing-parse.out >/dev/null
-test "$(rg -c '\(interpolation' /tmp/wxml-zed-tag-editing-parse.out)" -ge 4
+rg -n '\(element' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(block_element' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(slot_element' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(template_definition' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(template_usage' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(template_fallback' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(wxs_inline' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(wxs_fallback' $OUT_DIR/tag-editing-parse.out >/dev/null
+rg -n '\(comment' $OUT_DIR/tag-editing-parse.out >/dev/null
+test "$(rg -c '\(interpolation' $OUT_DIR/tag-editing-parse.out)" -ge 4
 
-rg -n 'text: `<view class="card \{\{state\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<block wx:if="\{\{visible\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<template name="itemCard">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<template is="itemCard" data="\{\{item\}\}">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<template>`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<wxs module="tools">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-rg -n 'text: `<wxs src="./legacy\.wxs">`' /tmp/wxml-zed-tag-editing-brackets-query.out >/dev/null
-test "$(rg -c 'capture: [0-9]+ - open' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
-test "$(rg -c 'capture: [0-9]+ - close' /tmp/wxml-zed-tag-editing-brackets-query.out)" -ge 12
+rg -n 'text: `<view class="card \{\{state\}\}">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<block wx:if="\{\{visible\}\}">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<slot name="header">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template name="itemCard">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template is="itemCard" data="\{\{item\}\}">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<template>`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<wxs module="tools">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+rg -n 'text: `<wxs src="./legacy\.wxs">`' $OUT_DIR/tag-editing-brackets-query.out >/dev/null
+test "$(rg -c 'capture: [0-9]+ - open' $OUT_DIR/tag-editing-brackets-query.out)" -ge 12
+test "$(rg -c 'capture: [0-9]+ - close' $OUT_DIR/tag-editing-brackets-query.out)" -ge 12
 
 for real_world_fixture in "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORLD_TEMPLATES"; do
-  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$real_world_fixture" >/tmp/wxml-zed-real-world-$(basename "$real_world_fixture" .wxml)-parse.out
+  npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$real_world_fixture" >$OUT_DIR/real-world-$(basename "$real_world_fixture" .wxml)-parse.out
 done
-npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$REAL_WORLD_RECOVERY" >/tmp/wxml-zed-real-world-recovery-parse.out || true
+npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$REAL_WORLD_RECOVERY" >$OUT_DIR/real-world-recovery-parse.out || true
 
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-highlights-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_COMPONENT" >/tmp/wxml-zed-real-world-component-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_TEMPLATES" >/tmp/wxml-zed-real-world-templates-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-injections-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_RECOVERY" >/tmp/wxml-zed-real-world-recovery-injections-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$REAL_WORLD_COMPONENT" >/tmp/wxml-zed-real-world-component-brackets-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-highlights-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_COMPONENT" >$OUT_DIR/real-world-component-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_TEMPLATES" >$OUT_DIR/real-world-templates-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-injections-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_RECOVERY" >$OUT_DIR/real-world-recovery-injections-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$REAL_WORLD_COMPONENT" >$OUT_DIR/real-world-component-brackets-query.out
 if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$REAL_WORLD_PAGE" >/tmp/wxml-zed-real-world-page-indents-query.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-indents-query.out
 fi
 
-rg -n '\(import_statement' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-rg -n '\(include_statement' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-rg -n '\(wxs_external' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-rg -n '\(block_element' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-rg -n '\(template_usage' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-rg -n '\(entity' /tmp/wxml-zed-real-world-page-parse.out >/dev/null
-assert_count_ge '\(interpolation' /tmp/wxml-zed-real-world-page-parse.out 10
-assert_count_ge '\(element' /tmp/wxml-zed-real-world-page-parse.out 8
-assert_count_eq '\(ERROR' /tmp/wxml-zed-real-world-page-parse.out 0
+rg -n '\(import_statement' $OUT_DIR/real-world-page-parse.out >/dev/null
+rg -n '\(include_statement' $OUT_DIR/real-world-page-parse.out >/dev/null
+rg -n '\(wxs_external' $OUT_DIR/real-world-page-parse.out >/dev/null
+rg -n '\(block_element' $OUT_DIR/real-world-page-parse.out >/dev/null
+rg -n '\(template_usage' $OUT_DIR/real-world-page-parse.out >/dev/null
+rg -n '\(entity' $OUT_DIR/real-world-page-parse.out >/dev/null
+assert_count_ge '\(interpolation' $OUT_DIR/real-world-page-parse.out 10
+assert_count_ge '\(element' $OUT_DIR/real-world-page-parse.out 8
+assert_count_eq '\(ERROR' $OUT_DIR/real-world-page-parse.out 0
 
-rg -n '\(slot_element' /tmp/wxml-zed-real-world-component-parse.out >/dev/null
-rg -n '\(block_element' /tmp/wxml-zed-real-world-component-parse.out >/dev/null
-assert_count_ge '\(element' /tmp/wxml-zed-real-world-component-parse.out 8
-assert_count_ge '\(interpolation' /tmp/wxml-zed-real-world-component-parse.out 8
-assert_count_eq '\(ERROR' /tmp/wxml-zed-real-world-component-parse.out 0
+rg -n '\(slot_element' $OUT_DIR/real-world-component-parse.out >/dev/null
+rg -n '\(block_element' $OUT_DIR/real-world-component-parse.out >/dev/null
+assert_count_ge '\(element' $OUT_DIR/real-world-component-parse.out 8
+assert_count_ge '\(interpolation' $OUT_DIR/real-world-component-parse.out 8
+assert_count_eq '\(ERROR' $OUT_DIR/real-world-component-parse.out 0
 
-assert_count_ge '\(template_definition' /tmp/wxml-zed-real-world-templates-parse.out 3
-rg -n '\(template_usage' /tmp/wxml-zed-real-world-templates-parse.out >/dev/null
-rg -n '\(template_fallback' /tmp/wxml-zed-real-world-templates-parse.out >/dev/null
-assert_count_eq '\(ERROR' /tmp/wxml-zed-real-world-templates-parse.out 0
+assert_count_ge '\(template_definition' $OUT_DIR/real-world-templates-parse.out 3
+rg -n '\(template_usage' $OUT_DIR/real-world-templates-parse.out >/dev/null
+rg -n '\(template_fallback' $OUT_DIR/real-world-templates-parse.out >/dev/null
+assert_count_eq '\(ERROR' $OUT_DIR/real-world-templates-parse.out 0
 
-rg -n '\(wxs_fallback' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
-rg -n '\(raw_text' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
-rg -n '\(interpolation' /tmp/wxml-zed-real-world-recovery-parse.out >/dev/null
-assert_count_ge '\(ERROR' /tmp/wxml-zed-real-world-recovery-parse.out 1
+rg -n '\(wxs_fallback' $OUT_DIR/real-world-recovery-parse.out >/dev/null
+rg -n '\(raw_text' $OUT_DIR/real-world-recovery-parse.out >/dev/null
+rg -n '\(interpolation' $OUT_DIR/real-world-recovery-parse.out >/dev/null
+assert_count_ge '\(ERROR' $OUT_DIR/real-world-recovery-parse.out 1
 
-rg -n 'text: `scroll-view`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `user-card`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `wx:for`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `capture-bind:touchstart`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `mut-bind:expanded`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `generic:Badge`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
-rg -n 'text: `&amp;`' /tmp/wxml-zed-real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `scroll-view`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `user-card`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `wx:for`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `capture-bind:touchstart`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `mut-bind:expanded`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `generic:Badge`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
+rg -n 'text: `&amp;`' $OUT_DIR/real-world-page-highlights-query.out >/dev/null
 
-rg -n 'text: `"./templates.wxml"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null
-rg -n 'text: `"./shared/header.wxml"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null
-rg -n 'text: `"format"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null
-rg -n 'text: `"loadingRow"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
-rg -n 'text: `"compactFooter"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
-rg -n 'text: `"fullFooter"`' /tmp/wxml-zed-real-world-templates-outline-query.out >/dev/null
-if rg -n 'capture: [0-9]+ - item.*text: `<template is=' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+rg -n 'text: `"./templates.wxml"`' $OUT_DIR/real-world-page-outline-query.out >/dev/null
+rg -n 'text: `"./shared/header.wxml"`' $OUT_DIR/real-world-page-outline-query.out >/dev/null
+rg -n 'text: `"format"`' $OUT_DIR/real-world-page-outline-query.out >/dev/null
+rg -n 'text: `"loadingRow"`' $OUT_DIR/real-world-templates-outline-query.out >/dev/null
+rg -n 'text: `"compactFooter"`' $OUT_DIR/real-world-templates-outline-query.out >/dev/null
+rg -n 'text: `"fullFooter"`' $OUT_DIR/real-world-templates-outline-query.out >/dev/null
+if rg -n 'capture: [0-9]+ - item.*text: `<template is=' $OUT_DIR/real-world-page-outline-query.out >/dev/null; then
   echo "Template usage leaked into page outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `"loadingRow"`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `"loadingRow"`' $OUT_DIR/real-world-page-outline-query.out >/dev/null; then
   echo "Template usage name leaked into page outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `<user-card' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `<user-card' $OUT_DIR/real-world-page-outline-query.out >/dev/null; then
   echo "Component usage leaked into page outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `user-card`' /tmp/wxml-zed-real-world-page-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `user-card`' $OUT_DIR/real-world-page-outline-query.out >/dev/null; then
   echo "Component usage name leaked into page outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `<block' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `<block' $OUT_DIR/real-world-component-outline-query.out >/dev/null; then
   echo "Block element leaked into component outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `<slot' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `<slot' $OUT_DIR/real-world-component-outline-query.out >/dev/null; then
   echo "Slot element leaked into component outline items" >&2
   exit 1
 fi
-if rg -n 'capture: [0-9]+ - item.*text: `"header"`' /tmp/wxml-zed-real-world-component-outline-query.out >/dev/null; then
+if rg -n 'capture: [0-9]+ - item.*text: `"header"`' $OUT_DIR/real-world-component-outline-query.out >/dev/null; then
   echo "Slot name leaked into component outline items" >&2
   exit 1
 fi
 
-rg -n 'text: `theme`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
-rg -n 'text: `loading \? .is-loading. : ..`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
-rg -n 'text: `format\.price\(user\.price\)`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
-rg -n 'text: `useCompact \? .compactFooter. : .fullFooter.`' /tmp/wxml-zed-real-world-page-injections-query.out >/dev/null
-rg -n 'capture: injection\.content' /tmp/wxml-zed-real-world-recovery-injections-query.out >/dev/null
-assert_count_ge 'capture: injection\.content' /tmp/wxml-zed-real-world-recovery-injections-query.out 1
+rg -n 'text: `theme`' $OUT_DIR/real-world-page-injections-query.out >/dev/null
+rg -n 'text: `loading \? .is-loading. : ..`' $OUT_DIR/real-world-page-injections-query.out >/dev/null
+rg -n 'text: `format\.price\(user\.price\)`' $OUT_DIR/real-world-page-injections-query.out >/dev/null
+rg -n 'text: `useCompact \? .compactFooter. : .fullFooter.`' $OUT_DIR/real-world-page-injections-query.out >/dev/null
+rg -n 'capture: injection\.content' $OUT_DIR/real-world-recovery-injections-query.out >/dev/null
+assert_count_ge 'capture: injection\.content' $OUT_DIR/real-world-recovery-injections-query.out 1
 
-rg -n 'text: `<view class="profile-card \{\{state\}\}" data-component-id="\{\{id\}\}">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
-rg -n 'text: `<slot name="header">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
-rg -n 'text: `<block wx:if="\{\{loading\}\}">`' /tmp/wxml-zed-real-world-component-brackets-query.out >/dev/null
-assert_count_ge 'capture: [0-9]+ - open' /tmp/wxml-zed-real-world-component-brackets-query.out 8
-assert_count_ge 'capture: [0-9]+ - close' /tmp/wxml-zed-real-world-component-brackets-query.out 8
+rg -n 'text: `<view class="profile-card \{\{state\}\}" data-component-id="\{\{id\}\}">`' $OUT_DIR/real-world-component-brackets-query.out >/dev/null
+rg -n 'text: `<slot name="header">`' $OUT_DIR/real-world-component-brackets-query.out >/dev/null
+rg -n 'text: `<block wx:if="\{\{loading\}\}">`' $OUT_DIR/real-world-component-brackets-query.out >/dev/null
+assert_count_ge 'capture: [0-9]+ - open' $OUT_DIR/real-world-component-brackets-query.out 8
+assert_count_ge 'capture: [0-9]+ - close' $OUT_DIR/real-world-component-brackets-query.out 8
 
 node "$ROOT_DIR/scripts/extract-wxml-symbols.mjs" "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORLD_TEMPLATES" >"$SYMBOL_MODEL"
 node -e '
