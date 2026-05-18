@@ -144,6 +144,53 @@ function assertDefinition(graph) {
   assertLocationTarget(location, USER_CARD_TARGET, "user-card definition");
 }
 
+function assertEventHandlerDefinition(graph) {
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 11, character: 20 },
+    extensionRoot: ROOT,
+  });
+  assert(location, "event handler definition: expected Location, got null");
+  assert(
+    location.uri.endsWith("/fixtures/miniprogram/pages/home/home.js"),
+    `event handler definition: expected uri to end with home.js, got ${location.uri}`,
+  );
+  assert(
+    typeof location.range.start.line === "number" && typeof location.range.start.character === "number",
+    `event handler definition: bad range shape: ${JSON.stringify(location.range)}`,
+  );
+  assert(
+    location.range.start.line >= 0 && location.range.start.line < 20,
+    `event handler definition: start line out of range (${location.range.start.line})`,
+  );
+  assert(
+    location.range.end.character > location.range.start.character || location.range.end.line > location.range.start.line,
+    `event handler definition: empty range ${JSON.stringify(location.range)}`,
+  );
+}
+
+function assertEventHandlerDefinitionMissingMethod(graph) {
+  // Exercise the null path when a handler name in eventHandlers[] has no
+  // matching method in script.methods[]. Achieve by temporarily stripping
+  // handleSelect from home's script.methods and restoring after the call.
+  const homeConfig = graph.configs.find((c) => c.owner === "fixtures/miniprogram/pages/home/home.wxml");
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script field");
+  const original = homeConfig.script.methods;
+  homeConfig.script.methods = original.filter((m) => m.name !== "handleSelect");
+  try {
+    const result = getDefinition({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 11, character: 20 },
+      extensionRoot: ROOT,
+    });
+    assert(result === null, `expected null when method missing, got ${JSON.stringify(result)}`);
+  } finally {
+    homeConfig.script.methods = original;
+  }
+}
+
 function assertGlobalBadgeDefinition(graph) {
   const location = getDefinition({
     graph,
@@ -864,6 +911,8 @@ function assertHomeConfigScript(graph) {
 
 const graph = loadGraph();
 assertHomeConfigScript(graph);
+assertEventHandlerDefinition(graph);
+assertEventHandlerDefinitionMissingMethod(graph);
 assertMissingCardDiagnostic(graph);
 assertShopListDiagnosticsClean(graph);
 assertDefinition(graph);

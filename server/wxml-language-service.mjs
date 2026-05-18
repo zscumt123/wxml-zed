@@ -478,6 +478,23 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
     return null;
   }
 
+  // Event handler binding: cursor inside a `bindtap="onTap"` value text.
+  // This branch is AUTHORITATIVE — if the cursor is inside a handler
+  // nameRange, do not fall through to component/dependency checks even
+  // on a miss. Otherwise clicking on a handler name could surprise the
+  // user by jumping to the enclosing component's .wxml instead of saying
+  // "no definition found."
+  const eventHandlerMatch = (fileModel.eventHandlers ?? [])
+    .find((entry) => containsPosition(entry.nameRange, position));
+  if (eventHandlerMatch) {
+    if (eventHandlerMatch.dynamic) return null;
+    const ownerConfig = graph.configs.find((c) => c.owner === documentGraphPath && c.script);
+    if (!ownerConfig) return null;
+    const method = ownerConfig.script.methods.find((m) => m.name === eventHandlerMatch.handler);
+    if (!method) return null;
+    return locationForGraphPathWithRange(ownerConfig.script.path, method.nameRange, extensionRoot);
+  }
+
   const component = fileModel.components.find((entry) => containsPosition(entry.range, position));
   if (component) {
     const usingComponent = graph.usingComponents.find((entry) => (

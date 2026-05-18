@@ -620,6 +620,24 @@ async function testHomeComponentDefinition() {
   });
 }
 
+async function testEventHandlerDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before event handler definition");
+    // home.wxml line 11: `    bind:select="handleSelect"` — cursor on `handleSelect` text.
+    const result = await client.definition(HOME_WXML, { line: 11, character: 20 });
+    assert(result, "expected Location from event handler definition, got null");
+    assert(
+      result.uri.endsWith("/fixtures/miniprogram/pages/home/home.js"),
+      `event handler definition uri: expected home.js, got ${result.uri}`,
+    );
+    assert(
+      typeof result.range.start.line === "number",
+      `event handler definition range shape bad: ${JSON.stringify(result.range)}`,
+    );
+  });
+}
+
 async function testImportDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1321,6 +1339,7 @@ const scenarios = [
   ["watch registration when supported", testWatchRegistrationWhenSupported],
   ["watch registration skipped when unsupported", testWatchRegistrationSkippedWhenUnsupported],
   ["home component definition", testHomeComponentDefinition],
+  ["event handler definition", testEventHandlerDefinition],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1376,6 +1395,7 @@ const SCENARIO_SUITES = {
     "watch registration when supported",
     "watch registration skipped when unsupported",
     "home component definition",
+    "event handler definition",
     "completion immediately after open",
     "unsupported request behavior",
   ],
