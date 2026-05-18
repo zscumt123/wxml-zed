@@ -71,6 +71,35 @@ function methodEntriesFromObject(objectNode, kind) {
   return out;
 }
 
+function containsSpread(objectNode) {
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    if (objectNode.namedChild(i).type === "spread_element") return true;
+  }
+  return false;
+}
+
+function dynamicMethodsViaProperty(objectNode) {
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    const child = objectNode.namedChild(i);
+    if (child.type !== "pair") continue;
+    const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+    if (!keyNode || keyNode.type !== "property_identifier") continue;
+    const valueNode = fieldChild(child, "value") ?? child.namedChild(1);
+    if (!valueNode) continue;
+
+    if (keyNode.text === "behaviors") {
+      if (valueNode.type === "array") {
+        if (valueNode.namedChildCount > 0) return true;
+      } else {
+        return true;
+      }
+    } else if (keyNode.text === "methods") {
+      if (valueNode.type !== "object") return true;
+    }
+  }
+  return false;
+}
+
 function methodsBlockOf(objectNode) {
   for (let i = 0; i < objectNode.namedChildCount; i++) {
     const child = objectNode.namedChild(i);
@@ -85,20 +114,31 @@ function methodsBlockOf(objectNode) {
 
 export function extractMethods(parser, source) {
   const tree = parser.parse(source);
-  const out = [];
+  const methods = [];
+  let hasDynamicMethods = false;
   const visit = (node) => {
     if (node.type === "call_expression") {
       const factory = isPageOrComponentCall(node);
       if (factory) {
-        const opts = optionsObject(node);
-        if (opts) {
+        const args = fieldChild(node, "arguments");
+        const firstArg = args ? args.namedChild(0) : null;
+        if (firstArg && firstArg.type !== "object") {
+          hasDynamicMethods = true;
+        } else if (firstArg) {
+          const opts = firstArg;
+          if (containsSpread(opts) || dynamicMethodsViaProperty(opts)) {
+            hasDynamicMethods = true;
+          }
           if (factory === "Page") {
-            out.push(...methodEntriesFromObject(opts, METHOD_KIND_PAGE));
+            methods.push(...methodEntriesFromObject(opts, METHOD_KIND_PAGE));
           } else {
-            out.push(...methodEntriesFromObject(opts, METHOD_KIND_COMPONENT_LIFECYCLE));
+            methods.push(...methodEntriesFromObject(opts, METHOD_KIND_COMPONENT_LIFECYCLE));
             const methodsBlock = methodsBlockOf(opts);
             if (methodsBlock) {
-              out.push(...methodEntriesFromObject(methodsBlock, METHOD_KIND_COMPONENT_METHOD));
+              if (containsSpread(methodsBlock)) {
+                hasDynamicMethods = true;
+              }
+              methods.push(...methodEntriesFromObject(methodsBlock, METHOD_KIND_COMPONENT_METHOD));
             }
           }
         }
@@ -107,9 +147,9 @@ export function extractMethods(parser, source) {
     for (let i = 0; i < node.namedChildCount; i++) visit(node.namedChild(i));
   };
   visit(tree.rootNode);
-  out.sort((a, b) => {
+  methods.sort((a, b) => {
     const ar = a.range.start, br = b.range.start;
     return (ar.row - br.row) || (ar.column - br.column);
   });
-  return out;
+  return { methods, hasDynamicMethods };
 }

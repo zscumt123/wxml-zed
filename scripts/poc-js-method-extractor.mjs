@@ -33,7 +33,7 @@ async function main() {
     const inputAbs = path.resolve(process.cwd(), arg);
     const inputRel = relativePathFromRoot(inputAbs);
     const source = await fs.readFile(inputAbs, "utf8");
-    const methods = extractMethods(parser, source);
+    const { methods } = extractMethods(parser, source);
     files.push({ path: inputRel, methods });
   }
 

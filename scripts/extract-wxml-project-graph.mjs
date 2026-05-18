@@ -436,15 +436,16 @@ async function attachScripts(graph) {
       }
     }
     if (parserSetupFailed) continue;
-    let methods;
+    let info;
     try {
-      methods = extractMethods(parser, source);
+      info = extractMethods(parser, source);
     } catch {
       continue;
     }
     config.script = {
       path: toPosixPath(path.relative(ROOT, jsAbs)),
-      methods,
+      methods: info.methods,
+      hasDynamicMethods: info.hasDynamicMethods,
     };
   }
 }
