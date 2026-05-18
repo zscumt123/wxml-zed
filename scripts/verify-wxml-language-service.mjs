@@ -115,6 +115,171 @@ function assertShopListDiagnosticsClean(graph) {
   assertDeepEqual(diagnostics, [], "shop list diagnostics");
 }
 
+// Phase 2 Stage C — Event handler diagnostic --------------------------
+
+function assertEventHandlerDiagnosticCleanWhenHandlerExists(graph) {
+  // home.wxml's bind:select="handleSelect" resolves to handleSelect in
+  // home.js. No new warning. Existing assertMissingCardDiagnostic checks
+  // length === 1; this double-locks by asserting no missing-event-handler.
+  const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+  const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+  assert(
+    handlerDiags.length === 0,
+    `event handler diagnostic (clean): unexpected handler warnings ${JSON.stringify(handlerDiags)}`,
+  );
+}
+
+function assertEventHandlerDiagnosticMissingHandler(graph) {
+  // Mutate: drop handleSelect from home.js methods. The WXML still has
+  // bind:select="handleSelect". Diagnostic must emit on the handler text.
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const originalMethods = homeConfig.script.methods;
+  homeConfig.script.methods = originalMethods.filter((m) => m.name !== "handleSelect");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    assert(handlerDiags.length === 1, `expected 1 handler diagnostic, got ${handlerDiags.length}: ${JSON.stringify(handlerDiags)}`);
+    const d = handlerDiags[0];
+    assert(d.severity === 2, `severity: ${d.severity}`);
+    assert(d.source === "wxml-zed", `source: ${d.source}`);
+    assert(
+      d.message === 'Event handler "handleSelect" is not defined in the page/component script.',
+      `message: ${d.message}`,
+    );
+    assertDeepEqual(
+      d.range,
+      { start: { line: 11, character: 17 }, end: { line: 11, character: 29 } },
+      "handler diagnostic range",
+    );
+  } finally {
+    homeConfig.script.methods = originalMethods;
+  }
+}
+
+function assertEventHandlerDiagnosticMissingHandlerNoColon(graph) {
+  // Inject a synthetic non-dynamic handler with NO-colon binding form
+  // (`bindtap`). Strict gate accepts via BUILTIN_EVENT_NAMES branch.
+  // Locks the no-colon path of attrNameFromHandler + isEventHandlerCompletionTrigger.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.eventHandlers), "test setup: home file must have eventHandlers");
+  const synthetic = {
+    event: "tap",
+    handler: "__missing_tap__",
+    binding: "bind",
+    dynamic: false,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  homeFile.eventHandlers.push(synthetic);
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    const ours = handlerDiags.find((d) => d.message.includes("__missing_tap__"));
+    assert(
+      ours,
+      `event handler diagnostic (no-colon short form): expected emission for __missing_tap__; got ${JSON.stringify(handlerDiags)}`,
+    );
+    assert(ours.severity === 2, `severity: ${ours.severity}`);
+    assert(ours.source === "wxml-zed", `source: ${ours.source}`);
+  } finally {
+    const idx = homeFile.eventHandlers.indexOf(synthetic);
+    if (idx >= 0) homeFile.eventHandlers.splice(idx, 1);
+  }
+}
+
+function assertEventHandlerDiagnosticSuppressedByDynamic(graph) {
+  // Synthetic dynamic eventHandler pointing at a missing method —
+  // dynamic:true must suppress.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.eventHandlers), "test setup: home file must have eventHandlers");
+  const synthetic = {
+    event: "tap",
+    handler: "__missing_dynamic__",
+    binding: "bind:",
+    dynamic: true,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  homeFile.eventHandlers.push(synthetic);
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    assert(
+      handlerDiags.every((d) => !d.message.includes("__missing_dynamic__")),
+      `event handler diagnostic (dynamic suppress): leaked diagnostic ${JSON.stringify(handlerDiags)}`,
+    );
+  } finally {
+    const idx = homeFile.eventHandlers.indexOf(synthetic);
+    if (idx >= 0) homeFile.eventHandlers.splice(idx, 1);
+  }
+}
+
+function assertEventHandlerDiagnosticSuppressedByDynamicMethods(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const originalMethods = homeConfig.script.methods;
+  const originalFlag = homeConfig.script.hasDynamicMethods;
+  homeConfig.script.methods = originalMethods.filter((m) => m.name !== "handleSelect");
+  homeConfig.script.hasDynamicMethods = true;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    assert(
+      handlerDiags.length === 0,
+      `event handler diagnostic (hasDynamicMethods): expected suppression, got ${JSON.stringify(handlerDiags)}`,
+    );
+  } finally {
+    homeConfig.script.methods = originalMethods;
+    homeConfig.script.hasDynamicMethods = originalFlag;
+  }
+}
+
+function assertEventHandlerDiagnosticSuppressedByLooseBinding(graph) {
+  // Synthetic eventHandler whose binding+event matches the loose data-model
+  // regex but NOT the strict completion-trigger gate. attrName="binding"
+  // (suffix "ing" not in BUILTIN_EVENT_NAMES, no colon).
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.eventHandlers), "test setup: home file must have eventHandlers");
+  const synthetic = {
+    event: "ing",
+    handler: "__missing_loose__",
+    binding: "bind",
+    dynamic: false,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  homeFile.eventHandlers.push(synthetic);
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    assert(
+      handlerDiags.every((d) => !d.message.includes("__missing_loose__")),
+      `event handler diagnostic (loose binding suppress): leaked diagnostic ${JSON.stringify(handlerDiags)}`,
+    );
+  } finally {
+    const idx = homeFile.eventHandlers.indexOf(synthetic);
+    if (idx >= 0) homeFile.eventHandlers.splice(idx, 1);
+  }
+}
+
+function assertEventHandlerDiagnosticNoScriptSkips(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const savedScript = homeConfig.script;
+  delete homeConfig.script;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    assert(
+      handlerDiags.length === 0,
+      `event handler diagnostic (no script): expected suppression, got ${JSON.stringify(handlerDiags)}`,
+    );
+  } finally {
+    homeConfig.script = savedScript;
+  }
+}
+
 function assertLocationTarget(location, targetPath, label) {
   assert(location, `${label}: expected definition location`);
   assert(location.uri === pathToFileURL(targetPath).href, `${label}: unexpected URI ${JSON.stringify(location)}`);
@@ -1107,6 +1272,14 @@ assertEventHandlerDefinition(graph);
 assertEventHandlerDefinitionMissingMethod(graph);
 assertMissingCardDiagnostic(graph);
 assertShopListDiagnosticsClean(graph);
+// Phase 2 Stage C — Event handler diagnostic
+assertEventHandlerDiagnosticCleanWhenHandlerExists(graph);
+assertEventHandlerDiagnosticMissingHandler(graph);
+assertEventHandlerDiagnosticMissingHandlerNoColon(graph);
+assertEventHandlerDiagnosticSuppressedByDynamic(graph);
+assertEventHandlerDiagnosticSuppressedByDynamicMethods(graph);
+assertEventHandlerDiagnosticSuppressedByLooseBinding(graph);
+assertEventHandlerDiagnosticNoScriptSkips(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);
 assertLocalBadgeOverrideDefinition(graph);

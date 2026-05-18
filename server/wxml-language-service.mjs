@@ -536,6 +536,46 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
   return [];
 }
 
+function attrNameFromHandler(entry) {
+  return `${entry.binding}${entry.event}`;
+}
+
+function eventHandlerDiagnostics(graph, documentGraphPath, fileModel) {
+  const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+  // No sibling .js script: don't warn. Page/Component WXML can legitimately
+  // ship without a .js companion; diagnostics here would be noisy.
+  if (!ownerConfig) return [];
+  // hasDynamicMethods means the extractor saw spread / behaviors / a non-
+  // object methods value / a non-object factory arg — methods array is
+  // incomplete by definition, so warnings would be false positives.
+  if (ownerConfig.script.hasDynamicMethods) return [];
+
+  const methodNames = new Set(
+    ownerConfig.script.methods
+      .map((m) => m.name)
+      .filter((name) => typeof name === "string" && name.length > 0),
+  );
+
+  const handlers = fileModel.eventHandlers ?? [];
+  const out = [];
+  for (const entry of handlers) {
+    if (entry.dynamic) continue;
+    // Filter the false-positive class that the data model's loose matcher
+    // accepts (`binding=`, `bindable=`, …) — same strict gate completion uses.
+    if (!isEventHandlerCompletionTrigger(attrNameFromHandler(entry))) continue;
+    if (typeof entry.handler !== "string" || entry.handler.length === 0) continue;
+    if (methodNames.has(entry.handler)) continue;
+    out.push({
+      range: rangeFromSymbolRange(entry.nameRange),
+      severity: WARNING,
+      source: "wxml-zed",
+      code: "missing-event-handler",
+      message: `Event handler "${entry.handler}" is not defined in the page/component script.`,
+    });
+  }
+  return out;
+}
+
 export function getDiagnostics({ graph, documentPath, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
@@ -543,7 +583,7 @@ export function getDiagnostics({ graph, documentPath, extensionRoot }) {
   }
 
   const usedComponents = new Map(fileModel.components.map((component) => [component.tag, component]));
-  return graph.unresolved
+  const componentDiags = graph.unresolved
     .filter((entry) => (
       entry.kind === "component" &&
       entry.owner === documentGraphPath &&
@@ -560,6 +600,9 @@ export function getDiagnostics({ graph, documentPath, extensionRoot }) {
         message: `Missing local component "${entry.tag}": ${entry.value}`,
       };
     });
+
+  const handlerDiags = eventHandlerDiagnostics(graph, documentGraphPath, fileModel);
+  return [...componentDiags, ...handlerDiags];
 }
 
 export function getDefinition({ graph, documentPath, position, extensionRoot }) {
