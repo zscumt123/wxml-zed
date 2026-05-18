@@ -638,45 +638,59 @@ home.wxml binds `handleSelect` on `<user-card>`. user-card is a Component, so us
   const JS_WASM = path.join(ROOT, "grammar/tree-sitter-javascript/tree-sitter-javascript.wasm");
   ```
 
-- [ ] In `main()` (or wherever the graph build starts), initialize the JS parser once before walking configs:
+- [ ] Add an async `attachScripts(graph)` helper. Parser initialization is **lazy** (only attempted when at least one sibling .js exists) and **wrapped in try/catch**: if the JS wasm fails to load, emit one stderr WARN and silently omit `script` from all remaining configs rather than crashing the graph build. This matches the per-file omission policy (missing/unreadable .js → field absent) and ensures WXML-only projects aren't broken by a corrupt JS wasm artifact.
 
   ```js
-  await Parser.init();
-  const jsLanguage = await Language.load(JS_WASM);
-  const jsParser = new Parser();
-  jsParser.setLanguage(jsLanguage);
-  ```
-
-- [ ] Add a helper `attachScriptIfPresent(config)`:
-
-  ```js
-  async function attachScriptIfPresent(config) {
-    if (config.kind === "app") return;        // app.json has no .wxml/.js pair
-    if (!config.owner) return;                 // safety guard
-    const wxmlAbs = path.resolve(ROOT, config.owner);
-    const jsAbs = wxmlAbs.replace(/\.wxml$/, ".js");
-    let source;
-    try {
-      source = await fs.promises.readFile(jsAbs, "utf8");
-    } catch {
-      return;                                  // sibling .js absent → field omitted
+  async function attachScripts(graph) {
+    // Failure modes — all silently omit the field, never crash graph build:
+    //   - sibling .js absent / unreadable
+    //   - JS wasm load failure (one stderr WARN on first attempt; subsequent configs skipped)
+    //   - extractMethods throws (defensive)
+    let parser;
+    let parserSetupAttempted = false;
+    let parserSetupFailed = false;
+    for (const config of graph.configs) {
+      if (config.kind === "app" || !config.owner) continue;
+      const ownerAbs = path.resolve(ROOT, config.owner);
+      const jsAbs = ownerAbs.replace(/\.wxml$/, ".js");
+      let source;
+      try {
+        source = await fsp.readFile(jsAbs, "utf8");
+      } catch {
+        continue;
+      }
+      if (!parserSetupAttempted) {
+        parserSetupAttempted = true;
+        try {
+          await Parser.init();
+          const jsLanguage = await Language.load(JS_WASM);
+          parser = new Parser();
+          parser.setLanguage(jsLanguage);
+        } catch (err) {
+          parserSetupFailed = true;
+          process.stderr.write(
+            `WARN: JS wasm load failed (${err?.message || err}); configs[].script omitted for this graph build\n`,
+          );
+        }
+      }
+      if (parserSetupFailed) continue;
+      let methods;
+      try {
+        methods = extractMethods(parser, source);
+      } catch {
+        continue;
+      }
+      config.script = {
+        path: toPosixPath(path.relative(ROOT, jsAbs)),
+        methods,
+      };
     }
-    let methods;
-    try {
-      methods = extractMethods(jsParser, source);
-    } catch (err) {
-      return;                                  // parse threw → field omitted
-    }
-    config.script = {
-      path: toPosix(path.relative(ROOT, jsAbs)),
-      methods,
-    };
   }
   ```
 
-  Note: even when wasm parse produces a tree with `hasError=true`, `extractMethods` returns whatever it walked — it doesn't throw. The catch above is for genuinely catastrophic failures (wasm not loadable, etc.), not parse errors.
+  Note: even when wasm parse produces a tree with `hasError=true`, `extractMethods` returns whatever it walked — it doesn't throw. The catch around `extractMethods` is defensive only.
 
-- [ ] Right before serializing the graph, iterate every non-app config and await `attachScriptIfPresent(config)`. Order is preserved — `script` field appears or is absent per config; configs[] array length unchanged.
+- [ ] Right before serializing the graph, call `await attachScripts(graph)`. Order is preserved — `script` field appears or is absent per config; configs[] array length unchanged.
 
 - [ ] Verify: `node --check scripts/extract-wxml-project-graph.mjs` → exit 0.
 

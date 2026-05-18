@@ -402,9 +402,15 @@ async function attachScripts(graph) {
   // For each non-app config that has a .wxml owner, look for a sibling .js
   // (path with .wxml extension swapped for .js) and attach extracted
   // Page/Component methods as configs[i].script = {path, methods}.
-  // Missing sibling, unreadable file, or wasm load failure → field omitted.
+  // Failure modes — all silently omit the field, never crash graph build:
+  //   - sibling .js absent / unreadable
+  //   - JS wasm load failure (rare: artifact missing or ABI mismatch).
+  //     A single stderr warning is emitted on first failure; subsequent
+  //     configs are skipped because the parser state is unrecoverable.
+  //   - extractMethods throws (defensive; should not happen with a loaded parser)
   let parser;
-  let jsLanguage;
+  let parserSetupAttempted = false;
+  let parserSetupFailed = false;
   for (const config of graph.configs) {
     if (config.kind === "app" || !config.owner) continue;
     const ownerAbs = path.resolve(ROOT, config.owner);
@@ -415,12 +421,21 @@ async function attachScripts(graph) {
     } catch {
       continue;
     }
-    if (!parser) {
-      await Parser.init();
-      jsLanguage = await Language.load(JS_WASM);
-      parser = new Parser();
-      parser.setLanguage(jsLanguage);
+    if (!parserSetupAttempted) {
+      parserSetupAttempted = true;
+      try {
+        await Parser.init();
+        const jsLanguage = await Language.load(JS_WASM);
+        parser = new Parser();
+        parser.setLanguage(jsLanguage);
+      } catch (err) {
+        parserSetupFailed = true;
+        process.stderr.write(
+          `WARN: JS wasm load failed (${err?.message || err}); configs[].script omitted for this graph build\n`,
+        );
+      }
     }
+    if (parserSetupFailed) continue;
     let methods;
     try {
       methods = extractMethods(parser, source);
