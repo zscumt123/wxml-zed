@@ -8,7 +8,7 @@
 
 **Verification:** Two layers.
 - `scripts/verify-wxml-language-service.mjs` adds `assertEventHandlerDefinition` exercising the in-process language service against the home → handleSelect cross-reference. Locks the core logic.
-- `scripts/verify-lsp-diagnostics.mjs` adds `testEventHandlerDefinition` exercising the JSON-RPC protocol layer end-to-end. Locks URI formatting, response shape, and ensures the wiring through `server/wxml-lsp.mjs`'s `textDocument/definition` handler still routes correctly. Registered in the suite list so smoke / graph-smoke / full all pick it up.
+- `scripts/verify-lsp-diagnostics.mjs` adds `testEventHandlerDefinition` exercising the JSON-RPC protocol layer end-to-end. Locks URI formatting, response shape, and ensures the wiring through `server/wxml-lsp.mjs`'s `textDocument/definition` handler still routes correctly. Registered in the `graph-smoke` and `full` suites (the `smoke` suite stays graph-free as a server-lifecycle smoke); `scripts/verify-tree-sitter.sh` runs `--suite graph-smoke` so the umbrella picks it up.
 
 **Out of scope:**
 - Completion at `bindtap="|"` cursor — Phase 2 Stage B
