@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { BUILTIN_TAG_NAMES } from "../shared/wxml-builtins.mjs";
+import { isEventHandlerCompletionTrigger } from "../shared/event-binding-patterns.mjs";
 
 const WARNING = 2;
 const DOCUMENT_SYMBOL_KIND_FILE = 1;
@@ -304,6 +305,55 @@ function attributeContext(sourceText, position) {
   };
 }
 
+function eventHandlerValueContext(sourceText, position) {
+  // Multi-line aware: WXML opens like `<user-card\n  bind:select="..."` are
+  // common. Walk back through the source slice up to the cursor to find the
+  // nearest unterminated `<` (with no unquoted `>` between it and the cursor).
+  const offset = offsetAt(sourceText, position);
+  if (offset === undefined) return undefined;
+  const slice = sourceText.slice(0, offset);
+  const openIndex = slice.lastIndexOf("<");
+  if (openIndex === -1) return undefined;
+  if (slice.slice(openIndex).startsWith("</")) return undefined;
+
+  // Reject if any `>` outside an attribute-value quote appears between the
+  // `<` and the cursor — that would mean the tag was already closed.
+  const tagSlice = slice.slice(openIndex);
+  let inQuote = null;
+  for (let i = 1; i < tagSlice.length; i += 1) {
+    const ch = tagSlice[i];
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === ">") {
+      return undefined;
+    }
+  }
+
+  // tag-name guard: same shape as `attributeContext` requires.
+  const tagContent = tagSlice.slice(1);
+  if (!/^[A-Za-z][\w-]*(?:\s|$)/u.test(tagContent)) return undefined;
+
+  const match = tagContent.match(/\s([\w:-]+)=(["'])([^"'<>]*)$/u);
+  if (!match) return undefined;
+
+  const attrName = match[1];
+  if (!isEventHandlerCompletionTrigger(attrName)) return undefined;
+
+  const typed = match[3];
+  // textEdit.range assumes typed lives on the cursor's line. If the user
+  // typed a newline mid-value, give up rather than emit a bogus range.
+  if (typed.includes("\n")) return undefined;
+
+  const startCharacter = position.character - typed.length;
+  return {
+    type: "event-handler-value",
+    typed,
+    range: contextRange(position, startCharacter),
+  };
+}
+
 function templateIsContext(sourceText, position) {
   const prefix = currentLinePrefix(sourceText, position);
   if (typeof prefix !== "string") return undefined;
@@ -389,6 +439,29 @@ function attributeCompletionItems(range) {
   ));
 }
 
+function eventHandlerCompletionItems(graph, documentGraphPath, range) {
+  const ownerConfig = graph.configs.find((c) => (
+    c.owner === documentGraphPath && c.script && Array.isArray(c.script.methods)
+  ));
+  if (!ownerConfig) return [];
+
+  const seen = new Set();
+  const items = [];
+  for (const method of ownerConfig.script.methods) {
+    if (typeof method.name !== "string" || method.name.length === 0) continue;
+    // Component({...}) top-level lifecycle hooks (attached/ready/detached/moved)
+    // live alongside `methods:` in the same options object. They are not event
+    // handlers. Page-method kind is not filtered: extractor cannot distinguish
+    // Page lifecycle (onLoad/onShow) from custom handlers by kind today.
+    if (method.kind === "component-lifecycle") continue;
+    if (seen.has(method.name)) continue;
+    seen.add(method.name);
+    items.push(completionItem(method.name, COMPLETION_ITEM_KIND_FUNCTION, "method", range));
+  }
+  items.sort((a, b) => a.label.localeCompare(b.label));
+  return items;
+}
+
 function templateDefinitionForPosition({ graph, fileModel, position, extensionRoot }) {
   const reference = fileModel.references.find((entry) => (
     entry.kind === "template" &&
@@ -422,6 +495,11 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
     return [];
+  }
+
+  const handlerValueContext = eventHandlerValueContext(sourceText, position);
+  if (handlerValueContext) {
+    return eventHandlerCompletionItems(graph, documentGraphPath, handlerValueContext.range);
   }
 
   const templateContext = templateIsContext(sourceText, position);

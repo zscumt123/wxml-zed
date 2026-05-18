@@ -23,6 +23,7 @@ const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/lis
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
 const LOCAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/local-badge/local-badge.wxml");
 const USER_CARD_TARGET = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
+const HOME_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/home/home.wxml";
 
 function assert(condition, message) {
   if (!condition) {
@@ -188,6 +189,229 @@ function assertEventHandlerDefinitionMissingMethod(graph) {
     assert(result === null, `expected null when method missing, got ${JSON.stringify(result)}`);
   } finally {
     homeConfig.script.methods = original;
+  }
+}
+
+// Phase 2 Stage B — Event handler value completion ----------------------
+
+function assertEventHandlerCompletion(graph) {
+  // home.wxml line 12: `    bind:select="handleSelect"`. Cursor at col 21
+  // (after `hand`); typed = "hand"; replacement range covers `hand`.
+  const sourceText = fs.readFileSync(HOME_WXML, "utf8");
+  const position = { line: 11, character: 21 };
+
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText,
+    extensionRoot: ROOT,
+  });
+
+  assert(Array.isArray(items), `event handler completion: expected array, got ${typeof items}`);
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("handleSelect"),
+    `event handler completion: missing handleSelect; got ${JSON.stringify(labels)}`,
+  );
+
+  const handleSelectItem = items.find((item) => item.label === "handleSelect");
+  assert(handleSelectItem.textEdit, "event handler completion: missing textEdit");
+  assert(
+    handleSelectItem.textEdit.range.start.line === 11 &&
+    handleSelectItem.textEdit.range.start.character === 17 &&
+    handleSelectItem.textEdit.range.end.line === 11 &&
+    handleSelectItem.textEdit.range.end.character === 21,
+    `event handler completion: bad range ${JSON.stringify(handleSelectItem.textEdit.range)}`,
+  );
+  assert(
+    handleSelectItem.textEdit.newText === "handleSelect",
+    `event handler completion: bad newText ${handleSelectItem.textEdit.newText}`,
+  );
+}
+
+function assertEventHandlerCompletionEmptyTyped(graph) {
+  // Cursor at col 17 — immediately after the opening quote, typed = "".
+  const sourceText = fs.readFileSync(HOME_WXML, "utf8");
+  const position = { line: 11, character: 17 };
+
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText,
+    extensionRoot: ROOT,
+  });
+
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("handleSelect"),
+    `event handler completion (empty typed): missing handleSelect; got ${JSON.stringify(labels)}`,
+  );
+
+  const handleSelectItem = items.find((item) => item.label === "handleSelect");
+  assert(
+    handleSelectItem.textEdit.range.start.character === 17 &&
+    handleSelectItem.textEdit.range.end.character === 17,
+    `event handler completion (empty typed): expected empty range at col 17, got ${JSON.stringify(handleSelectItem.textEdit.range)}`,
+  );
+}
+
+function assertEventHandlerCompletionShortFormBindtap(graph) {
+  // No-colon shorthand bindtap — suffix `tap` is in BUILTIN_EVENT_NAMES.
+  const { source, position } = sourceWithCursor('<view bindtap="hand|"></view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("handleSelect"),
+    `event handler completion (bindtap short form): missing handleSelect; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertEventHandlerCompletionInClassAttr(graph) {
+  const { source, position } = sourceWithCursor('<view class="my-cl|">\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    !labels.includes("handleSelect"),
+    `event handler completion (class attr): leaked handleSelect into class value; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertEventHandlerCompletionBindingAttrIsNotEvent(graph) {
+  // `binding` — suffix "ing" not in built-in event whitelist. Strict trigger rejects.
+  const { source, position } = sourceWithCursor('<view binding="hand|"></view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    !labels.includes("handleSelect"),
+    `event handler completion (binding attr): leaked handleSelect into binding="..."; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertEventHandlerCompletionInDynamicExpression(graph) {
+  // Cursor inside {{...}} — suppressed by isExcludedCompletionContext.
+  const { source, position } = sourceWithCursor('<view bindtap="{{ha|n}}"></view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assert(
+    Array.isArray(items) && items.length === 0,
+    `event handler completion (dynamic {{...}}): expected suppression to return []; got ${JSON.stringify(items)}`,
+  );
+}
+
+function assertEventHandlerCompletionStrayLessThan(graph) {
+  // Stray `<` in text content — tag-name guard must reject.
+  const { source, position } = sourceWithCursor('text < bindtap="hand|"\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    !labels.includes("handleSelect"),
+    `event handler completion (stray <): leaked handleSelect on non-tag context; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertEventHandlerCompletionEmptyEventNameColon(graph) {
+  // `bind:=` — colon form with empty event name; strict trigger requires `.+$`.
+  const { source, position } = sourceWithCursor('<view bind:="hand|"></view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    !labels.includes("handleSelect"),
+    `event handler completion (empty event-name colon form): leaked handleSelect on \`bind:=\`; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertEventHandlerCompletionNoSiblingScript(graph) {
+  const ownerConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH && c.script);
+  assert(ownerConfig, "test setup: expected home owner config with script");
+  const savedScript = ownerConfig.script;
+  delete ownerConfig.script;
+  try {
+    const sourceText = fs.readFileSync(HOME_WXML, "utf8");
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 11, character: 21 },
+      sourceText,
+      extensionRoot: ROOT,
+    });
+    assert(
+      Array.isArray(items) && items.length === 0,
+      `event handler completion (no script): expected [], got ${JSON.stringify(items)}`,
+    );
+  } finally {
+    ownerConfig.script = savedScript;
+  }
+}
+
+function assertEventHandlerCompletionSkipsComponentLifecycle(graph) {
+  const ownerConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH && c.script);
+  assert(ownerConfig, "test setup: expected home owner config with script");
+
+  const synthetic = {
+    name: "__synthetic_lifecycle__",
+    kind: "component-lifecycle",
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  ownerConfig.script.methods.push(synthetic);
+  try {
+    const sourceText = fs.readFileSync(HOME_WXML, "utf8");
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 11, character: 21 },
+      sourceText,
+      extensionRoot: ROOT,
+    });
+    const labels = items.map((item) => item.label);
+    assert(
+      labels.includes("handleSelect"),
+      `event handler completion (lifecycle filter): handleSelect missing — filter is over-eager; got ${JSON.stringify(labels)}`,
+    );
+    assert(
+      !labels.includes("__synthetic_lifecycle__"),
+      `event handler completion (lifecycle filter): leaked component-lifecycle method; got ${JSON.stringify(labels)}`,
+    );
+  } finally {
+    const idx = ownerConfig.script.methods.indexOf(synthetic);
+    if (idx >= 0) ownerConfig.script.methods.splice(idx, 1);
   }
 }
 
@@ -949,3 +1173,15 @@ assertAttributeValueCompletionReturnsEmpty(graph);
 assertExcludedContextsReturnEmpty(graph);
 assertCompletionAfterExternalWxs(graph);
 assertInvalidCompletionInputsReturnEmpty(graph);
+
+// Phase 2 Stage B — Event handler value completion
+assertEventHandlerCompletion(graph);
+assertEventHandlerCompletionEmptyTyped(graph);
+assertEventHandlerCompletionShortFormBindtap(graph);
+assertEventHandlerCompletionInClassAttr(graph);
+assertEventHandlerCompletionBindingAttrIsNotEvent(graph);
+assertEventHandlerCompletionInDynamicExpression(graph);
+assertEventHandlerCompletionStrayLessThan(graph);
+assertEventHandlerCompletionEmptyEventNameColon(graph);
+assertEventHandlerCompletionNoSiblingScript(graph);
+assertEventHandlerCompletionSkipsComponentLifecycle(graph);
