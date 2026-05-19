@@ -603,6 +603,64 @@ Event Handler Intelligence v1 is done. Next directions when Phase 3 starts:
 - Diagnostic on `wx:if`/`wx:for` expressions that reference unknown identifiers — different data flow but similar architecture
 - TS/TSX sibling support — would require swapping/extending the JS wasm grammar
 
+## Phase 3 Stage A Outcome (WXML Expression Reference Diagnostic v1)
+
+First non-event-handler intelligence feature. Catches the silent-fail-today class of typos: `wx:for="{{itemsx}}"` is a real bug in real WeChat code that produces no error, no warning, just no rendered loop. Warning-level LSP diagnostic at the specific identifier position when an interpolation or `wx:if`/`wx:elif`/`wx:for` directive references a name that is not in the sibling page/component's `data: {...}`, not introduced by `wx:for-item`/`wx:for-index`, and not a `<wxs module="...">` name.
+
+### Architecture: two-side, same pattern as Stage C
+
+Three new pieces of extractor data feed one diagnostic branch:
+
+| Side | Data | Where |
+|---|---|---|
+| WXML | `expressionRefs[]` | top-level identifiers inside `{{...}}` (including those inside `wx:if`/`wx:for` directive values, since those wrap an `interpolation` node) |
+| WXML | `wxForBindings` | `{items, indexes, hasAnyWxFor}` — file-level coarse scope of names introduced by `wx:for-item`/`wx:for-index` attributes; defaults `item`/`index` added when ANY `wx:for` exists |
+| JS | `dataKeys[]` + `hasDynamicData` | top-level identifier keys from `data: {...}`, plus a flag that fires on spread/identifier/Object.assign for the same reasons `hasDynamicMethods` does for methods |
+
+The language-service `expressionRefDiagnostics` branch builds a scope `Set` from these four sources (`dataKeys ∪ wxs symbol names ∪ wxForBindings.items+indexes ∪ implicit item/index defaults`) and emits one Warning per unresolved ref.
+
+### Three deliberate v1 simplifications
+
+1. **Regex identifier extraction, not a JS parser.** A lightweight scanner pre-strips string-literal contents (single/double-quoted) with equal-length spaces to preserve offsets, then runs `\b([A-Za-z_$][A-Za-z0-9_$]*)\b` and filters by (a) "preceded by `.`" → member-access tail skip, (b) keyword set of 12 entries (JS literals + operator keywords like `typeof`/`instanceof`/`in`/`of`/`void`/`new`/`delete`/`this`). Template literals (backtick) cause a conservative bail. Object-literal-shaped expressions (`{key: value}` and `key: value` distinguished from ternary by checking for `?` before the first `:`) skip identifier extraction entirely.
+
+   Trade-off: real JS parser would handle every corner case but adds a dependency (acorn or babel) and worth-it complexity. The regex+strip approach handles the 19 cases the focused verifier locks; future false-positives can extend the keyword set rather than rewrite the scanner.
+
+2. **File-level coarse `wx:for` scope.** `wx:for-item="user"` anywhere in the file adds `user` to scope for the whole file, not just the element subtree. Zero false-positive risk (any element COULD theoretically be inside a wx:for somewhere), accepted false-negative for the case where a ref outside any wx:for happens to use a name introduced by another element's wx:for. Per-element scope analysis is a v2 candidate.
+
+3. **Object-literal-shape heuristic skips entire expressions.** `<template data="{{message: 'Loading users'}}"/>` — `message` is a property key, not a reference, and `'Loading users'` is a string literal. The heuristic detects `{ident:` / `ident:` shape (with `?` exclusion for ternary) and short-circuits identifier extraction. False-negative: refs in the VALUE position of inline object literals go unchecked. Accepted for v1.
+
+### Suppression matrix (six entries)
+
+| Trigger | Source | Why |
+|---|---|---|
+| `entry.dynamic === true` | data model (per-handler flag from Stage A — not relevant here; expression-side analog is the next two) | n/a for this stage |
+| Template literal (backtick) in expression | `stripStringLiterals` returns null → `topLevelIdentifiers` returns [] | Embedded expressions inside `${...}` aren't statically analyzable here |
+| Object-literal-shape expression | `looksLikeObjectLiteralExpression` → skip whole expression | Property-key positions aren't references |
+| `script.hasDynamicData === true` | extractor-side flag | Data set is unbounded (spread/identifier/Object.assign/behaviors/non-object factory arg) |
+| No sibling `.js` script | `findOwnerConfigWithScript` returns null | Page/Component WXML can legitimately exist without a JS companion |
+| `wxs` module name OR `wx:for` default/explicit name | Scope `Set` includes them | They ARE in scope, just not in `data:` |
+
+### Helper validation strategy
+
+The expression helpers (`looksLikeObjectLiteralExpression`, `stripStringLiterals`, `topLevelIdentifiers`) live in `scripts/extract-wxml-symbols.mjs` as exports. They could be over-engineered as a shared module but with only one consumer in v1, co-location wins. A focused verifier (`scripts/verify-wxml-expression-helpers.mjs`, 19 cases) locks the helper behavior independently of the WXML extractor's tree walk — review found the original regex would have catastrophically false-positived on real WeChat expressions like `wx:if="{{status === 'ready'}}"` (catching `ready`) and `wx:if="{{typeof total === 'number'}}"` (catching `typeof` and `number`). The verifier locks each of those surfaces with one named case so a future regex regression fires immediately.
+
+### Module-import side note
+
+`extract-wxml-symbols.mjs` had an unconditional `main()` invocation at module load. Once the new verifier needed to `import { topLevelIdentifiers } from "./extract-wxml-symbols.mjs"`, that import would have side-effect-triggered `main()` → empty argv → Usage exit. Wrapped in an `isDirectRun` check (`path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)`) so the CLI behavior is unchanged but the module is import-safe. Today's only import is the verifier; documented for future reference.
+
+### Test infra reuse
+
+All eight language-service assertions use the Stage A `assertEventHandlerDefinitionMissingMethod` graph-mutation pattern. No new fixtures, no LSP protocol test (the channel routing is already locked by `assertMissingCardDiagnostic`). Six wasm-spike baselines regenerated mechanically to capture the new `expressionRefs` and `wxForBindings` fields per file; pre-existing entries unchanged.
+
+### Phase 3 carry-over
+
+- Per-element `wx:for` scope analysis (currently coarse file-level)
+- WXS-internal identifier validation (`{{format.unknownFn(x)}}` doesn't warn on `unknownFn` — would need cross-file WXS analysis)
+- Computed-key support in `data: { [name]: 1 }` — currently the affected key isn't extracted; future enhancement could flag `hasDynamicData` on computed keys
+- Quick-fix code action ("add missing data key to .js")
+- TS/TSX sibling files (same need as Stage C)
+- `properties: {...}` on Components — Stage A/C only walked `data:`, so refs to component properties like `{{user}}` in user-card.wxml currently rely on the WXS or data side; v2 should add `propertyKeys[]` from the Component options
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
