@@ -89,6 +89,10 @@ const result = spawnSync(process.execPath, [GRAPH_EXTRACTOR, projectRoot], {
     WXML_ZED_PROFILE: "1",
   },
   stdio: ["ignore", "pipe", "pipe"],
+  // Same reasoning as the runtime spawn sites (e5cbce4) — large
+  // real-project graphs emit multi-MB stdout / profile-event stderr;
+  // the default 1MB cap silently truncates and exits non-zero.
+  maxBuffer: 256 * 1024 * 1024,
 });
 const elapsedMs = performance.now() - start;
 const { events, passthrough } = parseProfileEvents(result.stderr || "");
