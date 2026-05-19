@@ -78,7 +78,9 @@ function containsSpread(objectNode) {
   return false;
 }
 
-function dynamicMethodsViaProperty(objectNode) {
+function dynamicFlagsFromProperties(objectNode) {
+  let hasDynamicMethods = false;
+  let hasDynamicData = false;
   for (let i = 0; i < objectNode.namedChildCount; i++) {
     const child = objectNode.namedChild(i);
     if (child.type !== "pair") continue;
@@ -88,16 +90,23 @@ function dynamicMethodsViaProperty(objectNode) {
     if (!valueNode) continue;
 
     if (keyNode.text === "behaviors") {
+      // behaviors can inject both data and methods — set BOTH flags.
       if (valueNode.type === "array") {
-        if (valueNode.namedChildCount > 0) return true;
+        if (valueNode.namedChildCount > 0) {
+          hasDynamicMethods = true;
+          hasDynamicData = true;
+        }
       } else {
-        return true;
+        hasDynamicMethods = true;
+        hasDynamicData = true;
       }
     } else if (keyNode.text === "methods") {
-      if (valueNode.type !== "object") return true;
+      if (valueNode.type !== "object") hasDynamicMethods = true;
+    } else if (keyNode.text === "data") {
+      if (valueNode.type !== "object") hasDynamicData = true;
     }
   }
-  return false;
+  return { hasDynamicMethods, hasDynamicData };
 }
 
 function methodsBlockOf(objectNode) {
@@ -112,10 +121,40 @@ function methodsBlockOf(objectNode) {
   return null;
 }
 
+function dataBlockOf(objectNode) {
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    const child = objectNode.namedChild(i);
+    if (child.type !== "pair") continue;
+    const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+    if (!keyNode || keyNode.type !== "property_identifier" || keyNode.text !== "data") continue;
+    const valueNode = fieldChild(child, "value") ?? child.namedChild(1);
+    if (valueNode && valueNode.type === "object") return valueNode;
+  }
+  return null;
+}
+
+function extractDataKeys(dataObjectNode) {
+  const out = [];
+  for (let i = 0; i < dataObjectNode.namedChildCount; i++) {
+    const child = dataObjectNode.namedChild(i);
+    if (child.type === "pair") {
+      const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+      if (keyNode && keyNode.type === "property_identifier") {
+        out.push(keyNode.text);
+      }
+    } else if (child.type === "shorthand_property_identifier") {
+      out.push(child.text);
+    }
+  }
+  return out;
+}
+
 export function extractMethods(parser, source) {
   const tree = parser.parse(source);
   const methods = [];
+  const dataKeys = [];
   let hasDynamicMethods = false;
+  let hasDynamicData = false;
   const visit = (node) => {
     if (node.type === "call_expression") {
       const factory = isPageOrComponentCall(node);
@@ -124,22 +163,32 @@ export function extractMethods(parser, source) {
         const firstArg = args ? args.namedChild(0) : null;
         if (firstArg && firstArg.type !== "object") {
           hasDynamicMethods = true;
+          hasDynamicData = true;
         } else if (firstArg) {
           const opts = firstArg;
-          if (containsSpread(opts) || dynamicMethodsViaProperty(opts)) {
+          if (containsSpread(opts)) {
             hasDynamicMethods = true;
+            hasDynamicData = true;
           }
+          const flags = dynamicFlagsFromProperties(opts);
+          if (flags.hasDynamicMethods) hasDynamicMethods = true;
+          if (flags.hasDynamicData) hasDynamicData = true;
+
           if (factory === "Page") {
             methods.push(...methodEntriesFromObject(opts, METHOD_KIND_PAGE));
           } else {
             methods.push(...methodEntriesFromObject(opts, METHOD_KIND_COMPONENT_LIFECYCLE));
             const methodsBlock = methodsBlockOf(opts);
             if (methodsBlock) {
-              if (containsSpread(methodsBlock)) {
-                hasDynamicMethods = true;
-              }
+              if (containsSpread(methodsBlock)) hasDynamicMethods = true;
               methods.push(...methodEntriesFromObject(methodsBlock, METHOD_KIND_COMPONENT_METHOD));
             }
+          }
+
+          const dataBlock = dataBlockOf(opts);
+          if (dataBlock) {
+            if (containsSpread(dataBlock)) hasDynamicData = true;
+            dataKeys.push(...extractDataKeys(dataBlock));
           }
         }
       }
@@ -151,5 +200,5 @@ export function extractMethods(parser, source) {
     const ar = a.range.start, br = b.range.start;
     return (ar.row - br.row) || (ar.column - br.column);
   });
-  return { methods, hasDynamicMethods };
+  return { methods, hasDynamicMethods, dataKeys, hasDynamicData };
 }

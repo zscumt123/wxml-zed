@@ -446,6 +446,8 @@ async function attachScripts(graph) {
       path: toPosixPath(path.relative(ROOT, jsAbs)),
       methods: info.methods,
       hasDynamicMethods: info.hasDynamicMethods,
+      dataKeys: info.dataKeys,
+      hasDynamicData: info.hasDynamicData,
     };
   }
 }
