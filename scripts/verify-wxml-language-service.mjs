@@ -406,6 +406,23 @@ function assertExpressionRefDiagnosticNoScriptSkips(graph) {
   }
 }
 
+function assertFolderComponentResolvesViaIndex(graph) {
+  // detail.json declares `usingComponents: { "folder-comp": "../../components/folder-comp" }`.
+  // The path lacks a trailing /index, so resolution must fall back from
+  // components/folder-comp.wxml (missing) to components/folder-comp/index.wxml.
+  const entry = graph.usingComponents.find((u) => u.tag === "folder-comp");
+  assert(entry, "folder-comp using-component entry missing from graph");
+  assert(entry.resolved === true, `folder-comp not resolved: ${JSON.stringify(entry)}`);
+  assert(
+    entry.target === "fixtures/miniprogram/components/folder-comp/index.wxml",
+    `folder-comp resolved to wrong target: ${entry.target}`,
+  );
+  assert(
+    entry.config === "fixtures/miniprogram/components/folder-comp/index.json",
+    `folder-comp resolved to wrong config: ${entry.config}`,
+  );
+}
+
 function assertExpressionRefDiagnosticUserCardClean(graph) {
   // user-card.wxml references `user` three times ({{user.active ? 'active' : ''}},
   // {{user.name}}, status="{{user.status}}"). user-card.js declares `user` only
@@ -1462,6 +1479,7 @@ assertExpressionRefDiagnosticSuppressedByDynamicData(graph);
 assertExpressionRefDiagnosticNoScriptSkips(graph);
 assertExpressionRefDiagnosticUserCardClean(graph);
 assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
+assertFolderComponentResolvesViaIndex(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);
 assertLocalBadgeOverrideDefinition(graph);

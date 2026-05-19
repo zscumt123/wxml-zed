@@ -120,7 +120,24 @@ function resolveUsingComponent(projectRoot, ownerJsonPath, ownerWxmlPath, tag, v
     };
   }
 
-  const paths = derivedPaths(projectRoot, ownerJsonPath, value);
+  let paths = derivedPaths(projectRoot, ownerJsonPath, value);
+
+  // WeChat convention: `usingComponents: { "foo": "../path/foo" }` may resolve
+  // to either `../path/foo.wxml` (direct file) or `../path/foo/index.wxml`
+  // (component-as-directory). The official dev tool accepts both; without
+  // this fallback every folder-style component false-positives as missing.
+  if (!fs.existsSync(paths.wxml)) {
+    const indexBase = `${paths.base}/index`;
+    const indexWxml = `${indexBase}.wxml`;
+    if (fs.existsSync(indexWxml)) {
+      paths = {
+        base: indexBase,
+        wxml: indexWxml,
+        json: `${indexBase}.json`,
+      };
+    }
+  }
+
   const entry = {
     owner: repoRelative(ownerWxmlPath),
     tag,

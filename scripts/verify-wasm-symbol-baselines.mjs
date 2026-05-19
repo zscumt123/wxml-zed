@@ -17,7 +17,7 @@ const CASES = [
     expectExit: 0,
   },
   {
-    name: "miniprogram (11 fixtures)",
+    name: "miniprogram (12 fixtures)",
     files: null,
     glob: "fixtures/miniprogram",
     baseline: "miniprogram-symbols-baseline.json",

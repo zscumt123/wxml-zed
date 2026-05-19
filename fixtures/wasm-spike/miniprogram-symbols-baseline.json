@@ -2,6 +2,45 @@
   "version": 1,
   "files": [
     {
+      "path": "fixtures/miniprogram/components/folder-comp/index.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "caption",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 17
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 17
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
+    },
+    {
       "path": "fixtures/miniprogram/components/global-badge/global-badge.wxml",
       "dependencies": [],
       "symbols": [],
@@ -292,7 +331,21 @@
       ],
       "symbols": [],
       "references": [],
-      "components": [],
+      "components": [
+        {
+          "tag": "folder-comp",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 2
+            },
+            "end": {
+              "row": 4,
+              "column": 37
+            }
+          }
+        }
+      ],
       "eventHandlers": [],
       "expressionRefs": [
         {
@@ -316,6 +369,30 @@
             "end": {
               "row": 3,
               "column": 15
+            }
+          }
+        },
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 26
+            },
+            "end": {
+              "row": 4,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 26
+            },
+            "end": {
+              "row": 4,
+              "column": 31
             }
           }
         }

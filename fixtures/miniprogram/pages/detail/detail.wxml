@@ -2,4 +2,5 @@
 
 <view class="detail">
   <text>{{title}}</text>
+  <folder-comp caption="{{title}}" />
 </view>
