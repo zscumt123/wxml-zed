@@ -197,6 +197,33 @@ const CASES = [
     propertyKeys: ["custom"],
     hasDynamicData: true,
   },
+  {
+    label: "Page with quoted-identifier keys in data",
+    source: `Page({ data: { "foo": 1, 'bar': 2, baz: 3 } });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["foo", "bar", "baz"],
+    propertyKeys: [],
+    hasDynamicData: false,
+  },
+  {
+    label: "Page with non-identifier-shape string keys in data (skipped)",
+    source: `Page({ data: { "hello-world": 1, "123": 2, "": 3, valid: 4 } });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["valid"],
+    propertyKeys: [],
+    hasDynamicData: false,
+  },
+  {
+    label: "Component with quoted-identifier keys in properties",
+    source: `Component({ properties: { "user": { type: Object }, "label": String } });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: [],
+    propertyKeys: ["user", "label"],
+    hasDynamicData: false,
+  },
 ];
 
 function assert(condition, message) {

@@ -150,14 +150,27 @@ function propertiesBlockOf(objectNode) {
   return null;
 }
 
+const IDENTIFIER_SHAPE = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
+
 function extractDataKeys(dataObjectNode) {
   const out = [];
   for (let i = 0; i < dataObjectNode.namedChildCount; i++) {
     const child = dataObjectNode.namedChild(i);
     if (child.type === "pair") {
       const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
-      if (keyNode && keyNode.type === "property_identifier") {
+      if (!keyNode) continue;
+      if (keyNode.type === "property_identifier") {
         out.push(keyNode.text);
+      } else if (keyNode.type === "string") {
+        // Quoted key (`"foo": 1` / `'foo': 1`). Extract if the inner text
+        // is a valid JS identifier — invalid shapes (`"with-dash"`, `"123"`,
+        // `""`) cannot be referenced from a WXML expression, so leaving them
+        // out doesn't widen the false-positive surface.
+        const fragment = firstChildOfType(keyNode, "string_fragment");
+        const text = fragment ? fragment.text : "";
+        if (IDENTIFIER_SHAPE.test(text)) {
+          out.push(text);
+        }
       }
     } else if (child.type === "shorthand_property_identifier") {
       out.push(child.text);
