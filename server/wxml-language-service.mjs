@@ -576,6 +576,41 @@ function eventHandlerDiagnostics(graph, documentGraphPath, fileModel) {
   return out;
 }
 
+function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
+  const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+  if (!ownerConfig) return [];
+  if (ownerConfig.script.hasDynamicData) return [];
+
+  const scope = new Set();
+  for (const key of ownerConfig.script.dataKeys ?? []) scope.add(key);
+  for (const sym of fileModel.symbols ?? []) {
+    if (sym.kind === "wxs" && typeof sym.name === "string") scope.add(sym.name);
+  }
+  const bindings = fileModel.wxForBindings;
+  if (bindings) {
+    if (bindings.hasAnyWxFor) {
+      scope.add("item");
+      scope.add("index");
+    }
+    for (const name of bindings.items ?? []) scope.add(name);
+    for (const name of bindings.indexes ?? []) scope.add(name);
+  }
+
+  const refs = fileModel.expressionRefs ?? [];
+  const out = [];
+  for (const ref of refs) {
+    if (scope.has(ref.name)) continue;
+    out.push({
+      range: rangeFromSymbolRange(ref.range),
+      severity: WARNING,
+      source: "wxml-zed",
+      code: "missing-expression-ref",
+      message: `"${ref.name}" is not defined in the page/component data, wx:for scope, or any <wxs> module.`,
+    });
+  }
+  return out;
+}
+
 export function getDiagnostics({ graph, documentPath, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
@@ -602,7 +637,8 @@ export function getDiagnostics({ graph, documentPath, extensionRoot }) {
     });
 
   const handlerDiags = eventHandlerDiagnostics(graph, documentGraphPath, fileModel);
-  return [...componentDiags, ...handlerDiags];
+  const expressionDiags = expressionRefDiagnostics(graph, documentGraphPath, fileModel);
+  return [...componentDiags, ...handlerDiags, ...expressionDiags];
 }
 
 export function getDefinition({ graph, documentPath, position, extensionRoot }) {

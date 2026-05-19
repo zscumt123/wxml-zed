@@ -280,6 +280,165 @@ function assertEventHandlerDiagnosticNoScriptSkips(graph) {
   }
 }
 
+// Phase 3 Stage A — Expression reference diagnostic ------------------
+
+function assertExpressionRefDiagnosticClean(graph) {
+  const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+  const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+  assert(
+    exprDiags.length === 0,
+    `expression ref diagnostic (clean): unexpected warnings ${JSON.stringify(exprDiags)}`,
+  );
+}
+
+function assertExpressionRefDiagnosticMissingInterpolation(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const original = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = original.filter((k) => k !== "theme");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    const theme = exprDiags.find((d) => d.message.includes('"theme"'));
+    assert(theme, `expected diagnostic for theme; got ${JSON.stringify(exprDiags)}`);
+    assert(theme.severity === 2, `severity: ${theme.severity}`);
+    assert(theme.source === "wxml-zed", `source: ${theme.source}`);
+    assertDeepEqual(
+      theme.range,
+      { start: { line: 4, character: 20 }, end: { line: 4, character: 25 } },
+      "theme diagnostic range",
+    );
+  } finally {
+    homeConfig.script.dataKeys = original;
+  }
+}
+
+function assertExpressionRefDiagnosticMissingDirective(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const original = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = original.filter((k) => k !== "users");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    const users = exprDiags.find((d) => d.message.includes('"users"'));
+    assert(users, `expected diagnostic for users; got ${JSON.stringify(exprDiags)}`);
+    assertDeepEqual(
+      users.range,
+      { start: { line: 8, character: 14 }, end: { line: 8, character: 19 } },
+      "users diagnostic range",
+    );
+  } finally {
+    homeConfig.script.dataKeys = original;
+  }
+}
+
+function assertExpressionRefDiagnosticSuppressedByWxsModule(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const original = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = [];
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    const formatDiags = exprDiags.filter((d) => d.message.includes('"format"'));
+    assert(
+      formatDiags.length === 0,
+      `expression ref diagnostic (wxs module): leaked "format" warning ${JSON.stringify(formatDiags)}`,
+    );
+  } finally {
+    homeConfig.script.dataKeys = original;
+  }
+}
+
+function assertExpressionRefDiagnosticSuppressedByWxForItem(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const originalKeys = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = [];
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    const itemDiags = exprDiags.filter((d) => d.message.includes('"item"'));
+    assert(
+      itemDiags.length === 0,
+      `expression ref diagnostic (wx:for default): leaked "item" warning ${JSON.stringify(itemDiags)}`,
+    );
+  } finally {
+    homeConfig.script.dataKeys = originalKeys;
+  }
+}
+
+function assertExpressionRefDiagnosticSuppressedByDynamicData(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const originalKeys = homeConfig.script.dataKeys;
+  const originalFlag = homeConfig.script.hasDynamicData;
+  homeConfig.script.dataKeys = [];
+  homeConfig.script.hasDynamicData = true;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    assert(
+      exprDiags.length === 0,
+      `expression ref diagnostic (hasDynamicData): expected suppression, got ${JSON.stringify(exprDiags)}`,
+    );
+  } finally {
+    homeConfig.script.dataKeys = originalKeys;
+    homeConfig.script.hasDynamicData = originalFlag;
+  }
+}
+
+function assertExpressionRefDiagnosticNoScriptSkips(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const savedScript = homeConfig.script;
+  delete homeConfig.script;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+    assert(
+      exprDiags.length === 0,
+      `expression ref diagnostic (no script): expected suppression, got ${JSON.stringify(exprDiags)}`,
+    );
+  } finally {
+    homeConfig.script = savedScript;
+  }
+}
+
+function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile, "test setup: home file must exist in graph.wxml");
+  assert(Array.isArray(homeFile.expressionRefs), "expressionRefs missing from home file model");
+  const originalItems = homeFile.wxForBindings?.items ?? [];
+  const originalRefs = homeFile.expressionRefs;
+  const synthetic = {
+    name: "__synthetic_for_user__",
+    source: "interpolation",
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 24 } },
+    expressionRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 24 } },
+  };
+  homeFile.expressionRefs = [...originalRefs, synthetic];
+  try {
+    const before = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT })
+      .filter((d) => d.code === "missing-expression-ref" && d.message.includes("__synthetic_for_user__"));
+    assert(before.length === 1, `pre-add: expected 1 synthetic warning, got ${before.length}`);
+
+    homeFile.wxForBindings = {
+      ...homeFile.wxForBindings,
+      items: [...originalItems, "__synthetic_for_user__"],
+    };
+    const after = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT })
+      .filter((d) => d.code === "missing-expression-ref" && d.message.includes("__synthetic_for_user__"));
+    assert(after.length === 0, `post-add: expected wx:for-item suppression, got ${JSON.stringify(after)}`);
+  } finally {
+    homeFile.expressionRefs = originalRefs;
+    if (homeFile.wxForBindings) {
+      homeFile.wxForBindings = { ...homeFile.wxForBindings, items: originalItems };
+    }
+  }
+}
+
 function assertLocationTarget(location, targetPath, label) {
   assert(location, `${label}: expected definition location`);
   assert(location.uri === pathToFileURL(targetPath).href, `${label}: unexpected URI ${JSON.stringify(location)}`);
@@ -1280,6 +1439,15 @@ assertEventHandlerDiagnosticSuppressedByDynamic(graph);
 assertEventHandlerDiagnosticSuppressedByDynamicMethods(graph);
 assertEventHandlerDiagnosticSuppressedByLooseBinding(graph);
 assertEventHandlerDiagnosticNoScriptSkips(graph);
+// Phase 3 Stage A — Expression reference diagnostic
+assertExpressionRefDiagnosticClean(graph);
+assertExpressionRefDiagnosticMissingInterpolation(graph);
+assertExpressionRefDiagnosticMissingDirective(graph);
+assertExpressionRefDiagnosticSuppressedByWxsModule(graph);
+assertExpressionRefDiagnosticSuppressedByWxForItem(graph);
+assertExpressionRefDiagnosticSuppressedByDynamicData(graph);
+assertExpressionRefDiagnosticNoScriptSkips(graph);
+assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);
 assertLocalBadgeOverrideDefinition(graph);
