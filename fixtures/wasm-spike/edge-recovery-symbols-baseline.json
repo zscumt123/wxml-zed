@@ -7,7 +7,38 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "id",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 24
+            },
+            "end": {
+              "row": 6,
+              "column": 26
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 24
+            },
+            "end": {
+              "row": 6,
+              "column": 26
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     }
   ]
 }

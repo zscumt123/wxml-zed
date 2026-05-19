@@ -178,7 +178,302 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "state",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 28
+            },
+            "end": {
+              "row": 0,
+              "column": 33
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 28
+            },
+            "end": {
+              "row": 0,
+              "column": 33
+            }
+          }
+        },
+        {
+          "name": "id",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 58
+            },
+            "end": {
+              "row": 0,
+              "column": 60
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 58
+            },
+            "end": {
+              "row": 0,
+              "column": 60
+            }
+          }
+        },
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 17
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 17
+            }
+          }
+        },
+        {
+          "name": "loading",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 18
+            },
+            "end": {
+              "row": 5,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 5,
+              "column": 18
+            },
+            "end": {
+              "row": 5,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 20
+            },
+            "end": {
+              "row": 8,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 20
+            },
+            "end": {
+              "row": 8,
+              "column": 24
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 33
+            },
+            "end": {
+              "row": 9,
+              "column": 37
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 9,
+              "column": 33
+            },
+            "end": {
+              "row": 9,
+              "column": 44
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 56
+            },
+            "end": {
+              "row": 10,
+              "column": 60
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 56
+            },
+            "end": {
+              "row": 10,
+              "column": 63
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 11,
+              "column": 27
+            },
+            "end": {
+              "row": 11,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 11,
+              "column": 27
+            },
+            "end": {
+              "row": 11,
+              "column": 36
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 27
+            },
+            "end": {
+              "row": 12,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 12,
+              "column": 27
+            },
+            "end": {
+              "row": 12,
+              "column": 49
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 13,
+              "column": 29
+            },
+            "end": {
+              "row": 13,
+              "column": 33
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 13,
+              "column": 29
+            },
+            "end": {
+              "row": 13,
+              "column": 40
+            }
+          }
+        },
+        {
+          "name": "id",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 22,
+              "column": 43
+            },
+            "end": {
+              "row": 22,
+              "column": 45
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 22,
+              "column": 43
+            },
+            "end": {
+              "row": 22,
+              "column": 45
+            }
+          }
+        },
+        {
+          "name": "readonly",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 42
+            },
+            "end": {
+              "row": 23,
+              "column": 50
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 23,
+              "column": 42
+            },
+            "end": {
+              "row": 23,
+              "column": 50
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/real-world/page.wxml",
@@ -503,7 +798,474 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "theme",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 25
+            },
+            "end": {
+              "row": 4,
+              "column": 30
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 25
+            },
+            "end": {
+              "row": 4,
+              "column": 30
+            }
+          }
+        },
+        {
+          "name": "pageId",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 50
+            },
+            "end": {
+              "row": 4,
+              "column": 56
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 50
+            },
+            "end": {
+              "row": 4,
+              "column": 56
+            }
+          }
+        },
+        {
+          "name": "fontSize",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 31
+            },
+            "end": {
+              "row": 5,
+              "column": 39
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 5,
+              "column": 31
+            },
+            "end": {
+              "row": 5,
+              "column": 39
+            }
+          }
+        },
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 27
+            },
+            "end": {
+              "row": 6,
+              "column": 32
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 27
+            },
+            "end": {
+              "row": 6,
+              "column": 32
+            }
+          }
+        },
+        {
+          "name": "loading",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 47
+            },
+            "end": {
+              "row": 6,
+              "column": 54
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 47
+            },
+            "end": {
+              "row": 6,
+              "column": 54
+            }
+          }
+        },
+        {
+          "name": "loading",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 18
+            },
+            "end": {
+              "row": 10,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 18
+            },
+            "end": {
+              "row": 10,
+              "column": 45
+            }
+          }
+        },
+        {
+          "name": "loading",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 20
+            },
+            "end": {
+              "row": 14,
+              "column": 27
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 20
+            },
+            "end": {
+              "row": 14,
+              "column": 27
+            }
+          }
+        },
+        {
+          "name": "items",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 17,
+              "column": 22
+            },
+            "end": {
+              "row": 17,
+              "column": 27
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 17,
+              "column": 22
+            },
+            "end": {
+              "row": 17,
+              "column": 34
+            }
+          }
+        },
+        {
+          "name": "items",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 19,
+              "column": 18
+            },
+            "end": {
+              "row": 19,
+              "column": 23
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 19,
+              "column": 18
+            },
+            "end": {
+              "row": 19,
+              "column": 23
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 19
+            },
+            "end": {
+              "row": 23,
+              "column": 23
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 23,
+              "column": 19
+            },
+            "end": {
+              "row": 23,
+              "column": 26
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 24,
+              "column": 22
+            },
+            "end": {
+              "row": 24,
+              "column": 26
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 24,
+              "column": 22
+            },
+            "end": {
+              "row": 24,
+              "column": 49
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 25,
+              "column": 19
+            },
+            "end": {
+              "row": 25,
+              "column": 23
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 25,
+              "column": 19
+            },
+            "end": {
+              "row": 25,
+              "column": 26
+            }
+          }
+        },
+        {
+          "name": "format",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 42
+            },
+            "end": {
+              "row": 31,
+              "column": 48
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 31,
+              "column": 42
+            },
+            "end": {
+              "row": 31,
+              "column": 66
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 55
+            },
+            "end": {
+              "row": 31,
+              "column": 59
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 31,
+              "column": 42
+            },
+            "end": {
+              "row": 31,
+              "column": 66
+            }
+          }
+        },
+        {
+          "name": "keyword",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 37,
+              "column": 24
+            },
+            "end": {
+              "row": 37,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 37,
+              "column": 24
+            },
+            "end": {
+              "row": 37,
+              "column": 31
+            }
+          }
+        },
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 37,
+              "column": 57
+            },
+            "end": {
+              "row": 37,
+              "column": 62
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 37,
+              "column": 57
+            },
+            "end": {
+              "row": 37,
+              "column": 62
+            }
+          }
+        },
+        {
+          "name": "loading",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 38,
+              "column": 22
+            },
+            "end": {
+              "row": 38,
+              "column": 29
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 38,
+              "column": 22
+            },
+            "end": {
+              "row": 38,
+              "column": 29
+            }
+          }
+        },
+        {
+          "name": "total",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 39,
+              "column": 31
+            },
+            "end": {
+              "row": 39,
+              "column": 36
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 39,
+              "column": 31
+            },
+            "end": {
+              "row": 39,
+              "column": 36
+            }
+          }
+        },
+        {
+          "name": "useCompact",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 42,
+              "column": 18
+            },
+            "end": {
+              "row": 42,
+              "column": 28
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 42,
+              "column": 18
+            },
+            "end": {
+              "row": 42,
+              "column": 61
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "user"
+        ],
+        "indexes": [
+          "idx"
+        ],
+        "hasAnyWxFor": true
+      }
     },
     {
       "path": "fixtures/real-world/templates.wxml",
@@ -613,7 +1375,158 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "message",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          }
+        },
+        {
+          "name": "summary",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 12
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 12
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          }
+        },
+        {
+          "name": "summary",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 12
+            },
+            "end": {
+              "row": 14,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 12
+            },
+            "end": {
+              "row": 14,
+              "column": 19
+            }
+          }
+        },
+        {
+          "name": "expanded",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 16
+            },
+            "end": {
+              "row": 21,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 21,
+              "column": 16
+            },
+            "end": {
+              "row": 21,
+              "column": 57
+            }
+          }
+        },
+        {
+          "name": "footer",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 12
+            },
+            "end": {
+              "row": 23,
+              "column": 18
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 23,
+              "column": 12
+            },
+            "end": {
+              "row": 23,
+              "column": 23
+            }
+          }
+        },
+        {
+          "name": "label",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 28,
+              "column": 19
+            },
+            "end": {
+              "row": 28,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 28,
+              "column": 19
+            },
+            "end": {
+              "row": 28,
+              "column": 24
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     }
   ]
 }

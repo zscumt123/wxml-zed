@@ -169,7 +169,158 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "theme",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 20
+            },
+            "end": {
+              "row": 4,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 20
+            },
+            "end": {
+              "row": 4,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "users",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 14
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 14
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          }
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 12
+            },
+            "end": {
+              "row": 10,
+              "column": 16
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 12
+            },
+            "end": {
+              "row": 10,
+              "column": 16
+            }
+          }
+        },
+        {
+          "name": "emptyReason",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 26
+            },
+            "end": {
+              "row": 14,
+              "column": 37
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 26
+            },
+            "end": {
+              "row": 14,
+              "column": 37
+            }
+          }
+        },
+        {
+          "name": "format",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 12
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "total",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 19
+            },
+            "end": {
+              "row": 18,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 25
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": true
+      }
     }
   ]
 }

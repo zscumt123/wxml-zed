@@ -394,7 +394,594 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "showFlag",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 15
+            },
+            "end": {
+              "row": 5,
+              "column": 23
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 5,
+              "column": 15
+            },
+            "end": {
+              "row": 5,
+              "column": 23
+            }
+          }
+        },
+        {
+          "name": "showFlag",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 18
+            },
+            "end": {
+              "row": 6,
+              "column": 26
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 17
+            },
+            "end": {
+              "row": 6,
+              "column": 45
+            }
+          }
+        },
+        {
+          "name": "list",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 30
+            },
+            "end": {
+              "row": 6,
+              "column": 34
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 17
+            },
+            "end": {
+              "row": 6,
+              "column": 45
+            }
+          }
+        },
+        {
+          "name": "condition",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 16
+            },
+            "end": {
+              "row": 10,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 16
+            },
+            "end": {
+              "row": 10,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "items",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 17,
+              "column": 12
+            },
+            "end": {
+              "row": 17,
+              "column": 17
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 17,
+              "column": 12
+            },
+            "end": {
+              "row": 17,
+              "column": 17
+            }
+          }
+        },
+        {
+          "name": "idx",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 10
+            },
+            "end": {
+              "row": 23,
+              "column": 13
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 23,
+              "column": 10
+            },
+            "end": {
+              "row": 23,
+              "column": 13
+            }
+          }
+        },
+        {
+          "name": "row",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 23,
+              "column": 19
+            },
+            "end": {
+              "row": 23,
+              "column": 22
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 23,
+              "column": 19
+            },
+            "end": {
+              "row": 23,
+              "column": 28
+            }
+          }
+        },
+        {
+          "name": "list",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 27,
+              "column": 16
+            },
+            "end": {
+              "row": 27,
+              "column": 20
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 27,
+              "column": 16
+            },
+            "end": {
+              "row": 27,
+              "column": 20
+            }
+          }
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 27,
+              "column": 41
+            },
+            "end": {
+              "row": 27,
+              "column": 45
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 27,
+              "column": 41
+            },
+            "end": {
+              "row": 27,
+              "column": 45
+            }
+          }
+        },
+        {
+          "name": "inputValue",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 30,
+              "column": 22
+            },
+            "end": {
+              "row": 30,
+              "column": 32
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 30,
+              "column": 22
+            },
+            "end": {
+              "row": 30,
+              "column": 32
+            }
+          }
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 17
+            },
+            "end": {
+              "row": 31,
+              "column": 21
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 31,
+              "column": 17
+            },
+            "end": {
+              "row": 31,
+              "column": 24
+            }
+          }
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 41
+            },
+            "end": {
+              "row": 31,
+              "column": 45
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 31,
+              "column": 41
+            },
+            "end": {
+              "row": 31,
+              "column": 50
+            }
+          }
+        },
+        {
+          "name": "type",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 35,
+              "column": 25
+            },
+            "end": {
+              "row": 35,
+              "column": 29
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 35,
+              "column": 25
+            },
+            "end": {
+              "row": 35,
+              "column": 29
+            }
+          }
+        },
+        {
+          "name": "active",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 35,
+              "column": 34
+            },
+            "end": {
+              "row": 35,
+              "column": 40
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 35,
+              "column": 34
+            },
+            "end": {
+              "row": 35,
+              "column": 59
+            }
+          }
+        },
+        {
+          "name": "message",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 38,
+              "column": 8
+            },
+            "end": {
+              "row": 38,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 38,
+              "column": 8
+            },
+            "end": {
+              "row": 38,
+              "column": 15
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 39,
+              "column": 14
+            },
+            "end": {
+              "row": 39,
+              "column": 18
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 39,
+              "column": 14
+            },
+            "end": {
+              "row": 39,
+              "column": 23
+            }
+          }
+        },
+        {
+          "name": "count",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 39,
+              "column": 38
+            },
+            "end": {
+              "row": 39,
+              "column": 43
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 39,
+              "column": 38
+            },
+            "end": {
+              "row": 39,
+              "column": 43
+            }
+          }
+        },
+        {
+          "name": "name",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 68,
+              "column": 12
+            },
+            "end": {
+              "row": 68,
+              "column": 16
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 68,
+              "column": 12
+            },
+            "end": {
+              "row": 68,
+              "column": 16
+            }
+          }
+        },
+        {
+          "name": "age",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 69,
+              "column": 12
+            },
+            "end": {
+              "row": 69,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 69,
+              "column": 12
+            },
+            "end": {
+              "row": 69,
+              "column": 15
+            }
+          }
+        },
+        {
+          "name": "cond",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 80,
+              "column": 16
+            },
+            "end": {
+              "row": 80,
+              "column": 20
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 80,
+              "column": 16
+            },
+            "end": {
+              "row": 80,
+              "column": 38
+            }
+          }
+        },
+        {
+          "name": "payload",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 80,
+              "column": 50
+            },
+            "end": {
+              "row": 80,
+              "column": 57
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 80,
+              "column": 50
+            },
+            "end": {
+              "row": 80,
+              "column": 57
+            }
+          }
+        },
+        {
+          "name": "inline",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 98,
+              "column": 16
+            },
+            "end": {
+              "row": 98,
+              "column": 22
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 98,
+              "column": 16
+            },
+            "end": {
+              "row": 98,
+              "column": 32
+            }
+          }
+        },
+        {
+          "name": "inline",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 99,
+              "column": 8
+            },
+            "end": {
+              "row": 99,
+              "column": 14
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 99,
+              "column": 8
+            },
+            "end": {
+              "row": 99,
+              "column": 31
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 99,
+              "column": 21
+            },
+            "end": {
+              "row": 99,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 99,
+              "column": 8
+            },
+            "end": {
+              "row": 99,
+              "column": 31
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "row"
+        ],
+        "indexes": [
+          "idx"
+        ],
+        "hasAnyWxFor": true
+      }
     }
   ]
 }

@@ -190,6 +190,37 @@ function findAnyAttribute(parent, expectedName) {
   return null;
 }
 
+// Multi-line expression handling: given expression text and a character
+// offset into it, compute {rowDelta, columnOfRow} so the caller can derive
+// file-level row/column from the expression node's start position.
+function offsetToPositionWithin(text, offset) {
+  let row = 0;
+  let lastNewline = -1;
+  for (let i = 0; i < offset; i++) {
+    if (text.charCodeAt(i) === 0x0a) {
+      row += 1;
+      lastNewline = i;
+    }
+  }
+  return { rowDelta: row, columnOfRow: offset - lastNewline - 1 };
+}
+
+// Returns the inner string of a quoted_attribute_value when the value is a
+// plain string literal (NOT an interpolation). Used for wx:for-item /
+// wx:for-index where the value is a bare name like "user".
+function quotedAttrTextValue(attrNode) {
+  const v = firstChildOfType(attrNode, "quoted_attribute_value");
+  if (!v) return null;
+  for (let i = 0; i < v.namedChildCount; i++) {
+    if (v.namedChild(i).type === "interpolation") return null;
+  }
+  const text = v.text;
+  if (text.length >= 2 && (text[0] === '"' || text[0] === "'")) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
 function byPosition(a, b) {
   const ar = a.range.start, br = b.range.start;
   return (ar.row - br.row) || (ar.column - br.column);
@@ -201,13 +232,41 @@ function collectFile(tree, inputAbs) {
   const references = [];
   const components = [];
   const eventHandlers = [];
+  const expressionRefs = [];
+  const wxForItems = new Set();
+  const wxForIndexes = new Set();
+  let hasAnyWxFor = false;
 
   const walk = (node) => {
+    if (node.type === "interpolation") {
+      const exprNode = firstChildOfType(node, "expression");
+      if (exprNode) {
+        const exprText = exprNode.text;
+        const exprStartRow = exprNode.startPosition.row;
+        const exprStartCol = exprNode.startPosition.column;
+        const exprRange = rangeOf(exprNode);
+        for (const { name, offset } of topLevelIdentifiers(exprText)) {
+          const { rowDelta, columnOfRow } = offsetToPositionWithin(exprText, offset);
+          const startRow = exprStartRow + rowDelta;
+          const startCol = rowDelta === 0 ? exprStartCol + columnOfRow : columnOfRow;
+          expressionRefs.push({
+            name,
+            source: "interpolation",
+            range: {
+              start: { row: startRow, column: startCol },
+              end: { row: startRow, column: startCol + name.length },
+            },
+            expressionRange: exprRange,
+          });
+        }
+      }
+    }
     if (node.type === "attribute") {
       // Event-handler attribute? Detect via prefix regex on attribute_name.
       const nameNode = firstChildOfType(node, "attribute_name");
       if (nameNode) {
-        const matched = matchEventBinding(nameNode.text);
+        const attrName = nameNode.text;
+        const matched = matchEventBinding(attrName);
         if (matched) {
           const valueNode = firstChildOfType(node, "quoted_attribute_value")
             ?? firstChildOfType(node, "attribute_value");
@@ -222,6 +281,19 @@ function collectFile(tree, inputAbs) {
               nameRange: innerValueRange(valueNode),
             });
           }
+        }
+        // wx:for / wx:for-item / wx:for-index — value-side scope plumbing.
+        // Expression values inside wx:for / wx:if / wx:elif are surfaced via
+        // the interpolation walker above; we only need plain-string handling
+        // here for the binding-name attributes.
+        if (attrName === "wx:for") {
+          hasAnyWxFor = true;
+        } else if (attrName === "wx:for-item") {
+          const v = quotedAttrTextValue(node);
+          if (typeof v === "string" && v.length > 0) wxForItems.add(v);
+        } else if (attrName === "wx:for-index") {
+          const v = quotedAttrTextValue(node);
+          if (typeof v === "string" && v.length > 0) wxForIndexes.add(v);
         }
       }
     }
@@ -302,8 +374,21 @@ function collectFile(tree, inputAbs) {
   references.sort(byPosition);
   components.sort(byPosition);
   eventHandlers.sort(byPosition);
+  expressionRefs.sort(byPosition);
 
-  return { dependencies, symbols, references, components, eventHandlers };
+  return {
+    dependencies,
+    symbols,
+    references,
+    components,
+    eventHandlers,
+    expressionRefs,
+    wxForBindings: {
+      items: [...wxForItems].sort(),
+      indexes: [...wxForIndexes].sort(),
+      hasAnyWxFor,
+    },
+  };
 }
 
 async function extractFile(parser, filePath) {
@@ -320,7 +405,7 @@ async function extractFile(parser, filePath) {
   const cstMs = elapsedMs(cstStart);
 
   const extractStart = performance.now();
-  const { dependencies, symbols, references, components, eventHandlers } = collectFile(tree, inputAbs);
+  const { dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForBindings } = collectFile(tree, inputAbs);
   const extractMs = elapsedMs(extractStart);
 
   profileEvent({
@@ -333,7 +418,7 @@ async function extractFile(parser, filePath) {
     totalMs: elapsedMs(totalStart),
   });
 
-  return { path: inputRel, dependencies, symbols, references, components, eventHandlers };
+  return { path: inputRel, dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForBindings };
 }
 
 async function main() {

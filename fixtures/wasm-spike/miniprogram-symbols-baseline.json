@@ -7,7 +7,38 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "label",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/components/local-badge/local-badge.wxml",
@@ -15,7 +46,38 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "label",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/components/status-badge/status-badge.wxml",
@@ -23,7 +85,62 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "status",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 29
+            },
+            "end": {
+              "row": 0,
+              "column": 35
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 29
+            },
+            "end": {
+              "row": 0,
+              "column": 35
+            }
+          }
+        },
+        {
+          "name": "status",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 16
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 16
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/components/user-card/user-card.wxml",
@@ -45,7 +162,86 @@
           }
         }
       ],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 29
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 52
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 23
+            },
+            "end": {
+              "row": 1,
+              "column": 27
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 23
+            },
+            "end": {
+              "row": 1,
+              "column": 32
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 26
+            },
+            "end": {
+              "row": 2,
+              "column": 30
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 26
+            },
+            "end": {
+              "row": 2,
+              "column": 37
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
@@ -67,7 +263,13 @@
           }
         }
       ],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/pages/detail/detail.wxml",
@@ -91,7 +293,38 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 10
+            },
+            "end": {
+              "row": 3,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 10
+            },
+            "end": {
+              "row": 3,
+              "column": 15
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/pages/home/home.wxml",
@@ -261,7 +494,158 @@
             }
           }
         }
-      ]
+      ],
+      "expressionRefs": [
+        {
+          "name": "theme",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 20
+            },
+            "end": {
+              "row": 4,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 20
+            },
+            "end": {
+              "row": 4,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "users",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 14
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 14
+            },
+            "end": {
+              "row": 8,
+              "column": 19
+            }
+          }
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 12
+            },
+            "end": {
+              "row": 10,
+              "column": 16
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 12
+            },
+            "end": {
+              "row": 10,
+              "column": 16
+            }
+          }
+        },
+        {
+          "name": "emptyReason",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 26
+            },
+            "end": {
+              "row": 14,
+              "column": 37
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 26
+            },
+            "end": {
+              "row": 14,
+              "column": 37
+            }
+          }
+        },
+        {
+          "name": "format",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 12
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 25
+            }
+          }
+        },
+        {
+          "name": "total",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 19
+            },
+            "end": {
+              "row": 18,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 18,
+              "column": 25
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": true
+      }
     },
     {
       "path": "fixtures/miniprogram/shared/header.wxml",
@@ -269,7 +653,38 @@
       "symbols": [],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "title",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 10
+            },
+            "end": {
+              "row": 1,
+              "column": 15
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/templates/common.wxml",
@@ -292,7 +707,38 @@
       ],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "message",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/templates/secondary.wxml",
@@ -315,7 +761,38 @@
       ],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "label",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 17
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 17
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     },
     {
       "path": "fixtures/miniprogram/templates/unrelated.wxml",
@@ -338,7 +815,38 @@
       ],
       "references": [],
       "components": [],
-      "eventHandlers": []
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "message",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 12
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
     }
   ]
 }
