@@ -29,9 +29,21 @@ function fieldChild(node, fieldName) {
 
 function isPageOrComponentCall(callNode) {
   const fn = fieldChild(callNode, "function");
-  if (!fn || fn.type !== "identifier") return null;
-  if (!FACTORY_NAMES.has(fn.text)) return null;
-  return fn.text;
+  if (!fn) return null;
+  // Bare `Page({...})` / `Component({...})`.
+  if (fn.type === "identifier") {
+    return FACTORY_NAMES.has(fn.text) ? fn.text : null;
+  }
+  // Project-wrapped factories: `Fw.Page({...})` / `app.Component({...})` /
+  // any member-expression ending in `.Page` or `.Component`. Real WeChat
+  // codebases routinely wrap the factory for logging/error handling.
+  if (fn.type === "member_expression") {
+    const prop = fieldChild(fn, "property");
+    if (prop && prop.type === "property_identifier" && FACTORY_NAMES.has(prop.text)) {
+      return prop.text;
+    }
+  }
+  return null;
 }
 
 function optionsObject(callNode) {

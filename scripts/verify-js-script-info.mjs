@@ -224,6 +224,42 @@ const CASES = [
     propertyKeys: ["user", "label"],
     hasDynamicData: false,
   },
+  {
+    label: "wrapped factory Fw.Page",
+    source: `Fw.Page({ data: { count: 0 }, onLoad() {}, custom() {} });`,
+    hasDynamicMethods: false,
+    methodNames: ["onLoad", "custom"],
+    dataKeys: ["count"],
+    propertyKeys: [],
+    hasDynamicData: false,
+  },
+  {
+    label: "wrapped factory app.Component",
+    source: `app.Component({ properties: { user: Object }, methods: { tap() {} } });`,
+    hasDynamicMethods: false,
+    methodNames: ["tap"],
+    dataKeys: [],
+    propertyKeys: ["user"],
+    hasDynamicData: false,
+  },
+  {
+    label: "wrapped factory globalThis.Page",
+    source: `globalThis.Page({ data: { x: 1 }, onShow() {} });`,
+    hasDynamicMethods: false,
+    methodNames: ["onShow"],
+    dataKeys: ["x"],
+    propertyKeys: [],
+    hasDynamicData: false,
+  },
+  {
+    label: "member-expression NOT matching Page/Component",
+    source: `Fw.somethingElse({ data: { x: 1 }, onTap() {} });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: [],
+    propertyKeys: [],
+    hasDynamicData: false,
+  },
 ];
 
 function assert(condition, message) {
