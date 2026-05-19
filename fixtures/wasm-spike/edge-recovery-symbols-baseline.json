@@ -12,6 +12,7 @@
         {
           "name": "id",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 6,

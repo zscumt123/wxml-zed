@@ -12,6 +12,7 @@
         {
           "name": "caption",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -51,6 +52,7 @@
         {
           "name": "label",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -90,6 +92,7 @@
         {
           "name": "label",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -129,6 +132,7 @@
         {
           "name": "status",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 0,
@@ -153,6 +157,7 @@
         {
           "name": "status",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -206,6 +211,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 0,
@@ -230,6 +236,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -254,6 +261,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 2,
@@ -351,6 +359,7 @@
         {
           "name": "title",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 3,
@@ -375,6 +384,7 @@
         {
           "name": "title",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 4,
@@ -576,6 +586,7 @@
         {
           "name": "theme",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 4,
@@ -600,6 +611,7 @@
         {
           "name": "users",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 8,
@@ -624,6 +636,7 @@
         {
           "name": "item",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 10,
@@ -648,6 +661,7 @@
         {
           "name": "emptyReason",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 14,
@@ -672,6 +686,7 @@
         {
           "name": "format",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 18,
@@ -696,6 +711,7 @@
         {
           "name": "total",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 18,
@@ -735,6 +751,7 @@
         {
           "name": "title",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -789,6 +806,7 @@
         {
           "name": "message",
           "source": "interpolation",
+          "inTemplateDefinition": true,
           "range": {
             "start": {
               "row": 2,
@@ -843,6 +861,7 @@
         {
           "name": "label",
           "source": "interpolation",
+          "inTemplateDefinition": true,
           "range": {
             "start": {
               "row": 2,
@@ -897,6 +916,7 @@
         {
           "name": "message",
           "source": "interpolation",
+          "inTemplateDefinition": true,
           "range": {
             "start": {
               "row": 2,

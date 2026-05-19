@@ -12,6 +12,7 @@
         {
           "name": "items",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 0,
@@ -36,6 +37,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,
@@ -60,6 +62,7 @@
         {
           "name": "i",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 1,

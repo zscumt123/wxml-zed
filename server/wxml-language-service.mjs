@@ -606,6 +606,11 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
   const refs = fileModel.expressionRefs ?? [];
   const out = [];
   for (const ref of refs) {
+    // Refs inside `<template name="X">...</template>` resolve in the caller's
+    // data scope (passed via `<template is="X" data="{{...}}"/>`) at use
+    // time, not in this file's owner script. Skip them — we don't have the
+    // call-site context here to validate.
+    if (ref.inTemplateDefinition) continue;
     if (scope.has(ref.name)) continue;
     out.push({
       range: rangeFromSymbolRange(ref.range),

@@ -474,6 +474,35 @@ function assertExpressionRefDiagnosticUserCardClean(graph) {
   );
 }
 
+function assertExpressionRefDiagnosticSuppressedInTemplateDefinition(graph) {
+  // Inject a synthetic expressionRef with inTemplateDefinition=true pointing
+  // at a name that's NOT in scope. Without the suppression, the diagnostic
+  // would fire; with it, no warning.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile, "test setup: home file must exist in graph.wxml");
+  const originalRefs = homeFile.expressionRefs;
+  const synthetic = {
+    name: "__synthetic_template_internal__",
+    source: "interpolation",
+    inTemplateDefinition: true,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 32 } },
+    expressionRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 32 } },
+  };
+  homeFile.expressionRefs = [...originalRefs, synthetic];
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const leaked = diagnostics
+      .filter((d) => d.code === "missing-expression-ref")
+      .filter((d) => d.message.includes("__synthetic_template_internal__"));
+    assert(
+      leaked.length === 0,
+      `expression ref diagnostic (template-definition): leaked warning ${JSON.stringify(leaked)}`,
+    );
+  } finally {
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
 function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
   const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
   assert(homeFile, "test setup: home file must exist in graph.wxml");
@@ -1517,6 +1546,7 @@ assertExpressionRefDiagnosticSuppressedByWxForItem(graph);
 assertExpressionRefDiagnosticSuppressedByDynamicData(graph);
 assertExpressionRefDiagnosticNoScriptSkips(graph);
 assertExpressionRefDiagnosticUserCardClean(graph);
+assertExpressionRefDiagnosticSuppressedInTemplateDefinition(graph);
 assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
 assertFolderComponentResolvesViaIndex(graph);
 assertDefinition(graph);

@@ -399,6 +399,7 @@
         {
           "name": "showFlag",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 5,
@@ -423,6 +424,7 @@
         {
           "name": "showFlag",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 6,
@@ -447,6 +449,7 @@
         {
           "name": "list",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 6,
@@ -471,6 +474,7 @@
         {
           "name": "condition",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 10,
@@ -495,6 +499,7 @@
         {
           "name": "items",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 17,
@@ -519,6 +524,7 @@
         {
           "name": "idx",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 23,
@@ -543,6 +549,7 @@
         {
           "name": "row",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 23,
@@ -567,6 +574,7 @@
         {
           "name": "list",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 27,
@@ -591,6 +599,7 @@
         {
           "name": "item",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 27,
@@ -615,6 +624,7 @@
         {
           "name": "inputValue",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 30,
@@ -639,6 +649,7 @@
         {
           "name": "item",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 31,
@@ -663,6 +674,7 @@
         {
           "name": "item",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 31,
@@ -687,6 +699,7 @@
         {
           "name": "type",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 35,
@@ -711,6 +724,7 @@
         {
           "name": "active",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 35,
@@ -735,6 +749,7 @@
         {
           "name": "message",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 38,
@@ -759,6 +774,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 39,
@@ -783,6 +799,7 @@
         {
           "name": "count",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 39,
@@ -807,6 +824,7 @@
         {
           "name": "name",
           "source": "interpolation",
+          "inTemplateDefinition": true,
           "range": {
             "start": {
               "row": 68,
@@ -831,6 +849,7 @@
         {
           "name": "age",
           "source": "interpolation",
+          "inTemplateDefinition": true,
           "range": {
             "start": {
               "row": 69,
@@ -855,6 +874,7 @@
         {
           "name": "cond",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 80,
@@ -879,6 +899,7 @@
         {
           "name": "payload",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 80,
@@ -903,6 +924,7 @@
         {
           "name": "inline",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 98,
@@ -927,6 +949,7 @@
         {
           "name": "inline",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 99,
@@ -951,6 +974,7 @@
         {
           "name": "user",
           "source": "interpolation",
+          "inTemplateDefinition": false,
           "range": {
             "start": {
               "row": 99,

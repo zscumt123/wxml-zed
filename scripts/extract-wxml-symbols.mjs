@@ -243,8 +243,16 @@ function collectFile(tree, inputAbs) {
   const wxForItems = new Set();
   const wxForIndexes = new Set();
   let hasAnyWxFor = false;
+  // Track depth inside `<template name="X">...</template>` nodes. Expressions
+  // inside a template definition resolve in the caller's data scope at use
+  // time (via `<template is="X" data="{{...}}"/>`), NOT in the file's own
+  // sibling .js data — so the diagnostic must skip them.
+  let templateDefinitionDepth = 0;
 
   const walk = (node) => {
+    const isTemplateDef = node.type === "template_definition";
+    if (isTemplateDef) templateDefinitionDepth += 1;
+
     if (node.type === "interpolation") {
       const exprNode = firstChildOfType(node, "expression");
       if (exprNode) {
@@ -252,6 +260,7 @@ function collectFile(tree, inputAbs) {
         const exprStartRow = exprNode.startPosition.row;
         const exprStartCol = exprNode.startPosition.column;
         const exprRange = rangeOf(exprNode);
+        const inTemplateDefinition = templateDefinitionDepth > 0;
         for (const { name, offset } of topLevelIdentifiers(exprText)) {
           const { rowDelta, columnOfRow } = offsetToPositionWithin(exprText, offset);
           const startRow = exprStartRow + rowDelta;
@@ -259,6 +268,7 @@ function collectFile(tree, inputAbs) {
           expressionRefs.push({
             name,
             source: "interpolation",
+            inTemplateDefinition,
             range: {
               start: { row: startRow, column: startCol },
               end: { row: startRow, column: startCol + name.length },
@@ -373,6 +383,8 @@ function collectFile(tree, inputAbs) {
       }
     }
     for (let i = 0; i < node.namedChildCount; i++) walk(node.namedChild(i));
+
+    if (isTemplateDef) templateDefinitionDepth -= 1;
   };
   walk(tree.rootNode);
 
