@@ -14,6 +14,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: ["onLoad", "custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -22,6 +23,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: ["a", "b"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -30,6 +32,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: ["custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -38,6 +41,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: ["custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -46,6 +50,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: ["custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -54,6 +59,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: ["custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -62,6 +68,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: ["custom"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -70,6 +77,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -78,6 +86,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -86,6 +95,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -94,6 +104,7 @@ const CASES = [
     hasDynamicMethods: true,
     methodNames: ["onLoad"],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -102,6 +113,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -110,6 +122,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: ["count", "theme", "users"],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -118,6 +131,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: ["custom"],
     dataKeys: ["a"],
+    propertyKeys: [],
     hasDynamicData: false,
   },
   {
@@ -126,6 +140,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: ["count"],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -134,6 +149,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -142,6 +158,7 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: [],
+    propertyKeys: [],
     hasDynamicData: true,
   },
   {
@@ -150,7 +167,35 @@ const CASES = [
     hasDynamicMethods: false,
     methodNames: [],
     dataKeys: ["count"],
+    propertyKeys: [],
     hasDynamicData: false,
+  },
+  {
+    label: "Component with plain properties block",
+    source: `Component({ properties: { user: { type: Object, value: {} }, label: String }, methods: { onTap() {} } });`,
+    hasDynamicMethods: false,
+    methodNames: ["onTap"],
+    dataKeys: [],
+    propertyKeys: ["user", "label"],
+    hasDynamicData: false,
+  },
+  {
+    label: "Component with properties identifier (variable reference)",
+    source: `Component({ properties: sharedProps });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: [],
+    propertyKeys: [],
+    hasDynamicData: true,
+  },
+  {
+    label: "Component with spread in properties block",
+    source: `Component({ properties: { ...basicProps, custom: String } });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: [],
+    propertyKeys: ["custom"],
+    hasDynamicData: true,
   },
 ];
 
@@ -168,10 +213,13 @@ async function main() {
   const parser = new Parser();
   parser.setLanguage(lang);
 
-  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, hasDynamicData } of CASES) {
+  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData } of CASES) {
     const result = extractMethods(parser, source);
     assert(
-      typeof result === "object" && result !== null && Array.isArray(result.methods) && Array.isArray(result.dataKeys),
+      typeof result === "object" && result !== null
+        && Array.isArray(result.methods)
+        && Array.isArray(result.dataKeys)
+        && Array.isArray(result.propertyKeys),
       `${label}: bad return shape ${JSON.stringify(result)}`,
     );
     assert(
@@ -195,6 +243,13 @@ async function main() {
     assert(
       actualDataKeys.length === expectedDataKeys.length && actualDataKeys.every((n, i) => n === expectedDataKeys[i]),
       `${label}: dataKeys expected [${expectedDataKeys.join(", ")}], got [${actualDataKeys.join(", ")}]`,
+    );
+
+    const actualPropertyKeys = [...result.propertyKeys].sort();
+    const expectedPropertyKeys = [...propertyKeys].sort();
+    assert(
+      actualPropertyKeys.length === expectedPropertyKeys.length && actualPropertyKeys.every((n, i) => n === expectedPropertyKeys[i]),
+      `${label}: propertyKeys expected [${expectedPropertyKeys.join(", ")}], got [${actualPropertyKeys.join(", ")}]`,
     );
   }
   process.stdout.write("PASS\n");

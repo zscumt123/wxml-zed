@@ -104,6 +104,11 @@ function dynamicFlagsFromProperties(objectNode) {
       if (valueNode.type !== "object") hasDynamicMethods = true;
     } else if (keyNode.text === "data") {
       if (valueNode.type !== "object") hasDynamicData = true;
+    } else if (keyNode.text === "properties") {
+      // Component properties contribute to template scope identically to data.
+      // Non-object value (identifier, call, etc.) makes the property set
+      // unbounded — fold into hasDynamicData.
+      if (valueNode.type !== "object") hasDynamicData = true;
     }
   }
   return { hasDynamicMethods, hasDynamicData };
@@ -133,6 +138,18 @@ function dataBlockOf(objectNode) {
   return null;
 }
 
+function propertiesBlockOf(objectNode) {
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    const child = objectNode.namedChild(i);
+    if (child.type !== "pair") continue;
+    const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+    if (!keyNode || keyNode.type !== "property_identifier" || keyNode.text !== "properties") continue;
+    const valueNode = fieldChild(child, "value") ?? child.namedChild(1);
+    if (valueNode && valueNode.type === "object") return valueNode;
+  }
+  return null;
+}
+
 function extractDataKeys(dataObjectNode) {
   const out = [];
   for (let i = 0; i < dataObjectNode.namedChildCount; i++) {
@@ -153,6 +170,7 @@ export function extractMethods(parser, source) {
   const tree = parser.parse(source);
   const methods = [];
   const dataKeys = [];
+  const propertyKeys = [];
   let hasDynamicMethods = false;
   let hasDynamicData = false;
   const visit = (node) => {
@@ -190,6 +208,12 @@ export function extractMethods(parser, source) {
             if (containsSpread(dataBlock)) hasDynamicData = true;
             dataKeys.push(...extractDataKeys(dataBlock));
           }
+
+          const propertiesBlock = propertiesBlockOf(opts);
+          if (propertiesBlock) {
+            if (containsSpread(propertiesBlock)) hasDynamicData = true;
+            propertyKeys.push(...extractDataKeys(propertiesBlock));
+          }
         }
       }
     }
@@ -200,5 +224,5 @@ export function extractMethods(parser, source) {
     const ar = a.range.start, br = b.range.start;
     return (ar.row - br.row) || (ar.column - br.column);
   });
-  return { methods, hasDynamicMethods, dataKeys, hasDynamicData };
+  return { methods, hasDynamicMethods, dataKeys, propertyKeys, hasDynamicData };
 }

@@ -1,0 +1,3 @@
+<view wx:for="{{items}}" wx:for-item=user wx:for-index=i>
+  {{user.name}} / {{i}}
+</view>

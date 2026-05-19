@@ -205,20 +205,27 @@ function offsetToPositionWithin(text, offset) {
   return { rowDelta: row, columnOfRow: offset - lastNewline - 1 };
 }
 
-// Returns the inner string of a quoted_attribute_value when the value is a
-// plain string literal (NOT an interpolation). Used for wx:for-item /
-// wx:for-index where the value is a bare name like "user".
+// Returns the inner string of an attribute's value when it's a plain string
+// literal (NOT an interpolation). Used for wx:for-item / wx:for-index where
+// the value is a bare name like "user". Handles both quoted ("user") and
+// unquoted (user) forms — tree-sitter-wxml exposes them as distinct nodes.
 function quotedAttrTextValue(attrNode) {
-  const v = firstChildOfType(attrNode, "quoted_attribute_value");
-  if (!v) return null;
-  for (let i = 0; i < v.namedChildCount; i++) {
-    if (v.namedChild(i).type === "interpolation") return null;
+  const quoted = firstChildOfType(attrNode, "quoted_attribute_value");
+  if (quoted) {
+    for (let i = 0; i < quoted.namedChildCount; i++) {
+      if (quoted.namedChild(i).type === "interpolation") return null;
+    }
+    const text = quoted.text;
+    if (text.length >= 2 && (text[0] === '"' || text[0] === "'")) {
+      return text.slice(1, -1);
+    }
+    return text;
   }
-  const text = v.text;
-  if (text.length >= 2 && (text[0] === '"' || text[0] === "'")) {
-    return text.slice(1, -1);
+  const unquoted = firstChildOfType(attrNode, "attribute_value");
+  if (unquoted) {
+    return unquoted.text;
   }
-  return text;
+  return null;
 }
 
 function byPosition(a, b) {

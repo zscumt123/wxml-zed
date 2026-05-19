@@ -447,6 +447,7 @@ async function attachScripts(graph) {
       methods: info.methods,
       hasDynamicMethods: info.hasDynamicMethods,
       dataKeys: info.dataKeys,
+      propertyKeys: info.propertyKeys,
       hasDynamicData: info.hasDynamicData,
     };
   }

@@ -406,6 +406,19 @@ function assertExpressionRefDiagnosticNoScriptSkips(graph) {
   }
 }
 
+function assertExpressionRefDiagnosticUserCardClean(graph) {
+  // user-card.wxml references `user` three times ({{user.active ? 'active' : ''}},
+  // {{user.name}}, status="{{user.status}}"). user-card.js declares `user` only
+  // via Component({properties: {user: ...}}). Without propertyKeys in scope,
+  // each of those refs false-positives — this assertion locks the fix.
+  const diagnostics = getDiagnostics({ graph, documentPath: USER_CARD_WXML, extensionRoot: ROOT });
+  const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
+  assert(
+    exprDiags.length === 0,
+    `expression ref diagnostic (user-card properties): unexpected warnings ${JSON.stringify(exprDiags)}`,
+  );
+}
+
 function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
   const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
   assert(homeFile, "test setup: home file must exist in graph.wxml");
@@ -1447,6 +1460,7 @@ assertExpressionRefDiagnosticSuppressedByWxsModule(graph);
 assertExpressionRefDiagnosticSuppressedByWxForItem(graph);
 assertExpressionRefDiagnosticSuppressedByDynamicData(graph);
 assertExpressionRefDiagnosticNoScriptSkips(graph);
+assertExpressionRefDiagnosticUserCardClean(graph);
 assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);

@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/wasm-spike/wx-for-unquoted.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "items",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 16
+            },
+            "end": {
+              "row": 0,
+              "column": 21
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 16
+            },
+            "end": {
+              "row": 0,
+              "column": 21
+            }
+          }
+        },
+        {
+          "name": "user",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 4
+            },
+            "end": {
+              "row": 1,
+              "column": 8
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 4
+            },
+            "end": {
+              "row": 1,
+              "column": 13
+            }
+          }
+        },
+        {
+          "name": "i",
+          "source": "interpolation",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 20
+            },
+            "end": {
+              "row": 1,
+              "column": 21
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 20
+            },
+            "end": {
+              "row": 1,
+              "column": 21
+            }
+          }
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "user"
+        ],
+        "indexes": [
+          "i"
+        ],
+        "hasAnyWxFor": true
+      }
+    }
+  ]
+}

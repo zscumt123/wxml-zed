@@ -659,7 +659,20 @@ All eight language-service assertions use the Stage A `assertEventHandlerDefinit
 - Computed-key support in `data: { [name]: 1 }` — currently the affected key isn't extracted; future enhancement could flag `hasDynamicData` on computed keys
 - Quick-fix code action ("add missing data key to .js")
 - TS/TSX sibling files (same need as Stage C)
-- `properties: {...}` on Components — Stage A/C only walked `data:`, so refs to component properties like `{{user}}` in user-card.wxml currently rely on the WXS or data side; v2 should add `propertyKeys[]` from the Component options
+
+### Post-merge fixes (caught by review pass before any user-visible roll-out)
+
+Two blockers surfaced in a second-pass review after the initial Stage A merge:
+
+1. **Component `properties:` were not in scope.** The first cut only walked `data: {...}` in the JS extractor — but WeChat Components use `properties: { user: ..., label: ... }` for reactive template state, semantically identical to `data:` for `{{...}}` resolution. Result: every component WXML (user-card.wxml's three `{{user.*}}` refs, status-badge's `{{status}}`, global-badge / local-badge's `{{label}}`) would have produced a false-positive Warning the moment a user opened the file. Real-project ship blocker.
+
+   Fix: extend `extractMethods` to also return `propertyKeys[]` (parallel to `dataKeys`), populated by walking the `properties:` object literal via a `propertiesBlockOf` helper mirroring `dataBlockOf`. `dynamicFlagsFromProperties` now also detects `properties: <non-object>` (identifier / call / spread) and folds it into the same `hasDynamicData` flag, since properties contributes to template scope identically. Diagnostic scope adds `script.propertyKeys`. Three new cases in the script-info verifier (plain properties block, identifier reference, spread in properties) plus a new language-service assertion (`assertExpressionRefDiagnosticUserCardClean`) that runs the diagnostic against the real user-card.wxml fixture and asserts zero warnings — direct regression lock for the bug class.
+
+2. **Unquoted `wx:for-item` / `wx:for-index` ignored.** `tree-sitter-wxml` exposes both `<view wx:for-item="user">` (as `quoted_attribute_value`) AND `<view wx:for-item=user>` (as `attribute_value` — no quotes). The initial `quotedAttrTextValue` only handled the quoted form, so unquoted variants silently failed to populate `wxForBindings.items`, causing the corresponding `{{user.name}}` refs to false-positive.
+
+   Fix: `quotedAttrTextValue` now falls back to `attribute_value` when `quoted_attribute_value` is absent. New fixture `fixtures/wasm-spike/wx-for-unquoted.wxml` with `<view wx:for-item=user wx:for-index=i>` snapshot-locks the extracted `wxForBindings = {items: ["user"], indexes: ["i"], hasAnyWxFor: true}`. Verifier case added.
+
+Both bugs were specifically about real-world fixture patterns the test suite didn't exercise pre-merge — a reminder that exhaustive unit tests can still miss the real-world false-positive surfaces. The user-card fixture coverage is now a regression lock against the entire "properties not in scope" bug class.
 
 ---
 
