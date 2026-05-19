@@ -564,6 +564,10 @@ function eventHandlerDiagnostics(graph, documentGraphPath, fileModel) {
     // accepts (`binding=`, `bindable=`, …) — same strict gate completion uses.
     if (!isEventHandlerCompletionTrigger(attrNameFromHandler(entry))) continue;
     if (typeof entry.handler !== "string" || entry.handler.length === 0) continue;
+    // `catchtouchmove="true"` (and friends) is the documented WeChat idiom
+    // for "block this event without supplying a handler" — `"true"` /
+    // `"false"` aren't method references, so don't warn about them.
+    if (entry.handler === "true" || entry.handler === "false") continue;
     if (methodNames.has(entry.handler)) continue;
     out.push({
       range: rangeFromSymbolRange(entry.nameRange),

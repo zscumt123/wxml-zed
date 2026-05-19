@@ -263,6 +263,44 @@ function assertEventHandlerDiagnosticSuppressedByLooseBinding(graph) {
   }
 }
 
+function assertEventHandlerDiagnosticSuppressedByBooleanIdiom(graph) {
+  // `catchtouchmove="true"` is the WeChat idiom for blocking event bubble
+  // without supplying a method — handler === "true" / "false" must not warn.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.eventHandlers), "test setup: home file must have eventHandlers");
+  const truthy = {
+    event: "touchmove",
+    handler: "true",
+    binding: "catch",
+    dynamic: false,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  const falsy = {
+    event: "tap",
+    handler: "false",
+    binding: "bind",
+    dynamic: false,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  homeFile.eventHandlers.push(truthy, falsy);
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
+    const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+    const leaked = handlerDiags.filter((d) => d.message.includes('"true"') || d.message.includes('"false"'));
+    assert(
+      leaked.length === 0,
+      `event handler diagnostic (boolean idiom): leaked warnings ${JSON.stringify(leaked)}`,
+    );
+  } finally {
+    for (const synth of [truthy, falsy]) {
+      const idx = homeFile.eventHandlers.indexOf(synth);
+      if (idx >= 0) homeFile.eventHandlers.splice(idx, 1);
+    }
+  }
+}
+
 function assertEventHandlerDiagnosticNoScriptSkips(graph) {
   const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
   assert(homeConfig && homeConfig.script, "test setup: home config must have script");
@@ -1468,6 +1506,7 @@ assertEventHandlerDiagnosticMissingHandlerNoColon(graph);
 assertEventHandlerDiagnosticSuppressedByDynamic(graph);
 assertEventHandlerDiagnosticSuppressedByDynamicMethods(graph);
 assertEventHandlerDiagnosticSuppressedByLooseBinding(graph);
+assertEventHandlerDiagnosticSuppressedByBooleanIdiom(graph);
 assertEventHandlerDiagnosticNoScriptSkips(graph);
 // Phase 3 Stage A — Expression reference diagnostic
 assertExpressionRefDiagnosticClean(graph);
