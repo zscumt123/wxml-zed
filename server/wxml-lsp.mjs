@@ -214,6 +214,10 @@ async function buildProjectGraph(projectRoot) {
         cwd: EXTENSION_ROOT,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
+        // Same reasoning as runSymbolExtractor: large real-project graphs
+        // (200+ .wxml) emit multi-MB JSON; the default 1MB cap would fail
+        // the LSP init silently.
+        maxBuffer: 256 * 1024 * 1024,
       }, (error, stdout, stderr) => {
         if (error) {
           error.message = stderr ? `${error.message}\n${stderr}` : error.message;

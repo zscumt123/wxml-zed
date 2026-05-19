@@ -87,6 +87,10 @@ function runSymbolExtractor(files) {
       cwd: ROOT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "inherit"],
+      // Real-project surveys hit ~3MB stdout at ~220 .wxml files. Default
+      // 1MB cap silently fails with ENOBUFS — set a generous bound so
+      // large project graphs build instead of crashing the LSP at init.
+      maxBuffer: 256 * 1024 * 1024,
     },
   );
 
