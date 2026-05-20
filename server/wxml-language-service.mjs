@@ -369,20 +369,40 @@ function eventHandlerValueContext(sourceText, position) {
   };
 }
 
-function isPositionInsideTemplateDefinition(fileModel, position) {
-  // fileModel.symbols[kind: "template"] has `range` covering the full
-  // <template name="X">...</template> block (per the WXML extractor's
-  // template_definition case). Cursor in any such range means we're
-  // in template body — candidates from owner data are misleading.
-  for (const sym of fileModel.symbols ?? []) {
-    if (sym.kind === "template" && containsPosition(sym.range, position)) {
-      return true;
-    }
+function isCursorInsideTemplateDefinitionBody(sourceText, offset) {
+  // Source-text walk (NOT graph-based): completion fires on every keystroke
+  // against the current buffer, but the graph only rebuilds on save. If a
+  // user types a new `<template name="X">...</template>` in an unsaved
+  // buffer, fileModel.symbols wouldn't include it yet — so we'd leak owner
+  // data candidates into the template body. Reading sourceText directly
+  // makes the check live with the buffer.
+  //
+  // Counts `<template ... name=...>` opens and `</template>` closes that
+  // appear before the cursor. If unclosed opens > closes, cursor is inside
+  // a template definition body. Doesn't match `<template is=...>` (template
+  // usage); that's by design — usage doesn't introduce caller-passed scope.
+  const events = [];
+  const openRegex = /<template\s+[^>]*?\bname\s*=/gu;
+  const closeRegex = /<\/template\s*>/gu;
+  let m;
+  while ((m = openRegex.exec(sourceText)) !== null) {
+    if (m.index >= offset) break;
+    events.push({ pos: m.index, kind: "open" });
   }
-  return false;
+  while ((m = closeRegex.exec(sourceText)) !== null) {
+    if (m.index >= offset) break;
+    events.push({ pos: m.index, kind: "close" });
+  }
+  events.sort((a, b) => a.pos - b.pos);
+  let depth = 0;
+  for (const e of events) {
+    if (e.kind === "open") depth += 1;
+    else depth = Math.max(0, depth - 1);
+  }
+  return depth > 0;
 }
 
-function interpolationCompletionContext(sourceText, position, fileModel) {
+function interpolationCompletionContext(sourceText, position) {
   const offset = offsetAt(sourceText, position);
   if (offset === undefined) return undefined;
   if (!isInsideDelimitedRange(sourceText, offset, "{{", "}}")) return undefined;
@@ -395,7 +415,9 @@ function interpolationCompletionContext(sourceText, position, fileModel) {
   // Cursor inside `<template name="X">...</template>` body? Symmetric to
   // expressionRefDiagnostics' inTemplateDefinition gate — template-body
   // refs resolve against caller scope, not this file's owner script.
-  if (isPositionInsideTemplateDefinition(fileModel, position)) {
+  // Source-text scan, not graph-based: completion runs against the live
+  // buffer text, which can be unsaved/un-graphed.
+  if (isCursorInsideTemplateDefinitionBody(sourceText, offset)) {
     return { typed: "", suppress: true };
   }
 
@@ -635,7 +657,7 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
     return [];
   }
 
-  const interpolationContext = interpolationCompletionContext(sourceText, position, fileModel);
+  const interpolationContext = interpolationCompletionContext(sourceText, position);
   if (interpolationContext) {
     if (interpolationContext.suppress) return [];
     return dataRefCompletionItems(graph, documentGraphPath, fileModel, interpolationContext.range);

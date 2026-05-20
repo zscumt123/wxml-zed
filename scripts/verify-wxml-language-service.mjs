@@ -400,38 +400,23 @@ function assertDataRefCompletionIncludesWxsModule(graph) {
 }
 
 function assertDataRefCompletionSuppressedInTemplateDefinition(graph) {
-  // Synthetic single-line source. Cursor inside `<template name="X">` body.
-  // home.wxml's fileModel.symbols doesn't include template_definition entries
-  // naturally (home uses templates only as call sites), so inject a synthetic
-  // template-range symbol covering the cursor line.
+  // Source-text walk in interpolationCompletionContext is the source of
+  // truth for "is cursor inside <template name="X"> body?" — independent
+  // of graph state. This exercises the real-world unsaved-buffer scenario:
+  // user types a new template_definition that the graph doesn't know about
+  // yet, but completion must still suppress owner data.
   const { source, position } = sourceWithCursor('<template name="X">{{th|}}</template>\n');
-  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
-  assert(homeFile && Array.isArray(homeFile.symbols), "test setup: home file must have symbols");
-  const originalSymbols = homeFile.symbols;
-  const synthetic = {
-    kind: "template",
-    name: "X",
-    range: {
-      start: { row: position.line, column: 0 },
-      end: { row: position.line, column: source.length },
-    },
-  };
-  homeFile.symbols = [...originalSymbols, synthetic];
-  try {
-    const items = getCompletions({
-      graph,
-      documentPath: HOME_WXML,
-      position,
-      sourceText: source,
-      extensionRoot: ROOT,
-    });
-    assert(
-      Array.isArray(items) && items.length === 0,
-      `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
-    );
-  } finally {
-    homeFile.symbols = originalSymbols;
-  }
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assert(
+    Array.isArray(items) && items.length === 0,
+    `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
+  );
 }
 
 // Phase 3 Stage A — Expression reference diagnostic ------------------
