@@ -411,6 +411,58 @@ function updateOpenDocumentText(uri, text) {
   return recordOpenDocument(uri, text);
 }
 
+function scheduleOverlayDiagnostics(uri) {
+  cancelOverlayTimer(uri);
+  const timer = setTimeout(() => {
+    overlayTimers.delete(uri);
+    runOverlayDiagnostics(uri).catch((err) => {
+      logDiagnosticError(`overlay diagnostics failed for ${uri}: ${err?.message || err}`);
+    });
+  }, OVERLAY_DEBOUNCE_MS);
+  overlayTimers.set(uri, timer);
+}
+
+async function runOverlayDiagnostics(uri) {
+  const document = openDocuments.get(uri);
+  if (!document || typeof document.text !== "string") return;
+  if (path.extname(document.path) !== ".wxml") return;
+
+  const projectRoot = resolveMiniProgramRoot(document.path);
+  if (!projectRoot) return;
+
+  const parser = await getWxmlParser();
+  if (!parser) return;  // wasm load failed — user falls back to save-time diagnostics
+
+  let fileModel;
+  try {
+    const tree = parser.parse(document.text);
+    fileModel = collectFile(tree, document.path);
+  } catch (err) {
+    logDiagnosticError(`WXML parse failed for ${document.path}: ${err?.message || err}`);
+    return;
+  }
+
+  // Store overlay FIRST — even if the initial graph build hasn't finished
+  // yet, publishPendingDiagnostics will read this overlay when the build
+  // does complete, so the user's first observed diagnostic reflects the
+  // live buffer rather than disk state.
+  overlaysForRoot(projectRoot).set(uri, fileModel);
+
+  // If the saved graph IS ready, publish the overlay-augmented diagnostic
+  // immediately. If not, the deferred publish via publishPendingDiagnostics
+  // will handle it when the in-flight build completes.
+  const graph = graphsByRoot.get(projectRoot);
+  if (!graph) return;
+
+  const diagnostics = getDiagnostics({
+    graph,
+    documentPath: document.path,
+    extensionRoot: EXTENSION_ROOT,
+    fileModelOverride: fileModel,
+  });
+  publishDiagnostics(uri, diagnostics);
+}
+
 function scheduleDiagnostics(uri, text = undefined) {
   const document = recordOpenDocument(uri, text);
   if (!document) {
@@ -668,6 +720,7 @@ function handleMessage(message) {
           : undefined;
         if (fullChange) {
           updateOpenDocumentText(uri, fullChange.text);
+          scheduleOverlayDiagnostics(uri);
         }
       }
       break;

@@ -891,6 +891,117 @@ async function testDataRefCompletion() {
   });
 }
 
+async function testRealtimeDiagnosticsOnDidChange() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 1,
+      "home initial diagnostics (missing-card)",
+    );
+
+    // Replace home.wxml content with a synthetic that has a missing handler
+    // and references no other unresolved tags. Overlay should publish
+    // EXACTLY one diagnostic — the missing-event-handler we introduce.
+    const withMissingHandler = '<view><button bind:tap="__notInJs__">x</button></view>\n';
+    const cursor = client.diagnosticCursor();
+    client.changeDocument(HOME_WXML, withMissingHandler);
+
+    await client.waitForDiagnosticsAfter(
+      uri,
+      cursor,
+      (items) => (
+        items.length === 1
+        && items[0].code === "missing-event-handler"
+        && items[0].message.includes("__notInJs__")
+      ),
+      "realtime: missing-handler appears on didChange (length=1)",
+    );
+
+    // Now change the document to a fully clean buffer. Overlay should
+    // re-parse and publish EXACTLY zero diagnostics.
+    const clean = '<view>plain</view>\n';
+    const cursor2 = client.diagnosticCursor();
+    client.changeDocument(HOME_WXML, clean, 3);
+
+    await client.waitForDiagnosticsAfter(
+      uri,
+      cursor2,
+      (items) => items.length === 0,
+      "realtime: diagnostics clear to [] on clean revert",
+    );
+  });
+}
+
+async function testOverlaySurvivesGraphRebuild() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 1,
+      "home initial diagnostics",
+    );
+
+    // Plant a missing-handler overlay on home.wxml.
+    const withMissingHandler = '<view><button bind:tap="__overlay_survivor__">x</button></view>\n';
+    const cursor = client.diagnosticCursor();
+    client.changeDocument(HOME_WXML, withMissingHandler);
+    await client.waitForDiagnosticsAfter(
+      uri,
+      cursor,
+      (items) => (
+        items.length === 1
+        && items[0].code === "missing-event-handler"
+        && items[0].message.includes("__overlay_survivor__")
+      ),
+      "race lock: overlay diagnostic published before rebuild",
+    );
+
+    // Trigger a graph rebuild on the same root via watched-files notification
+    // on a sibling .wxml file. The rebuild will read disk (which still has
+    // the original home.wxml content — no missing handler there) but the
+    // publishPendingDiagnostics MUST honor home's overlay.
+    const cursor2 = client.diagnosticCursor();
+    client.changeWatchedFiles([USER_CARD_WXML]);
+
+    await client.waitForDiagnosticsAfter(
+      uri,
+      cursor2,
+      (items) => (
+        items.length === 1
+        && items[0].code === "missing-event-handler"
+        && items[0].message.includes("__overlay_survivor__")
+      ),
+      "race lock: overlay diagnostic still present after graph rebuild",
+    );
+  });
+}
+
+async function testOverlayBeforeInitialGraph() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    // Do NOT await initial diagnostics — fire didChange immediately. The
+    // initial graph build is still in flight (subprocess; takes seconds).
+    // The 150ms overlay debounce will fire well before the graph completes.
+    const withMissingHandler = '<view><button bind:tap="__pre_graph__">x</button></view>\n';
+    client.changeDocument(HOME_WXML, withMissingHandler);
+
+    // Eventually, the user's observed diagnostic should reflect the
+    // overlay (live buffer's missing handler) — not the disk's missing-
+    // card. Final stable state is the overlay's diagnostic regardless
+    // of publish ordering.
+    await client.waitForDiagnostics(
+      uri,
+      (items) => (
+        items.length === 1
+        && items[0].code === "missing-event-handler"
+        && items[0].message.includes("__pre_graph__")
+      ),
+      "pre-graph race: overlay diagnostic surfaces (eventually) instead of disk state",
+    );
+  });
+}
+
 async function testTemplateCompletion() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1451,6 +1562,9 @@ const scenarios = [
   ["coalesced async build behavior", testAsyncCoalescingAndResponsiveness],
   ["event handler completion", testEventHandlerCompletion],
   ["data ref completion", testDataRefCompletion],
+  ["realtime diagnostics on didChange", testRealtimeDiagnosticsOnDidChange],
+  ["overlay survives graph rebuild", testOverlaySurvivesGraphRebuild],
+  ["overlay before initial graph", testOverlayBeforeInitialGraph],
 ];
 
 const SCENARIO_SUITES = {
@@ -1472,6 +1586,9 @@ const SCENARIO_SUITES = {
     "completion immediately after open",
     "event handler completion",
     "data ref completion",
+    "realtime diagnostics on didChange",
+    "overlay survives graph rebuild",
+    "overlay before initial graph",
     "unsupported request behavior",
   ],
   full: scenarios.map(([name]) => name),
