@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Parser, Language } from "web-tree-sitter";
 
 import {
   getCompletions,
@@ -10,13 +11,16 @@ import {
   getDiagnostics,
   getDocumentSymbols,
 } from "./wxml-language-service.mjs";
+import { collectFile } from "../shared/wxml-symbol-extractor.mjs";
 
 const EXTENSION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRAPH_EXTRACTOR = path.join(EXTENSION_ROOT, "scripts/extract-wxml-project-graph.mjs");
+const WXML_WASM = path.join(EXTENSION_ROOT, "grammar/tree-sitter-wxml/tree-sitter-wxml.wasm");
 const GRAPH_AFFECTING_EXTENSIONS = new Set([".json", ".wxml", ".wxs"]);
 const WATCH_REGISTRATION_ID = "wxml-zed-watch-registration";
 const WATCH_REGISTRATION_METHOD = "workspace/didChangeWatchedFiles";
 const WATCH_REGISTRATION_GLOBS = ["**/*.json", "**/*.wxml", "**/*.wxs"];
+const OVERLAY_DEBOUNCE_MS = 150;
 
 let buffer = Buffer.alloc(0);
 let shutdownRequested = false;
@@ -28,6 +32,20 @@ const graphsByRoot = new Map();
 const buildStateByRoot = new Map();
 const pendingDiagnosticsByRoot = new Map();
 const graphWaitersByRoot = new Map();
+
+// Lazy parser: initialized on first didChange. null on permanent failure
+// (wasm not loadable in this environment) — caller falls back to saved-
+// graph diagnostics.
+let wxmlParserPromise = null;
+let wxmlParserFailed = false;
+
+// openDocumentOverlays[root][uri] = freshly-extracted fileModel from the
+// current buffer text. Empty by default — populated on didChange, cleared
+// on didOpen/didSave/didClose.
+const openDocumentOverlays = new Map();
+
+// Per-uri debounce timers for overlay refresh.
+const overlayTimers = new Map();
 
 function fileUriToPath(uri) {
   if (!uri || !uri.startsWith("file://")) return undefined;
@@ -62,6 +80,58 @@ function requestClient(id, method, params) {
     method,
     params,
   });
+}
+
+async function getWxmlParser() {
+  if (wxmlParserFailed) return null;
+  if (wxmlParserPromise) return wxmlParserPromise;
+
+  wxmlParserPromise = (async () => {
+    try {
+      await Parser.init();
+      const language = await Language.load(WXML_WASM);
+      const parser = new Parser();
+      parser.setLanguage(language);
+      return parser;
+    } catch (err) {
+      wxmlParserFailed = true;
+      process.stderr.write(
+        `WARN: WXML wasm parser load failed (${err?.message || err}); overlay diagnostics disabled, falling back to saved-graph diagnostics on save\n`,
+      );
+      return null;
+    }
+  })();
+
+  return wxmlParserPromise;
+}
+
+function overlaysForRoot(projectRoot) {
+  let perRoot = openDocumentOverlays.get(projectRoot);
+  if (!perRoot) {
+    perRoot = new Map();
+    openDocumentOverlays.set(projectRoot, perRoot);
+  }
+  return perRoot;
+}
+
+function getOverlayFileModel(projectRoot, uri) {
+  const perRoot = openDocumentOverlays.get(projectRoot);
+  if (!perRoot) return undefined;
+  return perRoot.get(uri);
+}
+
+function cancelOverlayTimer(uri) {
+  const t = overlayTimers.get(uri);
+  if (t) {
+    clearTimeout(t);
+    overlayTimers.delete(uri);
+  }
+}
+
+function clearOverlay(projectRoot, uri) {
+  const perRoot = openDocumentOverlays.get(projectRoot);
+  if (perRoot) perRoot.delete(uri);
+  cancelOverlayTimer(uri);
 }
 
 function publishDiagnostics(uri, diagnostics) {
@@ -238,7 +308,11 @@ function publishPendingDiagnostics(projectRoot, diagnosticsForUri) {
   for (const [uri] of pending) {
     const document = openDocuments.get(uri);
     if (!document) continue;
-    publishDiagnostics(uri, diagnosticsForUri(uri, document.path));
+    // Overlay-aware: if the buffer has been edited since last save, the
+    // overlay holds the freshly-extracted fileModel. Pass it through so
+    // the publish reflects live buffer state, not stale disk state.
+    const overlay = getOverlayFileModel(projectRoot, uri);
+    publishDiagnostics(uri, diagnosticsForUri(uri, document.path, overlay));
   }
   pending.clear();
 }
@@ -268,8 +342,8 @@ async function runGraphBuild(projectRoot) {
     const graph = await buildProjectGraph(projectRoot);
     if (activeGeneration === state.latestGeneration) {
       graphsByRoot.set(projectRoot, graph);
-      publishPendingDiagnostics(projectRoot, (_uri, documentPath) => (
-        getDiagnostics({ graph, documentPath, extensionRoot: EXTENSION_ROOT })
+      publishPendingDiagnostics(projectRoot, (_uri, documentPath, overlay) => (
+        getDiagnostics({ graph, documentPath, extensionRoot: EXTENSION_ROOT, fileModelOverride: overlay })
       ));
       resolveGraphWaiters(projectRoot, graph);
     } else {
@@ -385,6 +459,12 @@ function handleWatchedFilesChanged(params) {
 
 function closeDocument(uri) {
   openDocuments.delete(uri);
+  // Clear overlay for all roots — the document is gone; if it was open
+  // under multiple roots (rare but possible if Zed had nested workspaces),
+  // any stored overlay should drop. Scan to be safe.
+  for (const root of openDocumentOverlays.keys()) {
+    clearOverlay(root, uri);
+  }
   for (const pending of pendingDiagnosticsByRoot.values()) {
     pending.delete(uri);
   }
@@ -569,10 +649,15 @@ function handleMessage(message) {
       break;
 
     case "textDocument/didOpen":
-      scheduleDiagnostics(
-        message.params?.textDocument?.uri,
-        message.params?.textDocument?.text,
-      );
+      {
+        const uri = message.params?.textDocument?.uri;
+        const documentPath = fileUriToPath(uri);
+        if (documentPath) {
+          const projectRoot = resolveMiniProgramRoot(documentPath);
+          if (projectRoot) clearOverlay(projectRoot, uri);
+        }
+        scheduleDiagnostics(uri, message.params?.textDocument?.text);
+      }
       break;
 
     case "textDocument/didChange":
@@ -588,7 +673,18 @@ function handleMessage(message) {
       break;
 
     case "textDocument/didSave":
-      scheduleDiagnostics(message.params?.textDocument?.uri, message.params?.text);
+      {
+        const uri = message.params?.textDocument?.uri;
+        // Clear overlay BEFORE scheduling the graph rebuild — when the buffer
+        // matches disk, the saved graph becomes truth-of-record again and
+        // any pending debounced didChange shouldn't fire stale overlay.
+        const document = openDocuments.get(uri);
+        if (document) {
+          const projectRoot = resolveMiniProgramRoot(document.path);
+          if (projectRoot) clearOverlay(projectRoot, uri);
+        }
+        scheduleDiagnostics(uri, message.params?.text);
+      }
       break;
 
     case "workspace/didChangeWatchedFiles":
