@@ -586,10 +586,10 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
   if (ownerConfig.script.hasDynamicData) return [];
 
   const scope = new Set();
-  for (const key of ownerConfig.script.dataKeys ?? []) scope.add(key);
+  for (const key of ownerConfig.script.dataKeys ?? []) scope.add(key.name);
   // Component properties contribute to template scope identically to data
   // (see WeChat docs on `properties:` — values are reactive template state).
-  for (const key of ownerConfig.script.propertyKeys ?? []) scope.add(key);
+  for (const key of ownerConfig.script.propertyKeys ?? []) scope.add(key.name);
   for (const sym of fileModel.symbols ?? []) {
     if (sym.kind === "wxs" && typeof sym.name === "string") scope.add(sym.name);
   }

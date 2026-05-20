@@ -333,7 +333,7 @@ function assertExpressionRefDiagnosticMissingInterpolation(graph) {
   const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
   assert(homeConfig && homeConfig.script, "test setup: home config must have script");
   const original = homeConfig.script.dataKeys;
-  homeConfig.script.dataKeys = original.filter((k) => k !== "theme");
+  homeConfig.script.dataKeys = original.filter((k) => k.name !== "theme");
   try {
     const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
     const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -355,7 +355,7 @@ function assertExpressionRefDiagnosticMissingDirective(graph) {
   const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
   assert(homeConfig && homeConfig.script, "test setup: home config must have script");
   const original = homeConfig.script.dataKeys;
-  homeConfig.script.dataKeys = original.filter((k) => k !== "users");
+  homeConfig.script.dataKeys = original.filter((k) => k.name !== "users");
   try {
     const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
     const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");

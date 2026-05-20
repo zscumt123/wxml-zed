@@ -301,19 +301,31 @@ async function main() {
       `${label}: methods expected [${expectedNames.join(", ")}], got [${actualNames.join(", ")}]`,
     );
 
-    const actualDataKeys = [...result.dataKeys].sort();
+    const actualDataKeys = [...result.dataKeys.map((k) => k.name)].sort();
     const expectedDataKeys = [...dataKeys].sort();
     assert(
       actualDataKeys.length === expectedDataKeys.length && actualDataKeys.every((n, i) => n === expectedDataKeys[i]),
       `${label}: dataKeys expected [${expectedDataKeys.join(", ")}], got [${actualDataKeys.join(", ")}]`,
     );
 
-    const actualPropertyKeys = [...result.propertyKeys].sort();
+    const actualPropertyKeys = [...result.propertyKeys.map((k) => k.name)].sort();
     const expectedPropertyKeys = [...propertyKeys].sort();
     assert(
       actualPropertyKeys.length === expectedPropertyKeys.length && actualPropertyKeys.every((n, i) => n === expectedPropertyKeys[i]),
       `${label}: propertyKeys expected [${expectedPropertyKeys.join(", ")}], got [${actualPropertyKeys.join(", ")}]`,
     );
+
+    // Structural assertion: each returned entry has a nameRange with numeric row/column.
+    for (const entry of [...result.dataKeys, ...result.propertyKeys]) {
+      assert(
+        entry.nameRange
+          && typeof entry.nameRange.start?.row === "number"
+          && typeof entry.nameRange.start?.column === "number"
+          && typeof entry.nameRange.end?.row === "number"
+          && typeof entry.nameRange.end?.column === "number",
+        `${label}: entry "${entry.name}" missing valid nameRange ${JSON.stringify(entry.nameRange)}`,
+      );
+    }
   }
   process.stdout.write("PASS\n");
   process.stdout.write(`\nAll ${CASES.length} script-info cases match.\n`);

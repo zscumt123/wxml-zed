@@ -172,20 +172,22 @@ function extractDataKeys(dataObjectNode) {
       const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
       if (!keyNode) continue;
       if (keyNode.type === "property_identifier") {
-        out.push(keyNode.text);
+        out.push({ name: keyNode.text, nameRange: rangeOf(keyNode) });
       } else if (keyNode.type === "string") {
         // Quoted key (`"foo": 1` / `'foo': 1`). Extract if the inner text
         // is a valid JS identifier — invalid shapes (`"with-dash"`, `"123"`,
         // `""`) cannot be referenced from a WXML expression, so leaving them
-        // out doesn't widen the false-positive surface.
+        // out doesn't widen the false-positive surface. nameRange points at
+        // the inner string_fragment (not the quote chars) so cmd-click lands
+        // on the actual identifier text.
         const fragment = firstChildOfType(keyNode, "string_fragment");
         const text = fragment ? fragment.text : "";
         if (IDENTIFIER_SHAPE.test(text)) {
-          out.push(text);
+          out.push({ name: text, nameRange: rangeOf(fragment) });
         }
       }
     } else if (child.type === "shorthand_property_identifier") {
-      out.push(child.text);
+      out.push({ name: child.text, nameRange: rangeOf(child) });
     }
   }
   return out;
