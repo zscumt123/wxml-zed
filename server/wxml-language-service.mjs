@@ -405,7 +405,11 @@ function isCursorInsideTemplateDefinitionBody(sourceText, offset) {
       if (tagEnd === -1) break;
       const tagText = sourceText.slice(i, tagEnd + 1);
       const isSelfClosing = tagText[tagText.length - 2] === "/";
-      const isDefinition = /\bname\s*=/u.test(tagText);
+      // `\b` would match `data-name=` (boundary at the dash). Require an
+      // attribute boundary — start of string or whitespace — before `name`
+      // so suffix-match attributes (`data-name`, `foo-name`) don't false-
+      // trigger template-definition suppression.
+      const isDefinition = /(?:^|\s)name\s*=/u.test(tagText);
       if (isDefinition && !isSelfClosing) depth += 1;
       i = tagEnd + 1;
       continue;

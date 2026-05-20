@@ -448,6 +448,24 @@ function assertDataRefCompletionTemplateScannerHardenedCases(graph) {
       marked: '<template is="X">{{th|}}</template>\n',
       expectIncludesTheme: true,  // usage doesn't introduce template-scope — completion fires
     },
+    {
+      label: "template with data-name= attribute (suffix not real name)",
+      marked: '<template data-name="X">{{th|}}</template>\n',
+      expectIncludesTheme: true,  // data-name is NOT the name attribute — no suppression
+    },
+    {
+      label: "template is= usage with data-name= sibling attribute",
+      marked: '<template is="X" data-name="foo" data="{{th|}}" />\n',
+      // This is a template USAGE (is=) with a data-name attribute. Even
+      // with two ways the scanner could be fooled (data-name suffix, and
+      // the {{...}} sitting inside an attribute value), the strict
+      // attribute-boundary check must keep depth=0 and completion firing.
+      // BUT: the cursor is also inside `data="{{th}}"` — an inline object
+      // literal-style template data — wait, `data="{{th}}"` is a single
+      // interpolation, not an object literal. interpolationCompletionContext
+      // will fire normally, and dataRefCompletion should include theme.
+      expectIncludesTheme: true,
+    },
   ];
   for (const { label, marked, expectIncludesTheme } of cases) {
     const { source, position } = sourceWithCursor(marked);

@@ -768,14 +768,14 @@ The branch also returns `[]` (not undefined) when inside `{{...}}` but at a non-
   }
   ```
 
-- [ ] **Step 3: Add `interpolationCompletionContext(sourceText, position, fileModel)`**
+- [ ] **Step 3: Add `interpolationCompletionContext(sourceText, position)`**
 
-  The helper takes `fileModel` (in addition to sourceText/position) so it can consult `fileModel.symbols[]` to detect "cursor inside a `<template name="X">` body" — same semantic as the Phase 3 Stage A diagnostic suppression. Without this gate, typing `{{u|}}` inside a template definition would suggest the owner script's data even though template-body refs resolve against the CALLER's data scope (passed via `<template is="X" data="{{...}}"/>`), not the local script.
+  Completion fires on every keystroke against the live buffer (`sourceText`), but the graph rebuilds only on save. So the in-template-definition check MUST read sourceText directly, not the (potentially-stale) graph's `fileModel.symbols`. The signature is `(sourceText, position)` — no `fileModel` dependency. A companion `isCursorInsideTemplateDefinitionBody(sourceText, offset)` does the source-text scan.
 
   Place near the other `*Context` helpers (after `eventHandlerValueContext`):
 
   ```js
-  function interpolationCompletionContext(sourceText, position, fileModel) {
+  function interpolationCompletionContext(sourceText, position) {
     const offset = offsetAt(sourceText, position);
     if (offset === undefined) return undefined;
     if (!isInsideDelimitedRange(sourceText, offset, "{{", "}}")) return undefined;
@@ -788,7 +788,9 @@ The branch also returns `[]` (not undefined) when inside `{{...}}` but at a non-
     // Cursor inside `<template name="X">...</template>` body? Symmetric to
     // expressionRefDiagnostics' inTemplateDefinition gate — template-body
     // refs resolve against caller scope, not this file's owner script.
-    if (isPositionInsideTemplateDefinition(fileModel, position)) {
+    // Source-text scan, not graph-based: completion runs against the live
+    // buffer text, which can be unsaved/un-graphed.
+    if (isCursorInsideTemplateDefinitionBody(sourceText, offset)) {
       return { typed: "", suppress: true };
     }
 
@@ -846,17 +848,81 @@ The branch also returns `[]` (not undefined) when inside `{{...}}` but at a non-
     };
   }
 
-  function isPositionInsideTemplateDefinition(fileModel, position) {
-    // fileModel.symbols[kind: "template"] has `range` covering the full
-    // <template name="X">...</template> block (per the WXML extractor's
-    // `template_definition` case). Cursor in any such range means we're
-    // in template body — completion candidates from owner data are wrong.
-    for (const sym of fileModel.symbols ?? []) {
-      if (sym.kind === "template" && containsPosition(sym.range, position)) {
-        return true;
+  function isCursorInsideTemplateDefinitionBody(sourceText, offset) {
+    // Source-text state-machine walk. Counts real `<template name=...>`
+    // opens and `</template>` closes that appear before cursor. Naive
+    // two-regex counting is wrong in three ways:
+    //   - `<!-- <template name=X> -->` (comment) false-bumps depth
+    //   - `<!-- </template> -->` inside real def false-drops depth
+    //   - `<view data="<template name=fake>">` (attr value) false-bumps
+    // Plus self-closing `<template name="X"/>` shouldn't introduce a body.
+    // Plus `data-name=` shouldn't match the name attribute (handled by
+    // strict attribute-boundary regex: `/(?:^|\s)name\s*=/u`).
+    let i = 0;
+    let depth = 0;
+    while (i < offset) {
+      // Comment — skip to closing `-->`.
+      if (sourceText.startsWith("<!--", i)) {
+        const end = sourceText.indexOf("-->", i + 4);
+        i = end === -1 ? offset : end + 3;
+        continue;
+      }
+      // `<template ...>` — check it's a real definition (name= attribute)
+      // and not self-closing before bumping depth.
+      if (
+        sourceText.startsWith("<template", i)
+        && i + 9 < sourceText.length
+        && /[\s>/]/.test(sourceText[i + 9])
+      ) {
+        const tagEnd = findUnquotedGreaterThan(sourceText, i + 9);
+        if (tagEnd === -1) break;
+        const tagText = sourceText.slice(i, tagEnd + 1);
+        const isSelfClosing = tagText[tagText.length - 2] === "/";
+        // Strict attribute-boundary: `\bname` would also match `data-name`.
+        const isDefinition = /(?:^|\s)name\s*=/u.test(tagText);
+        if (isDefinition && !isSelfClosing) depth += 1;
+        i = tagEnd + 1;
+        continue;
+      }
+      // `</template>` — decrement (clamped at zero).
+      if (sourceText.startsWith("</template", i)) {
+        const close = sourceText.indexOf(">", i);
+        if (close === -1) break;
+        depth = Math.max(0, depth - 1);
+        i = close + 1;
+        continue;
+      }
+      // Any other opening tag — skip its `>` via quote-aware finder so
+      // attribute values can't be peeked into.
+      if (sourceText[i] === "<" && i + 1 < sourceText.length) {
+        const next = sourceText[i + 1];
+        if (next === "/" || next === "!" || next === "?" || /[A-Za-z]/u.test(next)) {
+          const tagEnd = findUnquotedGreaterThan(sourceText, i + 1);
+          if (tagEnd === -1) break;
+          i = tagEnd + 1;
+          continue;
+        }
+      }
+      i += 1;
+    }
+    return depth > 0;
+  }
+
+  function findUnquotedGreaterThan(sourceText, start) {
+    // Returns the index of the next `>` from `start`, skipping `>` chars
+    // inside single/double-quoted attribute values.
+    let inQuote = null;
+    for (let i = start; i < sourceText.length; i += 1) {
+      const ch = sourceText[i];
+      if (inQuote) {
+        if (ch === inQuote) inQuote = null;
+      } else if (ch === '"' || ch === "'") {
+        inQuote = ch;
+      } else if (ch === ">") {
+        return i;
       }
     }
-    return false;
+    return -1;
   }
   ```
 
@@ -929,7 +995,7 @@ The branch also returns `[]` (not undefined) when inside `{{...}}` but at a non-
       return [];
     }
 
-    const interpolationContext = interpolationCompletionContext(sourceText, position, fileModel);
+    const interpolationContext = interpolationCompletionContext(sourceText, position);
     if (interpolationContext) {
       if (interpolationContext.suppress) return [];
       return dataRefCompletionItems(graph, documentGraphPath, fileModel, interpolationContext.range);
@@ -1091,50 +1157,32 @@ Six unit assertions: positive data + positive property + negative member-access 
 
 - [ ] **Step 5b: Add the in-template-definition negative assertion**
 
-  Lock the suppression added in Task 5 Step 3 / `isPositionInsideTemplateDefinition`. The check reads `fileModel.symbols` for `kind: "template"` ranges. home.wxml itself uses templates only as call sites (`<template is="...">`), so `home`'s real fileModel has zero template-definition symbols — meaning a synthetic source like `<template name="X">{{th|}}</template>` against `HOME_WXML` would NOT trigger the suppression naturally (the gate sees no template symbols and falls through to a positive completion result).
-
-  Two ways to fix this: (a) inject a synthetic template-definition symbol into `homeFile.symbols` for the cursor's line range, or (b) point `documentPath` at a fixture that genuinely contains `<template name="...">` and arrange synthetic-text. (a) is the simpler mutation pattern that matches Stage A's precedent.
+  Lock the suppression added in Task 5 Step 3 / `isCursorInsideTemplateDefinitionBody`. The check reads `sourceText` directly (NOT `fileModel.symbols` — completion fires per keystroke against the live buffer, but the graph only rebuilds on save). The assertion is simple: synthetic source with cursor inside a real `<template name="X">` body, expect zero candidates.
 
   ```js
   function assertDataRefCompletionSuppressedInTemplateDefinition(graph) {
-    // Synthetic source on a single line — cursor inside `<template name="X">` body.
-    // `theme` exists in home.js data; without suppression, completion would suggest
-    // it. Symbol mutation injects a template-definition range covering the cursor
-    // so `isPositionInsideTemplateDefinition` actually fires.
+    // Real-world unsaved-buffer scenario: user types a new template_definition
+    // that the graph doesn't know about yet, but completion must still suppress
+    // owner data. The source-text walk in interpolationCompletionContext handles
+    // this independently of graph state.
     const { source, position } = sourceWithCursor('<template name="X">{{th|}}</template>\n');
-    const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
-    assert(homeFile && Array.isArray(homeFile.symbols), "test setup: home file must have symbols");
-    const originalSymbols = homeFile.symbols;
-    const synthetic = {
-      kind: "template",
-      name: "X",
-      // Cover the whole synthetic line — cursor at `{line: 0, character: ...}`
-      // is guaranteed to fall inside this range.
-      range: {
-        start: { row: position.line, column: 0 },
-        end: { row: position.line, column: source.length },
-      },
-    };
-    homeFile.symbols = [...originalSymbols, synthetic];
-    try {
-      const items = getCompletions({
-        graph,
-        documentPath: HOME_WXML,
-        position,
-        sourceText: source,
-        extensionRoot: ROOT,
-      });
-      assert(
-        Array.isArray(items) && items.length === 0,
-        `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
-      );
-    } finally {
-      homeFile.symbols = originalSymbols;
-    }
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    });
+    assert(
+      Array.isArray(items) && items.length === 0,
+      `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
+    );
   }
   ```
 
   Why suppression is `[]` rather than "candidates from a caller-passed scope": at completion time we don't know which call sites will instantiate this template, so showing candidates from any single call site would be misleading. Symmetric to the diagnostic suppression decision in Phase 3 Stage A.
+
+  Companion `assertDataRefCompletionTemplateScannerHardenedCases` table-tests scanner edge cases that naive regex counting mis-handles: comments containing fake template tags (in both open and close direction), attribute values containing template-tag-like text (`<view data="<template name=fake>">`), self-closing template definitions (`<template name="X"/>`), `<template is="X">` usage (not a definition; must NOT suppress), and `<template data-name="X">` (data-name is NOT the `name` attribute — must NOT suppress because the strict attribute-boundary regex `/(?:^|\s)name\s*=/u` requires whitespace before `name`).
 
 - [ ] **Step 6: Register all six in the runner**
 
@@ -1265,13 +1313,13 @@ Six unit assertions: positive data + positive property + negative member-access 
   - Data-shape refactor: `dataKeys` / `propertyKeys` went from `string[]` to `{name, nameRange}[]`. Same pattern as `methods[]` already had. Required because Definition needs the source position to navigate to. Side-effect: Phase 3 Stage A's two diagnostic mutation tests needed their string-equality filter predicates rewritten to `.name` comparisons — a class of false-green hazard noted before the refactor shipped.
   - Definition is AUTHORITATIVE narrow-first (slotted between event-handler and component dispatch). Skip on `inTemplateDefinition` mirrors Phase 3 Stage A's diagnostic gate.
   - Completion required restructuring `isExcludedCompletionContext` — `{{...}}` moved out (it's now actively handled, not silently dropped). Renamed `isInsideRawTextOrComment` keeps comment + wxs exclusion semantics intact.
-  - Completion's four suppression paths: object literal (whole-expression check), member access (after `.`), template literal (backtick → bail), AND `<template name="X">` body (via fileModel.symbols range check — same semantic as the Phase 3 Stage A diagnostic gate).
+  - Completion's five suppression paths: object literal (whole-expression check), member access (after `.`), template literal (backtick → bail), unclosed string literal (quote-state walk), AND `<template name="X">` body (via sourceText state-machine walk that respects comments / attribute-value quoting / self-closing tags / strict `name=` attribute-boundary). The template-def gate is source-text-based (not graph-based) because completion fires on every keystroke against the live buffer, but the graph only rebuilds on save.
   - Test infra reuse: assertions follow the Stage A graph-mutation pattern; protocol tests mirror Stage A/B precedent (using `changeDocument` + `assertCompletionTextEdit` for full range coverage rather than label-only checks); no new fixtures.
   - Phase 3 Stage C carry-over (all unblocked by Task 1's data lift): wxs module Definition (cursor on `format` in `{{format.price(total)}}` → jump to `<wxs module="format">` line); Quick-fix code action ("add data key to .js" for missing-expression-ref); Hover (`{{user.name}}` hover → "user: property from this Component").
 
 - [ ] **Step 2: Sync this plan doc**
 
-  Re-read the plan and reconcile each code block against what was shipped. Most-likely drift points: the dispatch insertion positions (Task 3 Step 1 for Definition, Task 5 Step 5 for Completion wire), the case schema in Task 1 Step 3 if any extra assertions were needed, and the synthetic symbol-mutation pattern in Task 6 Step 5b if the gate's signature drifted.
+  Re-read the plan and reconcile each code block against what was shipped. Most-likely drift points: the dispatch insertion positions (Task 3 Step 1 for Definition, Task 5 Step 5 for Completion wire), the case schema in Task 1 Step 3 if any extra assertions were needed, and the `isCursorInsideTemplateDefinitionBody` state machine in Task 5 Step 3 if any edge case had to be added during execution.
 
 - [ ] **Step 3: Commit**
 
@@ -1320,13 +1368,13 @@ Six unit assertions: positive data + positive property + negative member-access 
 - [ ] Every step that changes code shows the actual code.
 - [ ] Every step that runs a command shows the exact command and expected output.
 - [ ] No "TBD" / "appropriate" / "similar to" placeholders.
-- [ ] Type names consistent across tasks: `extractDataKeys` (new return shape `{name, nameRange}[]`), `expressionRefMatch` (Task 3), `interpolationCompletionContext` (Task 5), `dataRefCompletionItems` (Task 5), `isPositionInsideTemplateDefinition` (Task 5), `isInsideRawTextOrComment` (Task 5 rename).
+- [ ] Type names consistent across tasks: `extractDataKeys` (new return shape `{name, nameRange}[]`), `expressionRefMatch` (Task 3), `interpolationCompletionContext(sourceText, position)` (Task 5), `dataRefCompletionItems` (Task 5), `isCursorInsideTemplateDefinitionBody(sourceText, offset)` (Task 5), `findUnquotedGreaterThan` (Task 5 helper), `isInsideRawTextOrComment` (Task 5 rename).
 - [ ] The Definition `code` field is implicit (Location response, no code field). The Completion responses use `COMPLETION_ITEM_KIND_PROPERTY`.
 - [ ] All 10 new assertion names match between definition and registration. Specifically: 4 Definition + 6 Completion.
-- [ ] `interpolationCompletionContext` takes `fileModel` as a third argument and checks `isPositionInsideTemplateDefinition` BEFORE the object-literal / member-access / template-literal gates. Without this, completion inside `<template name="X">` body leaks owner data into candidates — symmetric breakage to what Phase 3 Stage A's diagnostic gate prevents.
+- [ ] `interpolationCompletionContext(sourceText, position)` checks `isCursorInsideTemplateDefinitionBody(sourceText, offset)` BEFORE the object-literal / member-access / template-literal gates. Source-text walk only, NO graph dependency — graph rebuilds on save, completion fires per keystroke; using stale graph would leak owner data for unsaved template definitions. State-machine respects comments, attribute-value quotes, self-closing template definitions, and strict `name=` attribute-boundary (not `data-name=` suffix matches).
 - [ ] Task 1 Step 4b's mutation-filter rewrite is applied; `original.filter((k) => k !== "...")` becomes `original.filter((k) => k.name !== "...")` at both call sites. A grep AFTER Task 1 commits should return ZERO matches for `(k) => k !==` patterns referencing dataKeys/propertyKeys.
 - [ ] Task 6 Step 7's LSP protocol test uses `changeDocument` to inject synthetic source AND asserts `assertCompletionTextEdit` with explicit range/newText, not just label inclusion.
-- [ ] Task 6 Step 5b's in-template-definition assertion injects a synthetic `kind: "template"` symbol covering the cursor line; without this, the gate sees zero template symbols (home.wxml's real fileModel has none) and the suppression doesn't fire.
+- [ ] Task 6 Step 5b's in-template-definition assertion uses synthetic source only — no graph-symbol mutation needed because `isCursorInsideTemplateDefinitionBody` reads sourceText directly. (Per the post-Stage-B fix replacing graph-based detection with a source-text state machine.)
 - [ ] Hand-computed home.wxml column offsets (line 4 col 22 inside theme; line 1 col 25 inside user) verified against fixtures — re-confirm against the actual files if anything seems off.
 - [ ] The dispatch order is narrow-first: event-handler → data-ref → component → dependency. Verify Task 3 Step 1 puts the new branch BETWEEN event-handler (line 681-ish) and component (line 683-ish).
 - [ ] `isInsideRawTextOrComment` still excludes comments and inline wxs raw text. Verify Task 5 Step 2 didn't accidentally drop those clauses too.
