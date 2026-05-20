@@ -674,6 +674,70 @@ Two blockers surfaced in a second-pass review after the initial Stage A merge:
 
 Both bugs were specifically about real-world fixture patterns the test suite didn't exercise pre-merge — a reminder that exhaustive unit tests can still miss the real-world false-positive surfaces. The user-card fixture coverage is now a regression lock against the entire "properties not in scope" bug class.
 
+## Phase 3 Stage B Outcome (WXML Data Reference Definition + Completion v1)
+
+The WXML/JS cross-reference is now symmetric for the two big categories of identifier: event handlers (Stage A/B) and data references (this stage). cmd-click on `{{theme}}` jumps to `home.js`'s `theme: "light"` line; typing `{{th|}}` lists candidates from the file's full template scope. Definition covers data + property references (wxs module names and wx:for-item/index names are explicit out-of-scope-but-data-lifted — Phase 3 Stage C candidates). Completion covers all four scope sources.
+
+### Architecture: mirror Stage A + B
+
+| Concept | Stage A (handlers) | Stage B (data) |
+|---|---|---|
+| Data source | `fileModel.eventHandlers[]` + `script.methods[]` | `fileModel.expressionRefs[]` + `script.dataKeys[]` + `script.propertyKeys[]` |
+| Definition narrowing | `containsPosition(entry.nameRange, position)` | `containsPosition(entry.range, position)` |
+| Definition dispatch | AUTHORITATIVE first | AUTHORITATIVE second (after handler, before component) |
+| Suppression on dynamic | `entry.dynamic === true` | `entry.inTemplateDefinition === true` |
+| Completion gate | Inside `bind:tap="..."` value via regex on tail of source | Inside `{{...}}` via `lastIndexOf("{{")` + matching state machine |
+
+### Data-shape refactor (Task 1)
+
+`extractDataKeys` returned `string[]`. Definition needs `nameRange` to navigate. Refactored to `{name: string, nameRange: Range}[]`, same shape as `methods[]`. POC extractor baseline byte-identical (only `.methods` serialized).
+
+Side-effect caught before merge: Phase 3 Stage A's diagnostic mutation tests used `original.filter((k) => k !== "theme")` — that compares an object to a string, permanently false, the filter would have removed nothing, and the diagnostic would NOT have fired in the test. The `expect(diagnostic).toExist()` assertion would have failed loudly here, but the symmetric "expect zero diagnostics" pattern in other places would have silently false-greened. Two-line fix to use `k.name !== "..."`.
+
+### Helpers relocation (Task 2)
+
+`looksLikeObjectLiteralExpression`, `stripStringLiterals`, `topLevelIdentifiers` lived in `scripts/extract-wxml-symbols.mjs` (single consumer at the time). Stage B's completion needed them in the runtime LSP server. Standard layering: server code doesn't import from `scripts/`. Moved to `shared/wxml-expression-helpers.mjs`, mirroring `shared/event-binding-patterns.mjs` precedent.
+
+### Completion suppression matrix
+
+The new `interpolationCompletionContext` returns `{typed, range, suppress}` and has five suppression paths:
+
+| Trigger | Why suppress |
+|---|---|
+| Cursor inside `<template name="X">` body | Template-body refs resolve in caller scope, not local. Symmetric to Phase 3 Stage A diagnostic gate. |
+| Object literal shape (`{key: ...}` over the whole enclosing expression) | Identifiers in property-key position aren't refs. |
+| Cursor inside an unclosed string literal | Found while running Stage A tests against Stage B's branch: `{{ '<view |' }}` would otherwise leak candidates into a token-like context. State machine walk tracks quote state with escape handling. |
+| Member access (cursor after `.`) | Property tails aren't local scope. |
+| Template literal (backtick) anywhere in expression | Conservative bail per `stripStringLiterals` contract. |
+| Cross-line typed | textEdit range assumes the typed prefix is on the cursor's line. |
+
+### Test harness lessons
+
+Three Phase 2 / pre-Stage-B assertions were written under the "all `{{...}}` cursors return []" assumption and needed updating when Stage B legitimately fired data-ref completion there:
+
+- `assertOutsideTagCompletionReturnsEmpty` (Phase 1): used `{{ | }}` as a synthetic "outside element" position. Moved to true outside-everything (`<view>plain text|</view>`).
+- `assertDynamicTemplateCompletionReturnsEmpty` (Phase 1): assertion narrowed from "items === []" to "template names not in labels" — the test's actual intent (don't suggest template names when name is dynamic) is preserved.
+- `SYNTHETIC_HANDLER_COMPLETION_CASES "dynamic {{...}}"` (Phase 2 Stage B): `expect: empty` → `expect: exclude`. Same pattern — preserve intent (no method names in dynamic-handler context), accept that data refs DO appear there now.
+
+These weren't bugs in the old tests so much as overspecification — they checked a stronger property than the spec actually required, and Stage B legitimately changed the surface they touched. Now updated to test the more precise property each was actually about.
+
+### LSP protocol coverage
+
+Two new tests in `verify-lsp-diagnostics.mjs`:
+
+- `testDataRefDefinition`: opens home.wxml, requests definition at `{{theme}}`'s position, asserts uri/range.
+- `testDataRefCompletion`: uses `changeDocument` to swap in synthetic `<view>{{th}}</view>`, requests completion at the right column, asserts BOTH label inclusion AND exact `textEdit.range` — catches the false-green where range only covers part of the typed text.
+
+Both registered in `graph-smoke` (umbrella picks them up) and `full` suites.
+
+### Phase 3 Stage C carry-over (all unblocked by Task 1's data lift)
+
+- wxs module Definition: cursor on `format` in `{{format.price(total)}}` → jump to `<wxs module="format">` line. `fileModel.symbols[kind:"wxs"]` already has the range; ~10 lines in `getDefinition`.
+- Quick-fix code actions for missing-expression-ref ("add data key to .js"): the dataKey nameRange enables a precise insertion point in the `data: {...}` block.
+- Hover (`{{user.name}}` on `user` → "user: property (Object) from this Component"): same lookup as Definition, return markdown instead of Location.
+- wx:for-item / wx:for-index Definition: low-value (cursor adjacent to attribute anyway).
+- Cross-component property name validation: `<user-card user="{{x}}"/>` — `user` attribute name isn't validated against user-card.js's `properties:`. Needs a new diagnostic; data is already lifted.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
