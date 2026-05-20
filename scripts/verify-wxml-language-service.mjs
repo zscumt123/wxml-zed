@@ -400,11 +400,10 @@ function assertDataRefCompletionIncludesWxsModule(graph) {
 }
 
 function assertDataRefCompletionSuppressedInTemplateDefinition(graph) {
-  // Source-text walk in interpolationCompletionContext is the source of
-  // truth for "is cursor inside <template name="X"> body?" — independent
-  // of graph state. This exercises the real-world unsaved-buffer scenario:
-  // user types a new template_definition that the graph doesn't know about
-  // yet, but completion must still suppress owner data.
+  // Real-world unsaved-buffer scenario: user types a new template_definition
+  // that the graph doesn't know about yet, but completion must still suppress
+  // owner data. The source-text walk in interpolationCompletionContext handles
+  // this independently of graph state.
   const { source, position } = sourceWithCursor('<template name="X">{{th|}}</template>\n');
   const items = getCompletions({
     graph,
@@ -417,6 +416,55 @@ function assertDataRefCompletionSuppressedInTemplateDefinition(graph) {
     Array.isArray(items) && items.length === 0,
     `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
   );
+}
+
+function assertDataRefCompletionTemplateScannerHardenedCases(graph) {
+  // Table-driven cases that exercise the state-machine scanner specifically.
+  // Each line tests a scenario where naive regex counting would mis-judge:
+  // comments, attribute-value quotes, self-closing template definitions.
+  const cases = [
+    {
+      label: "comment with fake open",
+      marked: '<!-- <template name="X"> --><view>{{th|}}</view>\n',
+      expectIncludesTheme: true,  // outside any real template def — completion fires
+    },
+    {
+      label: "real template, fake close in comment",
+      marked: '<template name="X"><!-- </template> -->{{th|}}</template>\n',
+      expectIncludesTheme: false,  // inside template body — suppress
+    },
+    {
+      label: "attr value with fake template tag",
+      marked: '<view data="<template name=fake>">{{th|}}</view>\n',
+      expectIncludesTheme: true,  // fake tag is inside attribute value — completion fires
+    },
+    {
+      label: "self-closing template def then outside",
+      marked: '<template name="X"/><view>{{th|}}</view>\n',
+      expectIncludesTheme: true,  // self-closing introduces no body — completion fires
+    },
+    {
+      label: "template is= usage (not definition)",
+      marked: '<template is="X">{{th|}}</template>\n',
+      expectIncludesTheme: true,  // usage doesn't introduce template-scope — completion fires
+    },
+  ];
+  for (const { label, marked, expectIncludesTheme } of cases) {
+    const { source, position } = sourceWithCursor(marked);
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    });
+    const labels = items.map((item) => item.label);
+    const has = labels.includes("theme");
+    assert(
+      has === expectIncludesTheme,
+      `data-ref completion scanner (${label}): expected includes-theme=${expectIncludesTheme}, got ${has}; labels=${JSON.stringify(labels)}`,
+    );
+  }
 }
 
 // Phase 3 Stage A — Expression reference diagnostic ------------------
@@ -1776,6 +1824,7 @@ assertDataRefCompletionSuppressedAtMemberAccess(graph);
 assertDataRefCompletionSuppressedInObjectLiteral(graph);
 assertDataRefCompletionIncludesWxsModule(graph);
 assertDataRefCompletionSuppressedInTemplateDefinition(graph);
+assertDataRefCompletionTemplateScannerHardenedCases(graph);
 assertExpressionRefDiagnosticClean(graph);
 assertExpressionRefDiagnosticMissingInterpolation(graph);
 assertExpressionRefDiagnosticMissingDirective(graph);

@@ -377,29 +377,80 @@ function isCursorInsideTemplateDefinitionBody(sourceText, offset) {
   // data candidates into the template body. Reading sourceText directly
   // makes the check live with the buffer.
   //
-  // Counts `<template ... name=...>` opens and `</template>` closes that
-  // appear before the cursor. If unclosed opens > closes, cursor is inside
-  // a template definition body. Doesn't match `<template is=...>` (template
-  // usage); that's by design — usage doesn't introduce caller-passed scope.
-  const events = [];
-  const openRegex = /<template\s+[^>]*?\bname\s*=/gu;
-  const closeRegex = /<\/template\s*>/gu;
-  let m;
-  while ((m = openRegex.exec(sourceText)) !== null) {
-    if (m.index >= offset) break;
-    events.push({ pos: m.index, kind: "open" });
-  }
-  while ((m = closeRegex.exec(sourceText)) !== null) {
-    if (m.index >= offset) break;
-    events.push({ pos: m.index, kind: "close" });
-  }
-  events.sort((a, b) => a.pos - b.pos);
+  // A two-regex count would mis-handle comments (`<!-- <template name=X> -->`
+  // would false-bump depth, `<!-- </template> -->` inside a real definition
+  // would false-decrement) and attribute values containing tag-like text
+  // (`<view data="<template name=fake>">` would false-bump). Use a forward
+  // state machine instead: skip past comments, respect attribute-value
+  // quoting, count only real opening `<template name=>` and `</template>`,
+  // and ignore self-closing template definitions (they don't introduce a
+  // body that can wrap the cursor).
+  let i = 0;
   let depth = 0;
-  for (const e of events) {
-    if (e.kind === "open") depth += 1;
-    else depth = Math.max(0, depth - 1);
+  while (i < offset) {
+    // HTML comment — skip past closing `-->`.
+    if (sourceText.startsWith("<!--", i)) {
+      const end = sourceText.indexOf("-->", i + 4);
+      i = end === -1 ? offset : end + 3;
+      continue;
+    }
+    // Opening `<template ...>` — check it's a definition (has name= attribute)
+    // and not self-closing before adjusting depth.
+    if (
+      sourceText.startsWith("<template", i)
+      && i + 9 < sourceText.length
+      && /[\s>/]/.test(sourceText[i + 9])
+    ) {
+      const tagEnd = findUnquotedGreaterThan(sourceText, i + 9);
+      if (tagEnd === -1) break;
+      const tagText = sourceText.slice(i, tagEnd + 1);
+      const isSelfClosing = tagText[tagText.length - 2] === "/";
+      const isDefinition = /\bname\s*=/u.test(tagText);
+      if (isDefinition && !isSelfClosing) depth += 1;
+      i = tagEnd + 1;
+      continue;
+    }
+    // Closing `</template>` — decrement; clamp at zero.
+    if (sourceText.startsWith("</template", i)) {
+      const close = sourceText.indexOf(">", i);
+      if (close === -1) break;
+      depth = Math.max(0, depth - 1);
+      i = close + 1;
+      continue;
+    }
+    // ANY OTHER opening tag — skip past its `>` (quote-aware), so attribute
+    // values like `<view data="<template name=fake>">` don't false-bump.
+    if (sourceText[i] === "<" && i + 1 < sourceText.length) {
+      const next = sourceText[i + 1];
+      if (next === "/" || next === "!" || next === "?" || /[A-Za-z]/u.test(next)) {
+        const tagEnd = findUnquotedGreaterThan(sourceText, i + 1);
+        if (tagEnd === -1) break;
+        i = tagEnd + 1;
+        continue;
+      }
+    }
+    i += 1;
   }
   return depth > 0;
+}
+
+// Walks forward from `start` (positioned somewhere inside a tag, after the
+// opening `<`) and returns the index of the tag's closing `>`. Skips `>`
+// characters that appear inside attribute-value quotes (`<view data=">"`).
+// Returns -1 if no closing `>` exists before end-of-source.
+function findUnquotedGreaterThan(sourceText, start) {
+  let inQuote = null;
+  for (let i = start; i < sourceText.length; i += 1) {
+    const ch = sourceText[i];
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    } else if (ch === ">") {
+      return i;
+    }
+  }
+  return -1;
 }
 
 function interpolationCompletionContext(sourceText, position) {
