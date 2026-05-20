@@ -320,6 +320,112 @@ function assertEventHandlerDiagnosticNoScriptSkips(graph) {
 
 // Phase 3 Stage A — Expression reference diagnostic ------------------
 
+// Phase 3 Stage B — Data ref definition ---------------------------------
+
+function assertDataRefDefinitionToData(graph) {
+  // home.wxml {{theme}} at line 4 col 20-25; cursor mid-name at col 22.
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 4, character: 22 },
+    extensionRoot: ROOT,
+  });
+  assert(location, "data-ref definition (theme): expected Location, got null");
+  assert(
+    location.uri.endsWith("/fixtures/miniprogram/pages/home/home.js"),
+    `data-ref definition (theme): uri ${location.uri}`,
+  );
+  assert(
+    typeof location.range.start.line === "number" && typeof location.range.start.character === "number",
+    `data-ref definition (theme): bad range ${JSON.stringify(location.range)}`,
+  );
+  assert(
+    location.range.start.line >= 0 && location.range.start.line < 20,
+    `data-ref definition (theme): line out of range ${location.range.start.line}`,
+  );
+  assert(
+    location.range.end.character > location.range.start.character || location.range.end.line > location.range.start.line,
+    `data-ref definition (theme): empty range ${JSON.stringify(location.range)}`,
+  );
+}
+
+function assertDataRefDefinitionToProperty(graph) {
+  // user-card.wxml {{user.name}} at line 1; user is the top-level ref.
+  const location = getDefinition({
+    graph,
+    documentPath: USER_CARD_WXML,
+    position: { line: 1, character: 25 },
+    extensionRoot: ROOT,
+  });
+  assert(location, "data-ref definition (user): expected Location, got null");
+  assert(
+    location.uri.endsWith("/fixtures/miniprogram/components/user-card/user-card.js"),
+    `data-ref definition (user): uri ${location.uri}`,
+  );
+  assert(
+    typeof location.range.start.line === "number"
+      && location.range.start.line >= 0
+      && location.range.start.line < 20,
+    `data-ref definition (user): line out of range ${JSON.stringify(location.range)}`,
+  );
+  assert(
+    location.range.end.character > location.range.start.character || location.range.end.line > location.range.start.line,
+    `data-ref definition (user): empty range ${JSON.stringify(location.range)}`,
+  );
+}
+
+function assertDataRefDefinitionInTemplateReturnsNull(graph) {
+  // Synthesize an expressionRef inside a template definition. The name
+  // "theme" IS in home.js dataKeys — without inTemplateDefinition gating,
+  // Definition would resolve. The gate must short-circuit and return null.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.expressionRefs), "test setup: home file must have expressionRefs");
+  const originalRefs = homeFile.expressionRefs;
+  const synthetic = {
+    name: "theme",
+    source: "interpolation",
+    inTemplateDefinition: true,
+    range: { start: { row: 100, column: 0 }, end: { row: 100, column: 5 } },
+    expressionRange: { start: { row: 100, column: 0 }, end: { row: 100, column: 5 } },
+  };
+  homeFile.expressionRefs = [...originalRefs, synthetic];
+  try {
+    const location = getDefinition({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 100, character: 2 },
+      extensionRoot: ROOT,
+    });
+    assert(
+      location === null,
+      `data-ref definition (in template def): expected null, got ${JSON.stringify(location)}`,
+    );
+  } finally {
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
+function assertDataRefDefinitionMissingKeyReturnsNull(graph) {
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  assert(homeConfig && homeConfig.script, "test setup: home config must have script");
+  const original = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = original.filter((k) => k.name !== "theme");
+  try {
+    const location = getDefinition({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 4, character: 22 },
+      extensionRoot: ROOT,
+    });
+    assert(
+      location === null,
+      `data-ref definition (missing key): expected null (authoritative miss), got ${JSON.stringify(location)}`,
+    );
+  } finally {
+    homeConfig.script.dataKeys = original;
+  }
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -1538,6 +1644,11 @@ assertEventHandlerDiagnosticSuppressedByLooseBinding(graph);
 assertEventHandlerDiagnosticSuppressedByBooleanIdiom(graph);
 assertEventHandlerDiagnosticNoScriptSkips(graph);
 // Phase 3 Stage A — Expression reference diagnostic
+// Phase 3 Stage B — Data ref definition
+assertDataRefDefinitionToData(graph);
+assertDataRefDefinitionToProperty(graph);
+assertDataRefDefinitionInTemplateReturnsNull(graph);
+assertDataRefDefinitionMissingKeyReturnsNull(graph);
 assertExpressionRefDiagnosticClean(graph);
 assertExpressionRefDiagnosticMissingInterpolation(graph);
 assertExpressionRefDiagnosticMissingDirective(graph);

@@ -680,6 +680,28 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
     return locationForGraphPathWithRange(ownerConfig.script.path, method.nameRange, extensionRoot);
   }
 
+  // Expression reference: cursor inside a `{{theme}}` interpolation ref name.
+  // AUTHORITATIVE — narrow nameRange dominates the broader component-element
+  // range that follows. If the ref resolves through dataKeys/propertyKeys,
+  // jump to the .js source position; otherwise return null (the
+  // missing-expression-ref diagnostic will already warn separately).
+  const expressionRefMatch = (fileModel.expressionRefs ?? [])
+    .find((entry) => containsPosition(entry.range, position));
+  if (expressionRefMatch) {
+    if (expressionRefMatch.inTemplateDefinition) return null;
+    const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+    if (!ownerConfig) return null;
+    const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+    if (dataKey) {
+      return locationForGraphPathWithRange(ownerConfig.script.path, dataKey.nameRange, extensionRoot);
+    }
+    const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+    if (propKey) {
+      return locationForGraphPathWithRange(ownerConfig.script.path, propKey.nameRange, extensionRoot);
+    }
+    return null;
+  }
+
   const component = fileModel.components.find((entry) => containsPosition(entry.range, position));
   if (component) {
     const usingComponent = graph.usingComponents.find((entry) => (

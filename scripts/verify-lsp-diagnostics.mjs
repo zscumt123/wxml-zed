@@ -638,6 +638,24 @@ async function testEventHandlerDefinition() {
   });
 }
 
+async function testDataRefDefinition() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before data-ref definition");
+    // home.wxml line 4 `<view class="home {{theme}}">` — cursor inside `theme`.
+    const result = await client.definition(HOME_WXML, { line: 4, character: 22 });
+    assert(result, "data-ref definition: expected Location response");
+    assert(
+      result.uri.endsWith("/fixtures/miniprogram/pages/home/home.js"),
+      `data-ref definition: uri ${result.uri}`,
+    );
+    assert(
+      typeof result.range.start.line === "number" && typeof result.range.start.character === "number",
+      `data-ref definition: bad range ${JSON.stringify(result.range)}`,
+    );
+  });
+}
+
 async function testImportDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1363,6 +1381,7 @@ const scenarios = [
   ["watch registration skipped when unsupported", testWatchRegistrationSkippedWhenUnsupported],
   ["home component definition", testHomeComponentDefinition],
   ["event handler definition", testEventHandlerDefinition],
+  ["data ref definition", testDataRefDefinition],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1420,6 +1439,7 @@ const SCENARIO_SUITES = {
     "watch registration skipped when unsupported",
     "home component definition",
     "event handler definition",
+    "data ref definition",
     "completion immediately after open",
     "event handler completion",
     "unsupported request behavior",
