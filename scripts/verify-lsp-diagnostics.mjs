@@ -863,6 +863,34 @@ async function testEventHandlerCompletion() {
   });
 }
 
+async function testDataRefCompletion() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 1,
+      "home diagnostics before data-ref completion",
+    );
+    // Replace home.wxml with synthetic body `<view>{{th}}</view>`. Cursor at
+    // line 0, character 10 lands right after `th` and before `}`.
+    // typed = "th", range start = col 10 - 2 = 8, range end = col 10.
+    const synthetic = '<view>{{th}}</view>\n';
+    client.changeDocument(HOME_WXML, synthetic, 2);
+
+    const result = await client.completion(HOME_WXML, { line: 0, character: 10 });
+    assertCompletionLabelsInclude(result, ["theme"], "data ref completion");
+    assertCompletionTextEdit(
+      result,
+      "theme",
+      {
+        range: { start: { line: 0, character: 8 }, end: { line: 0, character: 10 } },
+        newText: "theme",
+      },
+      "data ref completion",
+    );
+  });
+}
+
 async function testTemplateCompletion() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1422,6 +1450,7 @@ const scenarios = [
   ["unsupported request behavior", testUnsupportedRequest],
   ["coalesced async build behavior", testAsyncCoalescingAndResponsiveness],
   ["event handler completion", testEventHandlerCompletion],
+  ["data ref completion", testDataRefCompletion],
 ];
 
 const SCENARIO_SUITES = {
@@ -1442,6 +1471,7 @@ const SCENARIO_SUITES = {
     "data ref definition",
     "completion immediately after open",
     "event handler completion",
+    "data ref completion",
     "unsupported request behavior",
   ],
   full: scenarios.map(([name]) => name),

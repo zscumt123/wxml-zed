@@ -5,6 +5,10 @@ import { pathToFileURL } from "node:url";
 import { BUILTIN_TAG_NAMES } from "../shared/wxml-builtins.mjs";
 import { isEventHandlerCompletionTrigger } from "../shared/event-binding-patterns.mjs";
 import { METHOD_KIND_COMPONENT_LIFECYCLE } from "../shared/js-method-extractor.mjs";
+import {
+  looksLikeObjectLiteralExpression,
+  stripStringLiterals,
+} from "../shared/wxml-expression-helpers.mjs";
 
 const WARNING = 2;
 const DOCUMENT_SYMBOL_KIND_FILE = 1;
@@ -245,10 +249,12 @@ function isInsideInlineWxsRawText(sourceText, offset) {
   return !/\/>\s*$/u.test(openTag);
 }
 
-function isExcludedCompletionContext(sourceText, offset) {
+function isInsideRawTextOrComment(sourceText, offset) {
+  // Comments and inline <wxs> raw text never accept completions.
+  // The {{...}} interpolation case used to be excluded here too, but
+  // moved out — data-ref completion now handles inside-{{...}} positions.
   return (
     isInsideDelimitedRange(sourceText, offset, "<!--", "-->") ||
-    isInsideDelimitedRange(sourceText, offset, "{{", "}}") ||
     isInsideInlineWxsRawText(sourceText, offset)
   );
 }
@@ -363,6 +369,87 @@ function eventHandlerValueContext(sourceText, position) {
   };
 }
 
+function isPositionInsideTemplateDefinition(fileModel, position) {
+  // fileModel.symbols[kind: "template"] has `range` covering the full
+  // <template name="X">...</template> block (per the WXML extractor's
+  // template_definition case). Cursor in any such range means we're
+  // in template body — candidates from owner data are misleading.
+  for (const sym of fileModel.symbols ?? []) {
+    if (sym.kind === "template" && containsPosition(sym.range, position)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function interpolationCompletionContext(sourceText, position, fileModel) {
+  const offset = offsetAt(sourceText, position);
+  if (offset === undefined) return undefined;
+  if (!isInsideDelimitedRange(sourceText, offset, "{{", "}}")) return undefined;
+
+  // Find the most recent `{{` start before cursor — the interpolation we're in.
+  const before = sourceText.slice(0, offset);
+  const startIdx = before.lastIndexOf("{{");
+  if (startIdx === -1) return undefined;
+
+  // Cursor inside `<template name="X">...</template>` body? Symmetric to
+  // expressionRefDiagnostics' inTemplateDefinition gate — template-body
+  // refs resolve against caller scope, not this file's owner script.
+  if (isPositionInsideTemplateDefinition(fileModel, position)) {
+    return { typed: "", suppress: true };
+  }
+
+  // Inspect the full enclosing expression (start to matching }}) for
+  // object-literal shape, which suppresses identifier completion across
+  // the whole expression.
+  const endIdx = sourceText.indexOf("}}", offset);
+  const fullExpr = endIdx !== -1 ? sourceText.slice(startIdx + 2, endIdx) : sourceText.slice(startIdx + 2);
+  if (looksLikeObjectLiteralExpression(fullExpr)) return { typed: "", suppress: true };
+
+  // Prefix from `{{` to cursor; partial identifier at the end.
+  const exprPrefix = sourceText.slice(startIdx + 2, offset);
+  const stripped = stripStringLiterals(exprPrefix);
+  if (stripped === null) return { typed: "", suppress: true };
+
+  // Cursor inside an unclosed string literal? `{{ '<view |' }}`-style tokens
+  // shouldn't surface identifier candidates. Walk the prefix tracking quote
+  // state with escape handling; if we end still inside a quote, suppress.
+  let inQuote = null;
+  for (let i = 0; i < exprPrefix.length; i += 1) {
+    const ch = exprPrefix[i];
+    if (inQuote) {
+      if (ch === "\\" && i + 1 < exprPrefix.length) { i += 1; continue; }
+      if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+    }
+  }
+  if (inQuote !== null) return { typed: "", suppress: true };
+
+  const m = stripped.match(/([A-Za-z_$][A-Za-z0-9_$]*)$/u);
+  const typed = m ? m[1] : "";
+
+  // Member access: if the char just before typed is `.`, suppress.
+  const prevIdx = stripped.length - typed.length - 1;
+  if (prevIdx >= 0 && stripped[prevIdx] === ".") {
+    return { typed: "", suppress: true };
+  }
+
+  // Cross-line typed isn't supported — the textEdit range assumes typed
+  // lives on the cursor's line.
+  if (typed.includes("\n")) return { typed: "", suppress: true };
+
+  const startCharacter = position.character - typed.length;
+  return {
+    typed,
+    suppress: false,
+    range: {
+      start: { line: position.line, character: startCharacter },
+      end: { line: position.line, character: position.character },
+    },
+  };
+}
+
 function templateIsContext(sourceText, position) {
   const prefix = currentLinePrefix(sourceText, position);
   if (typeof prefix !== "string") return undefined;
@@ -457,6 +544,41 @@ function findOwnerConfigWithScript(graph, documentGraphPath) {
   )) ?? null;
 }
 
+function dataRefCompletionItems(graph, documentGraphPath, fileModel, range) {
+  const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+  const seen = new Set();
+  const items = [];
+
+  const pushName = (name, detail) => {
+    if (typeof name !== "string" || name.length === 0) return;
+    if (seen.has(name)) return;
+    seen.add(name);
+    items.push(completionItem(name, COMPLETION_ITEM_KIND_PROPERTY, detail, range));
+  };
+
+  if (ownerConfig && !ownerConfig.script.hasDynamicData) {
+    for (const key of ownerConfig.script.dataKeys ?? []) pushName(key.name, "data");
+    for (const key of ownerConfig.script.propertyKeys ?? []) pushName(key.name, "property");
+  }
+
+  for (const sym of fileModel.symbols ?? []) {
+    if (sym.kind === "wxs") pushName(sym.name, "wxs module");
+  }
+
+  const bindings = fileModel.wxForBindings;
+  if (bindings) {
+    if (bindings.hasAnyWxFor) {
+      pushName("item", "wx:for item");
+      pushName("index", "wx:for index");
+    }
+    for (const name of bindings.items ?? []) pushName(name, "wx:for item");
+    for (const name of bindings.indexes ?? []) pushName(name, "wx:for index");
+  }
+
+  items.sort((a, b) => a.label.localeCompare(b.label));
+  return items;
+}
+
 function eventHandlerCompletionItems(graph, documentGraphPath, range) {
   const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
   if (!ownerConfig) return [];
@@ -504,13 +626,19 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
     return [];
   }
   const offset = offsetAt(sourceText, position);
-  if (offset === undefined || isExcludedCompletionContext(sourceText, offset)) {
+  if (offset === undefined || isInsideRawTextOrComment(sourceText, offset)) {
     return [];
   }
 
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) {
     return [];
+  }
+
+  const interpolationContext = interpolationCompletionContext(sourceText, position, fileModel);
+  if (interpolationContext) {
+    if (interpolationContext.suppress) return [];
+    return dataRefCompletionItems(graph, documentGraphPath, fileModel, interpolationContext.range);
   }
 
   const handlerValueContext = eventHandlerValueContext(sourceText, position);

@@ -318,6 +318,122 @@ function assertEventHandlerDiagnosticNoScriptSkips(graph) {
   }
 }
 
+// Phase 3 Stage B — Data ref completion ---------------------------------
+
+function assertDataRefCompletionMatchesData(graph) {
+  // {{th|}} at top level of a view — should suggest data/properties/wxs/for names.
+  const { source, position } = sourceWithCursor('<view>{{th|}}</view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("theme"),
+    `data-ref completion (theme): missing "theme"; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertDataRefCompletionMatchesProperty(graph) {
+  const { source, position } = sourceWithCursor('<view>{{u|}}</view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: USER_CARD_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("user"),
+    `data-ref completion (user): missing "user"; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertDataRefCompletionSuppressedAtMemberAccess(graph) {
+  const { source, position } = sourceWithCursor('<view>{{user.na|}}</view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assert(
+    Array.isArray(items) && items.length === 0,
+    `data-ref completion (member access): expected [], got ${JSON.stringify(items)}`,
+  );
+}
+
+function assertDataRefCompletionSuppressedInObjectLiteral(graph) {
+  const { source, position } = sourceWithCursor('<view>{{key: val|}}</view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  assert(
+    Array.isArray(items) && items.length === 0,
+    `data-ref completion (object literal): expected [], got ${JSON.stringify(items)}`,
+  );
+}
+
+function assertDataRefCompletionIncludesWxsModule(graph) {
+  const { source, position } = sourceWithCursor('<view>{{f|}}</view>\n');
+  const items = getCompletions({
+    graph,
+    documentPath: HOME_WXML,
+    position,
+    sourceText: source,
+    extensionRoot: ROOT,
+  });
+  const labels = items.map((item) => item.label);
+  assert(
+    labels.includes("format"),
+    `data-ref completion (wxs): missing "format"; got ${JSON.stringify(labels)}`,
+  );
+}
+
+function assertDataRefCompletionSuppressedInTemplateDefinition(graph) {
+  // Synthetic single-line source. Cursor inside `<template name="X">` body.
+  // home.wxml's fileModel.symbols doesn't include template_definition entries
+  // naturally (home uses templates only as call sites), so inject a synthetic
+  // template-range symbol covering the cursor line.
+  const { source, position } = sourceWithCursor('<template name="X">{{th|}}</template>\n');
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile && Array.isArray(homeFile.symbols), "test setup: home file must have symbols");
+  const originalSymbols = homeFile.symbols;
+  const synthetic = {
+    kind: "template",
+    name: "X",
+    range: {
+      start: { row: position.line, column: 0 },
+      end: { row: position.line, column: source.length },
+    },
+  };
+  homeFile.symbols = [...originalSymbols, synthetic];
+  try {
+    const items = getCompletions({
+      graph,
+      documentPath: HOME_WXML,
+      position,
+      sourceText: source,
+      extensionRoot: ROOT,
+    });
+    assert(
+      Array.isArray(items) && items.length === 0,
+      `data-ref completion (in template def): expected suppression, got ${JSON.stringify(items)}`,
+    );
+  } finally {
+    homeFile.symbols = originalSymbols;
+  }
+}
+
 // Phase 3 Stage A — Expression reference diagnostic ------------------
 
 // Phase 3 Stage B — Data ref definition ---------------------------------
@@ -808,8 +924,13 @@ const SYNTHETIC_HANDLER_COMPLETION_CASES = [
   {
     label: "dynamic {{...}}",
     marked: '<view bindtap="{{ha|n}}"></view>\n',
-    expect: "empty",
-    // suppressed by isExcludedCompletionContext before the handler branch.
+    expect: "exclude",
+    // Pre-Stage-B (Phase 3) this returned [] because {{...}} was universally
+    // excluded. Stage B legitimately fires data-ref completion inside the
+    // interpolation; the test's actual intent — "don't suggest method names
+    // (handleSelect) when the user is computing a dynamic handler from data"
+    // — is satisfied by `exclude`, which asserts handleSelect isn't in the
+    // returned labels regardless of what data refs DO appear.
   },
   {
     label: "stray <",
@@ -1467,7 +1588,12 @@ function assertClosingTagCompletionReturnsEmpty(graph) {
 }
 
 function assertOutsideTagCompletionReturnsEmpty(graph) {
-  const { source, position } = sourceWithCursor("{{ | }}");
+  // Cursor in plain text content — not inside any tag, attribute, template
+  // usage, or `{{...}}` interpolation. None of the completion branches
+  // should fire. (Pre-Stage-B this used `{{ | }}` because interpolations
+  // were universally excluded; Stage B's data-ref completion now legitimately
+  // fires there, so the test moved to a true outside-everything position.)
+  const { source, position } = sourceWithCursor("<view>plain text|</view>");
   const items = getCompletions({
     graph,
     documentPath: HOME_WXML,
@@ -1497,6 +1623,11 @@ function assertTemplateCompletion(graph) {
 }
 
 function assertDynamicTemplateCompletionReturnsEmpty(graph) {
+  // Cursor inside the `{{...}}` of `<template is="{{current|}}"/>`. Stage B
+  // legitimately suggests data refs here (the interpolation IS a real
+  // expression context — the user is computing the template name). What the
+  // test's original intent guarded was: don't surface template NAMES at this
+  // position. Verify that specifically, not that the whole result is empty.
   const { source, position } = homeSourceWithCursor('<template is="{{current|}}" />');
   const items = getCompletions({
     graph,
@@ -1505,7 +1636,11 @@ function assertDynamicTemplateCompletionReturnsEmpty(graph) {
     sourceText: source,
     extensionRoot: ROOT,
   });
-  assertDeepEqual(items, [], "dynamic template completion");
+  const labels = items.map((item) => item.label);
+  assert(
+    !labels.includes("loadingRow") && !labels.includes("secondaryRow"),
+    `dynamic template completion: template names leaked into interpolation context; got ${JSON.stringify(labels)}`,
+  );
 }
 
 function assertAttributeCompletion(graph) {
@@ -1649,6 +1784,13 @@ assertDataRefDefinitionToData(graph);
 assertDataRefDefinitionToProperty(graph);
 assertDataRefDefinitionInTemplateReturnsNull(graph);
 assertDataRefDefinitionMissingKeyReturnsNull(graph);
+// Phase 3 Stage B — Data ref completion
+assertDataRefCompletionMatchesData(graph);
+assertDataRefCompletionMatchesProperty(graph);
+assertDataRefCompletionSuppressedAtMemberAccess(graph);
+assertDataRefCompletionSuppressedInObjectLiteral(graph);
+assertDataRefCompletionIncludesWxsModule(graph);
+assertDataRefCompletionSuppressedInTemplateDefinition(graph);
 assertExpressionRefDiagnosticClean(graph);
 assertExpressionRefDiagnosticMissingInterpolation(graph);
 assertExpressionRefDiagnosticMissingDirective(graph);
