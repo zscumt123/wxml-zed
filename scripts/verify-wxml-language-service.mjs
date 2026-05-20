@@ -301,6 +301,55 @@ function assertEventHandlerDiagnosticSuppressedByBooleanIdiom(graph) {
   }
 }
 
+function assertGetDiagnosticsUsesFileModelOverride(graph) {
+  // Construct an override fileModel that's the same as home's BUT with
+  // one extra eventHandlers entry pointing at a method that doesn't exist
+  // in home.js. The diagnostic should fire using the override, not the
+  // saved-graph fileModel which doesn't have that handler.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  assert(homeFile, "test setup: home file in graph");
+
+  const synthetic = {
+    event: "tap",
+    handler: "__overlay_only_missing__",
+    binding: "bind:",
+    dynamic: false,
+    range: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 0 } },
+  };
+  const fileModelOverride = {
+    ...homeFile,
+    eventHandlers: [...homeFile.eventHandlers, synthetic],
+  };
+
+  const diagnostics = getDiagnostics({
+    graph,
+    documentPath: HOME_WXML,
+    extensionRoot: ROOT,
+    fileModelOverride,
+  });
+  const handlerDiags = diagnostics.filter((d) => d.code === "missing-event-handler");
+  const ours = handlerDiags.find((d) => d.message.includes("__overlay_only_missing__"));
+  assert(
+    ours,
+    `getDiagnostics override: expected diagnostic for the override's synthetic handler; got ${JSON.stringify(handlerDiags)}`,
+  );
+
+  // Sanity: without the override, the synthetic handler doesn't exist in graph.wxml.
+  const baselineDiagnostics = getDiagnostics({
+    graph,
+    documentPath: HOME_WXML,
+    extensionRoot: ROOT,
+  });
+  const baselineHandlerDiags = baselineDiagnostics
+    .filter((d) => d.code === "missing-event-handler")
+    .filter((d) => d.message.includes("__overlay_only_missing__"));
+  assert(
+    baselineHandlerDiags.length === 0,
+    `getDiagnostics baseline: synthetic handler shouldn't appear without override; got ${JSON.stringify(baselineHandlerDiags)}`,
+  );
+}
+
 function assertEventHandlerDiagnosticNoScriptSkips(graph) {
   const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
   assert(homeConfig && homeConfig.script, "test setup: home config must have script");
@@ -1829,6 +1878,7 @@ assertEventHandlerDiagnosticSuppressedByDynamicMethods(graph);
 assertEventHandlerDiagnosticSuppressedByLooseBinding(graph);
 assertEventHandlerDiagnosticSuppressedByBooleanIdiom(graph);
 assertEventHandlerDiagnosticNoScriptSkips(graph);
+assertGetDiagnosticsUsesFileModelOverride(graph);
 // Phase 3 Stage A — Expression reference diagnostic
 // Phase 3 Stage B — Data ref definition
 assertDataRefDefinitionToData(graph);

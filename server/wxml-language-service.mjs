@@ -828,8 +828,12 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
   return out;
 }
 
-export function getDiagnostics({ graph, documentPath, extensionRoot }) {
-  const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
+export function getDiagnostics({ graph, documentPath, extensionRoot, fileModelOverride }) {
+  const { documentGraphPath, fileModel: graphFileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
+  // documentGraphPath always derives from path resolution; it's the
+  // cross-file lookup key, identical whether overlay'd or not. Only the
+  // fileModel itself is overridable.
+  const fileModel = fileModelOverride ?? graphFileModel;
   if (!fileModel) {
     return [];
   }
