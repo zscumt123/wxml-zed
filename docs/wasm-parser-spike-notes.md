@@ -738,6 +738,61 @@ Both registered in `graph-smoke` (umbrella picks them up) and `full` suites.
 - wx:for-item / wx:for-index Definition: low-value (cursor adjacent to attribute anyway).
 - Cross-component property name validation: `<user-card user="{{x}}"/>` — `user` attribute name isn't validated against user-card.js's `properties:`. Needs a new diagnostic; data is already lifted.
 
+## P1 Outcome: Real-Time Diagnostics on Unsaved Buffer (Open-Document Overlay)
+
+GPT dogfood-confirmed bug: completion was live (typing `{{th|}}` showed candidates) but `missing-event-handler` / `missing-expression-ref` warnings only refreshed on save. UX split — completion fluid, diagnostics save-frozen. Root cause: `textDocument/didChange` only updated `openDocuments[uri].text`; the only diagnostic path was `scheduleDiagnostics` → `runGraphBuild` (subprocess reading disk), which the buffer-state never reached.
+
+### Architecture: open-document overlay (NOT graph mutation)
+
+Per GPT's design refinement, the overlay path is its own data structure, not a mutation of the persistent graph. Cleaner lifecycle, no race-between-edit-and-rebuild on shared state.
+
+| Layer | What it holds | Mutation events |
+|---|---|---|
+| Saved graph (`graphsByRoot[root]`) | Disk-truth fileModels for all .wxml in project | didOpen / didSave / watched-file → full subprocess rebuild |
+| Open-document overlays (`openDocumentOverlays[root][uri]`) | Live-buffer fileModel, only for dirty files | didChange → debounced re-parse; didOpen/didSave/didClose → clear |
+
+`getDiagnostics({..., fileModelOverride})` is the single integration point. Server-side, before calling it:
+- LSP request paths (definition / completion / hover) read directly from saved graph as before; they already consumed `sourceText` from openDocuments where needed.
+- Diagnostic publishes go through two paths now:
+  - **didChange overlay publish** (the new path): `runOverlayDiagnostics(uri)` parses live buffer → stores overlay → if graph ready, publishes immediately with the overlay as override.
+  - **publishPendingDiagnostics from runGraphBuild**: now also consults `getOverlayFileModel(projectRoot, uri)` and threads it through. Without this, every background rebuild would overwrite in-flight overlay diagnostics.
+
+### Critical ordering inside `runOverlayDiagnostics`
+
+The plan went through one review cycle that surfaced the race: original code checked `graphsByRoot.get(root)` BEFORE storing the overlay. Result: a user typing immediately after open (initial graph build still in flight, ~3s) would have their overlay timer fire, see no graph, early-return without storing → deferred `publishPendingDiagnostics` finds no overlay → publishes stale-disk diagnostics. GPT caught this; fix:
+
+```js
+parse buffer → overlay store FIRST → THEN check graph readiness
+```
+
+If graph is ready, publish immediately. If not, the deferred publish picks up the already-stored overlay. Either order works; both arrive at the same final state.
+
+### Lifecycle race avoidance
+
+- didOpen: derive root via `fileUriToPath(uri)` (document isn't in `openDocuments` yet at this point) and `clearOverlay(root, uri)` defensively.
+- didChange: schedule debounced overlay refresh, no immediate clear (the timer will re-parse and overwrite).
+- didSave: clear overlay BEFORE `scheduleDiagnostics` so any in-flight debounce timer's eventual publish doesn't fire stale state on top of disk-truth.
+- didClose: clear overlay across all roots (defensive scan).
+- watched-file changes (other files saved): no effect on overlays — user's local buffer doesn't get clobbered.
+
+### Test infrastructure: three protocol tests
+
+Saving each race lock as its own test (rather than one combined "edit and refresh works" assertion) keeps regression bisection clean:
+
+- `testRealtimeDiagnosticsOnDidChange` — basic happy path. Strong-form `items.length === 1` and `items.length === 0` assertions, not `.some(...)`, because interleaved saved-graph publishes could otherwise false-pass weaker predicates.
+- `testOverlaySurvivesGraphRebuild` — overlay published, then `changeWatchedFiles` triggers rebuild on a sibling .wxml. Overlay's diagnostic must STILL stand. Regression lock for the publishPendingDiagnostics overwrite race.
+- `testOverlayBeforeInitialGraph` — open + immediate change WITHOUT awaiting initial diagnostics. Final stable state must reflect the overlay, not disk state. Regression lock for the "graph not ready" race.
+
+### Out of scope (deferred to future plans)
+
+- **Cross-file overlays**: editing `.js` with unsaved `data:` changes still leaves `.wxml` diagnostics lagging. Typical workflow saves .js before iterating on .wxml so accepted v1.
+- **usingComponents / template-import edges**: those affect graph-level data, can't be patched single-file. User must save to update.
+- **TS sibling support**: needs `tree-sitter-typescript.wasm` build — separate plan.
+
+### Infrastructure note: tree-sitter-wxml wasm in LSP process
+
+This is the third place where tree-sitter-wxml gets loaded in this project — alongside `scripts/extract-wxml-symbols.mjs` (CLI) and `scripts/extract-wxml-project-graph.mjs` (graph). LSP server's `getWxmlParser()` does the same `Parser.init() + Language.load()` once, lazily. Graceful degradation if wasm fails to load: one warning to stderr, `runOverlayDiagnostics` returns early, user falls back to save-time diagnostics (the pre-P1 behavior). No keystroke-loop error spew.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
