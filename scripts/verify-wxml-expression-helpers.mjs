@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { topLevelIdentifiers, looksLikeObjectLiteralExpression, stripStringLiterals } from "./extract-wxml-symbols.mjs";
+import {
+  topLevelIdentifiers,
+  looksLikeObjectLiteralExpression,
+  stripStringLiterals,
+} from "../shared/wxml-expression-helpers.mjs";
 
 const IDENT_CASES = [
   { label: "plain identifier", input: "theme", expected: ["theme"] },
