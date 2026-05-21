@@ -164,7 +164,7 @@ function propertiesBlockOf(objectNode) {
 
 const IDENTIFIER_SHAPE = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
 
-function extractDataKeys(dataObjectNode) {
+function extractDataKeys(dataObjectNode, source) {
   const out = [];
   for (let i = 0; i < dataObjectNode.namedChildCount; i++) {
     const child = dataObjectNode.namedChild(i);
@@ -172,7 +172,7 @@ function extractDataKeys(dataObjectNode) {
       const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
       if (!keyNode) continue;
       if (keyNode.type === "property_identifier") {
-        out.push({ name: keyNode.text, nameRange: rangeOf(keyNode) });
+        out.push({ name: keyNode.text, nameRange: rangeOf(keyNode), source });
       } else if (keyNode.type === "string") {
         // Quoted key (`"foo": 1` / `'foo': 1`). Extract if the inner text
         // is a valid JS identifier — invalid shapes (`"with-dash"`, `"123"`,
@@ -183,11 +183,11 @@ function extractDataKeys(dataObjectNode) {
         const fragment = firstChildOfType(keyNode, "string_fragment");
         const text = fragment ? fragment.text : "";
         if (IDENTIFIER_SHAPE.test(text)) {
-          out.push({ name: text, nameRange: rangeOf(fragment) });
+          out.push({ name: text, nameRange: rangeOf(fragment), source });
         }
       }
     } else if (child.type === "shorthand_property_identifier") {
-      out.push({ name: child.text, nameRange: rangeOf(child) });
+      out.push({ name: child.text, nameRange: rangeOf(child), source });
     }
   }
   return out;
@@ -233,13 +233,13 @@ export function extractMethods(parser, source) {
           const dataBlock = dataBlockOf(opts);
           if (dataBlock) {
             if (containsSpread(dataBlock)) hasDynamicData = true;
-            dataKeys.push(...extractDataKeys(dataBlock));
+            dataKeys.push(...extractDataKeys(dataBlock, "data"));
           }
 
           const propertiesBlock = propertiesBlockOf(opts);
           if (propertiesBlock) {
             if (containsSpread(propertiesBlock)) hasDynamicData = true;
-            propertyKeys.push(...extractDataKeys(propertiesBlock));
+            propertyKeys.push(...extractDataKeys(propertiesBlock, "property"));
           }
         }
       }

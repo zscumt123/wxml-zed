@@ -315,15 +315,34 @@ async function main() {
       `${label}: propertyKeys expected [${expectedPropertyKeys.join(", ")}], got [${actualPropertyKeys.join(", ")}]`,
     );
 
-    // Structural assertion: each returned entry has a nameRange with numeric row/column.
-    for (const entry of [...result.dataKeys, ...result.propertyKeys]) {
+    // Structural assertion: each returned entry has a nameRange with numeric row/column
+    // and a source discriminator.
+    for (const entry of result.dataKeys) {
       assert(
         entry.nameRange
           && typeof entry.nameRange.start?.row === "number"
           && typeof entry.nameRange.start?.column === "number"
           && typeof entry.nameRange.end?.row === "number"
           && typeof entry.nameRange.end?.column === "number",
-        `${label}: entry "${entry.name}" missing valid nameRange ${JSON.stringify(entry.nameRange)}`,
+        `${label}: dataKey "${entry.name}" missing valid nameRange ${JSON.stringify(entry.nameRange)}`,
+      );
+      assert(
+        entry.source === "data" || entry.source === "setData",
+        `${label}: dataKey "${entry.name}" has invalid source ${JSON.stringify(entry.source)}`,
+      );
+    }
+    for (const entry of result.propertyKeys) {
+      assert(
+        entry.nameRange
+          && typeof entry.nameRange.start?.row === "number"
+          && typeof entry.nameRange.start?.column === "number"
+          && typeof entry.nameRange.end?.row === "number"
+          && typeof entry.nameRange.end?.column === "number",
+        `${label}: propertyKey "${entry.name}" missing valid nameRange ${JSON.stringify(entry.nameRange)}`,
+      );
+      assert(
+        entry.source === "property",
+        `${label}: propertyKey "${entry.name}" has invalid source ${JSON.stringify(entry.source)}`,
       );
     }
   }
