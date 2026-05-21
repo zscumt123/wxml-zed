@@ -987,3 +987,18 @@ The protocol-level test demonstrates the round trip: changeDocument with a buffe
 - [ ] `runOverlayDiagnostics(uri)` parses and stores overlay BEFORE checking `graphsByRoot.get(projectRoot)`. The `if (!graph) return` exits AFTER the overlay store, so the deferred publishPendingDiagnostics flow can still pick it up. Reversing this order silently breaks Step 1c's test.
 - [ ] All 7 wasm-symbol baselines stay byte-identical after Task 1.
 - [ ] tree-sitter-wxml wasm load failure path is exercised mentally: parser is null → runOverlayDiagnostics returns early → no overlay populated → publishDiagnostics not called → users continue to see save-time-only diagnostics. No crash, no error spew per keystroke.
+
+## Follow-Up — In-Flight Overlay Task Invalidation (Finding 2)
+
+After ship, a second GPT review identified another race not covered by Tasks 3–5: `runOverlayDiagnostics` only re-checks state at entry. Once it crosses `await getWxmlParser()` (or any future intermediate await), nothing stops it from writing the overlay and publishing a non-empty diagnostic even after a `didClose` / `didSave` / superseding `didChange` has landed. Symptoms: stale diagnostic re-appears on a closed file; a fast burst of keystrokes can see an older buffer's diagnostic land after a newer one.
+
+Fix shipped (single follow-up commit, not a separate plan):
+
+- Add per-uri monotonic counter `overlayGenerationByUri` plus `bumpOverlayGeneration(uri)` / `currentOverlayGeneration(uri)`.
+- Bump generation in `scheduleOverlayDiagnostics` (each didChange — bumped BEFORE arming the timer so the timer captures the freshest value) and in `clearOverlay` (didOpen / didSave / didClose).
+- `runOverlayDiagnostics(uri, generation)` captures the generation at scheduling time, then re-checks `currentOverlayGeneration(uri) === generation` AND `openDocuments.has(uri)` at every gate: after the await on `getWxmlParser`, after the new test-only `WXML_ZED_LSP_OVERLAY_DELAY_MS` delay, before storing the overlay, and finally before publishing.
+- Re-read `liveDoc = openDocuments.get(uri)` after the awaits — don't reuse the entry-time `document` reference (the buffer may have advanced same-generation if scheduling/bumping ordering ever changes, and a closed-then-reopened doc would have stale text otherwise).
+- New regression test `overlay cancelled by didClose` in `scripts/verify-lsp-diagnostics.mjs`: spawns the LSP with `WXML_ZED_LSP_OVERLAY_DELAY_MS=400` to widen the run-window deterministically; does didChange → sleep 250ms (timer fired, task inside delay) → didClose → sleep 600ms; asserts every publish after the change cursor has `diagnostics.length === 0`. Pre-fix, the resumed task would write the overlay and republish a non-empty diagnostic — the test asserts against that.
+- `WXML_ZED_LSP_OVERLAY_DELAY_MS` env var is documented in code as test-only; production never sets it, so the regression test exercises the real code path rather than a fork.
+
+Verification: graph-smoke suite passed including the new test; `bash scripts/verify-tree-sitter.sh` umbrella green.

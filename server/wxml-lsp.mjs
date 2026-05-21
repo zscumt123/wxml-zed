@@ -47,6 +47,25 @@ const openDocumentOverlays = new Map();
 // Per-uri debounce timers for overlay refresh.
 const overlayTimers = new Map();
 
+// Per-uri monotonic generation counter. Bumped on every state-changing
+// event (didChange schedule, didOpen/didSave/didClose clear). An in-flight
+// runOverlayDiagnostics() captures the generation at entry and re-checks
+// after every await — if it no longer matches the current generation, the
+// task aborts before mutating overlay state or publishing diagnostics.
+// This prevents a slow parser-init or test-injected delay from letting a
+// stale overlay overwrite a fresher buffer / closed document.
+const overlayGenerationByUri = new Map();
+
+function bumpOverlayGeneration(uri) {
+  const next = (overlayGenerationByUri.get(uri) || 0) + 1;
+  overlayGenerationByUri.set(uri, next);
+  return next;
+}
+
+function currentOverlayGeneration(uri) {
+  return overlayGenerationByUri.get(uri) || 0;
+}
+
 function fileUriToPath(uri) {
   if (!uri || !uri.startsWith("file://")) return undefined;
   return fileURLToPath(uri);
@@ -132,6 +151,10 @@ function clearOverlay(projectRoot, uri) {
   const perRoot = openDocumentOverlays.get(projectRoot);
   if (perRoot) perRoot.delete(uri);
   cancelOverlayTimer(uri);
+  // Invalidate any already-running runOverlayDiagnostics() awaiting on
+  // parser init or a test-injected delay — without this, the in-flight
+  // task would resume after didSave/didClose and republish stale state.
+  bumpOverlayGeneration(uri);
 }
 
 function publishDiagnostics(uri, diagnostics) {
@@ -413,19 +436,25 @@ function updateOpenDocumentText(uri, text) {
 
 function scheduleOverlayDiagnostics(uri) {
   cancelOverlayTimer(uri);
+  // Bump BEFORE arming the timer so any still-running runOverlayDiagnostics
+  // task is invalidated, AND the about-to-fire timer captures the freshest
+  // generation (its handler reads currentOverlayGeneration at fire time).
+  bumpOverlayGeneration(uri);
   const timer = setTimeout(() => {
     overlayTimers.delete(uri);
-    runOverlayDiagnostics(uri).catch((err) => {
+    const generation = currentOverlayGeneration(uri);
+    runOverlayDiagnostics(uri, generation).catch((err) => {
       logDiagnosticError(`overlay diagnostics failed for ${uri}: ${err?.message || err}`);
     });
   }, OVERLAY_DEBOUNCE_MS);
   overlayTimers.set(uri, timer);
 }
 
-async function runOverlayDiagnostics(uri) {
+async function runOverlayDiagnostics(uri, generation) {
   const document = openDocuments.get(uri);
   if (!document || typeof document.text !== "string") return;
   if (path.extname(document.path) !== ".wxml") return;
+  if (currentOverlayGeneration(uri) !== generation) return;
 
   const projectRoot = resolveMiniProgramRoot(document.path);
   if (!projectRoot) return;
@@ -433,14 +462,33 @@ async function runOverlayDiagnostics(uri) {
   const parser = await getWxmlParser();
   if (!parser) return;  // wasm load failed — user falls back to save-time diagnostics
 
+  // Test-only delay hook: lets a protocol test deterministically widen the
+  // window between parser fetch and overlay write so we can prove that a
+  // didClose/didSave landing mid-run does NOT lead to a stale republish.
+  // Production env never sets this; kept here (not behind feature flag) so
+  // the regression test exercises the real code path, not a fork.
+  const overlayDelayMs = Number(process.env.WXML_ZED_LSP_OVERLAY_DELAY_MS || 0);
+  if (Number.isFinite(overlayDelayMs) && overlayDelayMs > 0) {
+    await sleep(overlayDelayMs);
+  }
+
+  if (currentOverlayGeneration(uri) !== generation) return;
+  const liveDoc = openDocuments.get(uri);
+  if (!liveDoc || typeof liveDoc.text !== "string") return;
+
   let fileModel;
   try {
-    const tree = parser.parse(document.text);
-    fileModel = collectFile(tree, document.path);
+    const tree = parser.parse(liveDoc.text);
+    fileModel = collectFile(tree, liveDoc.path);
   } catch (err) {
-    logDiagnosticError(`WXML parse failed for ${document.path}: ${err?.message || err}`);
+    logDiagnosticError(`WXML parse failed for ${liveDoc.path}: ${err?.message || err}`);
     return;
   }
+
+  // Re-check before mutating overlay state: another didChange/didClose
+  // could have raced us during parse.
+  if (currentOverlayGeneration(uri) !== generation) return;
+  if (!openDocuments.has(uri)) return;
 
   // Store overlay FIRST — even if the initial graph build hasn't finished
   // yet, publishPendingDiagnostics will read this overlay when the build
@@ -456,10 +504,15 @@ async function runOverlayDiagnostics(uri) {
 
   const diagnostics = getDiagnostics({
     graph,
-    documentPath: document.path,
+    documentPath: liveDoc.path,
     extensionRoot: EXTENSION_ROOT,
     fileModelOverride: fileModel,
   });
+
+  // Final gate: don't publish if we got invalidated during getDiagnostics.
+  if (currentOverlayGeneration(uri) !== generation) return;
+  if (!openDocuments.has(uri)) return;
+
   publishDiagnostics(uri, diagnostics);
 }
 

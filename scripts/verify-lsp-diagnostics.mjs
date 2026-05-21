@@ -1002,6 +1002,59 @@ async function testOverlayBeforeInitialGraph() {
   });
 }
 
+async function testOverlayCancelledByDidClose() {
+  // Regression lock for the in-flight-task invalidation race: an already-
+  // running runOverlayDiagnostics (awaiting parser init or any other
+  // intermediate await) must abort if the document is closed mid-run.
+  // Without per-uri generation counters, the resumed task would set the
+  // overlay and republish stale non-empty diagnostics on a closed file.
+  await withClient({
+    rootPath: ROOT,
+    env: {
+      // Widens the window between parser fetch and overlay write so the
+      // didClose lands deterministically in the middle of the task.
+      WXML_ZED_LSP_OVERLAY_DELAY_MS: "400",
+    },
+  }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 1,
+      "home initial diagnostics before close-race",
+    );
+
+    // didChange schedules the debounced overlay task. With 150ms debounce
+    // + 400ms injected delay, the task won't write/publish for ~550ms.
+    const withMissingHandler = '<view><button bind:tap="__cancelled_by_close__">x</button></view>\n';
+    const cursor = client.diagnosticCursor();
+    client.changeDocument(HOME_WXML, withMissingHandler);
+
+    // Wait past debounce so the timer has fired and the task is inside
+    // its injected delay (>150ms), but well before it would resume (<550ms).
+    await sleep(250);
+
+    // didClose mid-run: publishes [] and (via the fix) bumps the per-uri
+    // generation, invalidating the in-flight task before it can write.
+    client.closeDocument(HOME_WXML);
+
+    // Wait long enough that the in-flight task would have completed had
+    // it not been invalidated (debounce + delay + slack).
+    await sleep(600);
+
+    const publishes = client.diagnosticsSince(cursor, uri);
+    assert(
+      publishes.length >= 1,
+      `expected at least the close-time empty publish; got 0`,
+    );
+    for (const params of publishes) {
+      assert(
+        params.diagnostics.length === 0,
+        `overlay cancellation race: stale non-empty publish after didClose: ${JSON.stringify(params.diagnostics)}`,
+      );
+    }
+  });
+}
+
 async function testTemplateCompletion() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1565,6 +1618,7 @@ const scenarios = [
   ["realtime diagnostics on didChange", testRealtimeDiagnosticsOnDidChange],
   ["overlay survives graph rebuild", testOverlaySurvivesGraphRebuild],
   ["overlay before initial graph", testOverlayBeforeInitialGraph],
+  ["overlay cancelled by didClose", testOverlayCancelledByDidClose],
 ];
 
 const SCENARIO_SUITES = {
@@ -1589,6 +1643,7 @@ const SCENARIO_SUITES = {
     "realtime diagnostics on didChange",
     "overlay survives graph rebuild",
     "overlay before initial graph",
+    "overlay cancelled by didClose",
     "unsupported request behavior",
   ],
   full: scenarios.map(([name]) => name),
