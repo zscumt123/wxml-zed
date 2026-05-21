@@ -454,6 +454,25 @@ const CASES = [
     hasDynamicData: false,
   },
   {
+    label: "Component nested generator function this.setData is ignored",
+    source: `Component({
+    data: { foo: 1 },
+    methods: {
+      run() {
+        const it = (function* () { this.setData({ ignored: 1 }); })();
+        it.next();
+      },
+    },
+  });`,
+    hasDynamicMethods: false,
+    methodNames: ["run"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
     label: "Component setData spread triggers dynamic but still keeps static keys",
     source: `Component({
       data: {},
