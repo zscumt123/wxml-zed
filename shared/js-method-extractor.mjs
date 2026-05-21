@@ -193,6 +193,113 @@ function extractDataKeys(dataObjectNode, source) {
   return out;
 }
 
+// Detects `this.setData(<arg>, ...)` shape and returns the call's first-arg
+// node if matched. Returns null otherwise. Note: bare `setData(...)` without
+// `this.` is intentionally NOT matched — there's no way to know what
+// `setData` refers to without scope tracking, and false positives there
+// would expand template scope on unrelated helpers.
+function setDataCallArgNode(callNode) {
+  const fn = fieldChild(callNode, "function");
+  if (!fn || fn.type !== "member_expression") return null;
+  const object = fieldChild(fn, "object");
+  const property = fieldChild(fn, "property");
+  if (!object || object.type !== "this") return null;
+  if (!property || property.type !== "property_identifier") return null;
+  if (property.text !== "setData") return null;
+  const args = fieldChild(callNode, "arguments");
+  if (!args || args.namedChildCount === 0) return null;
+  return args.namedChild(0);
+}
+
+// Given a single `this.setData(<arg>, ...)` call, return { keys, dynamic }.
+//   keys     — array of { name, nameRange, source: "setData" } extracted from
+//              static identifier/shorthand/quoted-identifier properties.
+//   dynamic  — true if any computed key, spread element, or non-object first
+//              arg appeared. Tells the caller to force hasDynamicData = true
+//              for the whole script (even if we did extract some keys).
+function extractSetDataKeysFromCall(callNode) {
+  const arg = setDataCallArgNode(callNode);
+  if (!arg) return { keys: [], dynamic: false };
+  if (arg.type !== "object") {
+    // setData(payload) / setData(callExpr()) / setData(arrayLiteral) —
+    // first arg is not statically analyzable. Mark dynamic; no keys.
+    return { keys: [], dynamic: true };
+  }
+  const keys = [];
+  let dynamic = false;
+  for (let i = 0; i < arg.namedChildCount; i++) {
+    const child = arg.namedChild(i);
+    if (child.type === "spread_element") {
+      dynamic = true;
+      continue;
+    }
+    if (child.type === "pair") {
+      const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+      if (!keyNode) {
+        dynamic = true;
+        continue;
+      }
+      if (keyNode.type === "computed_property_name") {
+        // setData({ [expr]: value }) — key is computed at runtime.
+        dynamic = true;
+        continue;
+      }
+      if (keyNode.type === "property_identifier") {
+        keys.push({ name: keyNode.text, nameRange: rangeOf(keyNode), source: "setData" });
+      } else if (keyNode.type === "string") {
+        const fragment = firstChildOfType(keyNode, "string_fragment");
+        const text = fragment ? fragment.text : "";
+        if (IDENTIFIER_SHAPE.test(text)) {
+          keys.push({ name: text, nameRange: rangeOf(fragment), source: "setData" });
+        }
+        // Quoted key with non-identifier shape (e.g., "with-dash") is silently
+        // skipped: it cannot be referenced from a WXML expression anyway.
+      } else {
+        // Number-literal key (`{ 0: ... }`) etc. — not template-referenceable.
+      }
+    } else if (child.type === "shorthand_property_identifier") {
+      keys.push({ name: child.text, nameRange: rangeOf(child), source: "setData" });
+    }
+    // Object methods (`{ foo() {} }`) are intentionally ignored — those don't
+    // happen in real setData calls and would just be noise.
+  }
+  return { keys, dynamic };
+}
+
+// Walks call_expression descendants of `funcNode` (a function or method
+// definition node), running extractSetDataKeysFromCall on each.
+//
+// Critical: stops at nested function boundaries that REBIND `this` —
+// regular function_expression / function_declaration / method_definition
+// each get their own `this`, so a `this.setData(...)` inside them is NOT
+// a call on the component instance and must be ignored. arrow_function
+// continues to be walked because arrows inherit `this` lexically; that
+// covers the common Promise.then(res => this.setData(...)) /
+// setTimeout(() => this.setData(...)) patterns.
+//
+// Sink is a mutable { keys, dynamic } accumulator passed by the caller —
+// we merge into it rather than allocating per-function.
+function walkOwnerFunctionForSetData(funcNode, sink) {
+  const visit = (node) => {
+    // Don't descend into nested non-arrow function bodies. The root
+    // funcNode itself is exempt: we always want to enter its body.
+    if (node !== funcNode && (
+      node.type === "function_expression" ||
+      node.type === "function_declaration" ||
+      node.type === "method_definition"
+    )) {
+      return;
+    }
+    if (node.type === "call_expression") {
+      const result = extractSetDataKeysFromCall(node);
+      if (result.dynamic) sink.dynamic = true;
+      for (const key of result.keys) sink.keys.push(key);
+    }
+    for (let i = 0; i < node.namedChildCount; i++) visit(node.namedChild(i));
+  };
+  visit(funcNode);
+}
+
 export function extractMethods(parser, source) {
   const tree = parser.parse(source);
   const methods = [];
