@@ -1272,13 +1272,18 @@ Net: 88% diagnostic reduction. `missing-event-handler` precision preserved (all 
 The 8 surviving entries (4 files × 2 names) all originate from a project-internal helper class at `pages/components/states-view/States.js`:
 
 ```js
+// pages/components/states-view/States.js
 class States {
-  constructor(name) {
+  constructor(name, defaultState) {
     this.stateName  = name + '_state';   // computed at runtime
     this.statesName = name + '_states';
+    // ...
   }
   applyTo(page) { page.setData({ ...this.state() }); }  // spread of computed-key obj
 }
+
+// pages/components/states-view/LoadStates.js
+class LoadStates extends States { /* ... */ }
 ```
 
 Pages instantiate as `new LoadStates('load', LOAD_STATES.LOADING).applyTo(this)`. The final keys (`load_state`, `load_states`) are constructed via string concatenation inside the helper class, then merged into `page.setData(...)` via spread of a computed-key object. All three (helper indirection, computed key, spread) are explicitly Out of Scope per the plan's Out of Scope section; the walker correctly sets `hasDynamicData = true` for these files but cannot enumerate the specific keys.
@@ -1294,6 +1299,10 @@ Affected files (8 entries):
 ### Surviving expression-ref classification (10-sample random)
 
 Seeded shuffle (mulberry32, seed=42) over the 19 surviving `missing-expression-ref` entries:
+
+(File:line uses 0-indexed line numbers as emitted by the dump JSONL; add 1 for editor-visible lines.)
+
+(Duplicate file:line entries are real — multiple `{{name}}` interpolations or two distinct symbols on the same WXML source line each emit their own diagnostic.)
 
 - `pages/my-fav/index.wxml:0` (name=`load_state`) — library-mediated computed/spread setData: derived from `States` helper class `applyTo(this)` pattern, key built via string concat in constructor + spread on `page.setData`.
 - `pages/main/fav-page/index.wxml:2` (name=`load_state`) — library-mediated computed/spread setData: same `States` helper pattern as above.
