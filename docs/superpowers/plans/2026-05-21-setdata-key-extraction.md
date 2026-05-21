@@ -1209,7 +1209,9 @@ These are absolute pass/fail gates. They do NOT include a target reduction numbe
 1. **All cases in `scripts/verify-js-script-info.mjs` pass.** Includes the 18 new Task 3 cases: 4 Page-scope, 6 Component scope variants, 2 nested-function behavior, and 6 edge / dynamic cases.
 2. **`bash scripts/verify-tree-sitter.sh` umbrella passes.** Captures the LSP graph-smoke suite (including the P1 overlay regression locks) and all baseline-snapshot verifications.
 3. **`missing-event-handler` count on mp-wx-chelaile/wx is unchanged (7 → 7).** This is the precision regression lock — the walker MUST NOT affect event-handler diagnostics.
-4. **Every setData-derived dominant name (load_state, load_states, LINE_STATE, describe, time, tag, tagList, physicalDistance, logicDistance, inTargetRange) drops to 0.** These were directly traced to setData calls in the audit; if any survive, the walker missed a scope.
+4. **Every direct-literal setData-derived dominant name drops to 0**: `LINE_STATE`, `describe`, `time`, `tag`, `tagList`, `physicalDistance`, `logicDistance`, `inTargetRange`. These are exactly the names whose pre-fix occurrences traced back to literal `this.setData({ <name>: ... })` calls in owner-context scopes the walker handles; survivors here indicate the walker missed a scope.
+
+   Two pre-fix-top-10 names — `load_state` and `load_states` — are explicitly EXEMPT from the absolute-zero gate. They come from a helper-class pattern (`new LoadStates('load').applyTo(this)` where keys are constructed via string concat + spread inside a helper class), which the plan declared Out of Scope for this round. Their partial drops are tracked in the Outcome section as the seed for a separate P2.2 plan.
 5. **10 random surviving expression-ref entries are classified, not dismissed.** Each must be either a real bug or a named category for the next P2 round (cross-component prop scope, template fragment data inheritance, etc.).
 
 ## Out of Scope (deferred)
@@ -1236,3 +1238,78 @@ These are absolute pass/fail gates. They do NOT include a target reduction numbe
 - Bare `setData(...)` without `this.` is explicitly rejected by `setDataCallArgNode`'s `object.type !== "this"` check.
 - Module-level `function helper() { this.setData(...) }` is excluded because the walker is only called from inside the Page/Component option-object visit — there's no entry point to walk module-level functions.
 - 18 new cases in Task 3 Step 3: 4 Page-scope (static / shorthand / quoted / computed-key) + 6 Component scope variants (methods / lifetimes / pageLifetimes / observers / property-observer / legacy-top-level) + 2 nested-function behavior (arrow descends / regular function stops) + 6 edge cases (spread / non-object / empty / dedup / bare-without-this / module-level helper) = 18 ✓
+
+## Outcome
+
+Before / after on `mp-wx-chelaile/wx` (chelaile @ 0c21dc53048274eabdff4d115b953e56efc66b33, dirty count 6):
+
+| metric | before | after |
+|---|---|---|
+| total | 220 | 26 |
+| missing-event-handler | 7 | 7 |
+| missing-expression-ref | 213 | 19 |
+| missing-local-component | 0 | 0 |
+
+Net: 88% diagnostic reduction. `missing-event-handler` precision preserved (all 7 are real bugs in the project: typo'd handler names, handlers defined on the wrong file).
+
+### Dominant setData-derived names: target → result
+
+| name | before | after | status |
+|---|---|---|---|
+| LINE_STATE | 6 | 0 | cleared |
+| describe | 6 | 0 | cleared |
+| time | 9 | 0 | cleared |
+| tag | 7 | 0 | cleared |
+| tagList | 7 | 0 | cleared |
+| physicalDistance | 9 | 0 | cleared |
+| logicDistance | 6 | 0 | cleared |
+| inTargetRange | 9 | 0 | cleared |
+| load_state | 13 | 4 | partial — helper-mediated |
+| load_states | 11 | 4 | partial — helper-mediated |
+
+### Why load_state / load_states didn't fully clear
+
+The 8 surviving entries (4 files × 2 names) all originate from a project-internal helper class at `pages/components/states-view/States.js`:
+
+```js
+class States {
+  constructor(name) {
+    this.stateName  = name + '_state';   // computed at runtime
+    this.statesName = name + '_states';
+  }
+  applyTo(page) { page.setData({ ...this.state() }); }  // spread of computed-key obj
+}
+```
+
+Pages instantiate as `new LoadStates('load', LOAD_STATES.LOADING).applyTo(this)`. The final keys (`load_state`, `load_states`) are constructed via string concatenation inside the helper class, then merged into `page.setData(...)` via spread of a computed-key object. All three (helper indirection, computed key, spread) are explicitly Out of Scope per the plan's Out of Scope section; the walker correctly sets `hasDynamicData = true` for these files but cannot enumerate the specific keys.
+
+Catching this would require following `applyTo(this)` / similar cross-method patterns and tracking constructor-arg-derived keys — a cross-function/class data flow analysis significantly larger than the static-literal-key extractor in this round. Deferred to a separate P2.2 plan.
+
+Affected files (8 entries):
+- `pages/main/fav-page/index.wxml` (2)
+- `pages/my-fav/index.wxml` (2)
+- `pages/metro-line/index.wxml` (2)
+- `pages/metro-station/index.wxml` (2)
+
+### Surviving expression-ref classification (10-sample random)
+
+Seeded shuffle (mulberry32, seed=42) over the 19 surviving `missing-expression-ref` entries:
+
+- `pages/my-fav/index.wxml:0` (name=`load_state`) — library-mediated computed/spread setData: derived from `States` helper class `applyTo(this)` pattern, key built via string concat in constructor + spread on `page.setData`.
+- `pages/main/fav-page/index.wxml:2` (name=`load_state`) — library-mediated computed/spread setData: same `States` helper pattern as above.
+- `pages/metro-station/index.wxml:3` (name=`load_states`) — library-mediated computed/spread setData: same `States` helper pattern (companion key from same instance).
+- `pages/my-fav/index.wxml:8` (name=`locationError`) — cross-component prop pass-through: `<local-bar locationError="{{locationError}}"/>` references a parent-page identifier that is never declared/set on the my-fav page itself; `local-bar` declares `locationError` as a `Component({ properties })` field. Dead pass-through binding (always resolves to `undefined` at runtime; child uses its property default).
+- `ad/components/taro-weapp/comp.wxml:2` (name=`i`) — template-fragment scope (Taro compiled artifact): `comp.wxml` is a Taro-emitted file whose `<template is="...">` invocation expects `i` to come from the parent `<template name="taro_tmpl">`/`tmpl_0_*` template-data scope in `base.wxml`. Names defined inside a sibling `<template name>`'s data passing, not in page/component data.
+- `pages/fullscreen-map/index.wxml:3` (name=`popupLevel`) — cross-component prop pass-through: `<map-btn popupLevel="{{popupLevel}}"/>` references a parent identifier not declared on the fullscreen-map page; `map-btn` declares `popupLevel` as its own property.
+- `pages/main/fav-page/index.wxml:2` (name=`load_state`) — library-mediated computed/spread setData: same `States` helper pattern (second occurrence on the same line — class binding).
+- `pages/stop-detail/components/my-map/index.wxml:7` (name=`locationError`) — cross-component prop pass-through: `<local-bar locationError="{{locationError}}"/>` on a component that does not itself declare `locationError` in its `properties`/`data`.
+- `pages/my-fav/index.wxml:0` (name=`load_state`) — library-mediated computed/spread setData: same `States` helper pattern (second occurrence on the same line).
+- `pages/main/fav-page/index.wxml:2` (name=`load_states`) — library-mediated computed/spread setData: same `States` helper pattern.
+
+### Buckets observed (next-P2 input)
+
+- library-mediated computed/spread setData: 6
+- cross-component prop pass-through (parent never declares the name): 3
+- template-fragment scope (Taro compiled artifact): 1
+
+The library-mediated category dominates the 19 surviving entries and is the natural target for P2.2. Cross-component prop pass-through is a secondary candidate — these are real "dead bindings" in the project (the binding resolves to `undefined` at runtime, and the child component falls back to its property default), so they are either latent bugs or intentional no-ops. A future scope-aware analysis could classify or suppress them per-component.

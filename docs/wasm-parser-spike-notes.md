@@ -803,6 +803,39 @@ Regression test `overlay cancelled by didClose` (graph-smoke suite) spawns the L
 
 ---
 
+### Follow-up: setData-derived template scope keys
+
+Real-project audit on mp-wx-chelaile/wx surfaced 220 diagnostics, 213 (97%)
+of which were `missing-expression-ref` driven almost entirely by one
+pattern: keys added to template scope via `this.setData({...})` inside
+component method bodies, lifecycle handlers, and property observers,
+which the JS extractor did not previously analyze. Plan:
+`docs/superpowers/plans/2026-05-21-setdata-key-extraction.md`.
+
+Fix walks owner-context function bodies (Page lifecycle/methods;
+Component methods, lifetimes, pageLifetimes, observers, property
+observers — recursing into nested arrows/callbacks) and extracts static
+identifier keys from `this.setData(<obj>, ...)` first-arg object
+literals. Computed keys, spread elements, and non-object arguments
+still set `hasDynamicData = true`. Bare `setData(...)` and module-level
+helpers are intentionally not scanned. The walker stops at nested
+function_expression / function_declaration / method_definition /
+generator_function / generator_function_declaration boundaries (those
+rebind `this`); descends into arrow_function (lexical `this`).
+
+Outcome on the same chelaile snapshot: 220 → 26 diagnostics (88%
+reduction). The 7 `missing-event-handler` diagnostics (all real bugs
+in the project) were preserved unchanged; expression-ref count dropped
+from 213 to 19. All eight direct-literal setData-derived dominant
+names cleared to zero. Two helper-mediated names (`load_state` /
+`load_states`, 13→4 and 11→4 respectively) partially survived because
+they're constructed via a `States` helper class with `applyTo(page)
+{ page.setData({ ...this.state() }) }` — runtime string concat +
+spread of computed-key object, all explicitly Out of Scope this
+round. Seed for a future P2.2 plan. See plan's Outcome section.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
