@@ -260,6 +260,294 @@ const CASES = [
     propertyKeys: [],
     hasDynamicData: false,
   },
+  {
+    label: "Page with static setData in lifecycle",
+    source: `Page({
+      data: { count: 0 },
+      onLoad() {
+        this.setData({ message: "hi", visible: true });
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["count", "message", "visible"],
+    dataKeySources: { count: "data", message: "setData", visible: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Page setData with shorthand property",
+    source: `Page({
+      data: {},
+      onShow() {
+        const userName = "x";
+        this.setData({ userName });
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["onShow"],
+    dataKeys: ["userName"],
+    dataKeySources: { userName: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Page setData with quoted identifier-shape key",
+    source: `Page({
+      data: {},
+      custom() {
+        this.setData({ "foo": 1, "with-dash": 2, "bar": 3 });
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["custom"],
+    dataKeys: ["foo", "bar"],
+    dataKeySources: { foo: "setData", bar: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Page setData with computed key triggers dynamic",
+    source: `Page({
+      data: {},
+      onLoad() {
+        this.setData({ [dynName]: 1, staticName: 2 });
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["staticName"],
+    dataKeySources: { staticName: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: true,
+  },
+  {
+    label: "Component setData inside methods block",
+    source: `Component({
+      data: { visible: false },
+      methods: {
+        reload() { this.setData({ describe: "x", count: 1 }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["reload"],
+    dataKeys: ["visible", "describe", "count"],
+    dataKeySources: { visible: "data", describe: "setData", count: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside lifetimes",
+    source: `Component({
+      data: {},
+      lifetimes: {
+        attached() { this.setData({ ready: true }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["ready"],
+    dataKeySources: { ready: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside pageLifetimes",
+    source: `Component({
+      data: {},
+      pageLifetimes: {
+        show() { this.setData({ active: true }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["active"],
+    dataKeySources: { active: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside observers",
+    source: `Component({
+      data: {},
+      observers: {
+        "field"() { this.setData({ derived: 1 }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["derived"],
+    dataKeySources: { derived: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside property observer",
+    source: `Component({
+      data: {},
+      properties: {
+        value: { type: String, observer() { this.setData({ derived: 1 }); } },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: [],
+    dataKeys: ["derived"],
+    dataKeySources: { derived: "setData" },
+    propertyKeys: ["value"],
+    propertyKeySources: { value: "property" },
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside legacy top-level lifecycle",
+    source: `Component({
+      data: {},
+      attached() { this.setData({ ready: true }); },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["attached"],
+    dataKeys: ["ready"],
+    dataKeySources: { ready: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData inside nested arrow (setTimeout) is extracted",
+    source: `Component({
+      data: {},
+      methods: {
+        kick() { setTimeout(() => this.setData({ later: 1 }), 100); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["kick"],
+    dataKeys: ["later"],
+    dataKeySources: { later: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component nested regular function this.setData is ignored",
+    source: `Component({
+      data: { foo: 1 },
+      methods: {
+        run() {
+          setTimeout(function () { this.setData({ ignored: 1 }); }, 0);
+        },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["run"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData spread triggers dynamic but still keeps static keys",
+    source: `Component({
+      data: {},
+      methods: {
+        reload() { this.setData({ ...payload, keep: 1 }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["reload"],
+    dataKeys: ["keep"],
+    dataKeySources: { keep: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: true,
+  },
+  {
+    label: "Component setData non-object arg triggers dynamic",
+    source: `Component({
+      data: { foo: 1 },
+      methods: {
+        apply() { this.setData(payload); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["apply"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: true,
+  },
+  {
+    label: "Component setData empty args is a no-op",
+    source: `Component({
+      data: { foo: 1 },
+      methods: {
+        apply() { this.setData(); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["apply"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "Component setData dedup: data block wins on collision",
+    source: `Component({
+      data: { visible: false },
+      methods: {
+        toggle() { this.setData({ visible: true, derived: 1 }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["toggle"],
+    dataKeys: ["visible", "derived"],
+    dataKeySources: { visible: "data", derived: "setData" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "bare setData(...) without this. is ignored",
+    source: `Component({
+      data: { foo: 1 },
+      methods: {
+        apply() { setData({ should_not_appear: 1 }); },
+      },
+    });`,
+    hasDynamicMethods: false,
+    methodNames: ["apply"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "setData in module-level helper is ignored",
+    source: `function helper() { this.setData({ nope: 1 }); }
+      Component({
+        data: { foo: 1 },
+        methods: { run() { helper(); } },
+      });`,
+    hasDynamicMethods: false,
+    methodNames: ["run"],
+    dataKeys: ["foo"],
+    dataKeySources: { foo: "data" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
 ];
 
 function assert(condition, message) {
@@ -276,7 +564,7 @@ async function main() {
   const parser = new Parser();
   parser.setLanguage(lang);
 
-  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData } of CASES) {
+  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData, dataKeySources, propertyKeySources } of CASES) {
     const result = extractMethods(parser, source);
     assert(
       typeof result === "object" && result !== null
@@ -344,6 +632,44 @@ async function main() {
         entry.source === "property",
         `${label}: propertyKey "${entry.name}" has invalid source ${JSON.stringify(entry.source)}`,
       );
+    }
+
+    // Per-case explicit source map. Optional: if the case omits dataKeySources,
+    // skip this check (older cases that pre-date the source discriminator).
+    // When present, the assertion is exact-match — every dataKey name MUST
+    // appear in the expected map, and no extras allowed. This catches both
+    // "missed an entry" and "tagged with the wrong source" wiring bugs.
+    if (dataKeySources) {
+      const actual = Object.fromEntries(result.dataKeys.map((k) => [k.name, k.source]));
+      const expected = dataKeySources;
+      const actualKeys = Object.keys(actual).sort();
+      const expectedKeys = Object.keys(expected).sort();
+      assert(
+        actualKeys.length === expectedKeys.length && actualKeys.every((k, i) => k === expectedKeys[i]),
+        `${label}: dataKeySources key set expected [${expectedKeys.join(", ")}], got [${actualKeys.join(", ")}]`,
+      );
+      for (const name of actualKeys) {
+        assert(
+          actual[name] === expected[name],
+          `${label}: dataKey "${name}" expected source ${JSON.stringify(expected[name])}, got ${JSON.stringify(actual[name])}`,
+        );
+      }
+    }
+    if (propertyKeySources) {
+      const actual = Object.fromEntries(result.propertyKeys.map((k) => [k.name, k.source]));
+      const expected = propertyKeySources;
+      const actualKeys = Object.keys(actual).sort();
+      const expectedKeys = Object.keys(expected).sort();
+      assert(
+        actualKeys.length === expectedKeys.length && actualKeys.every((k, i) => k === expectedKeys[i]),
+        `${label}: propertyKeySources key set expected [${expectedKeys.join(", ")}], got [${actualKeys.join(", ")}]`,
+      );
+      for (const name of actualKeys) {
+        assert(
+          actual[name] === expected[name],
+          `${label}: propertyKey "${name}" expected source ${JSON.stringify(expected[name])}, got ${JSON.stringify(actual[name])}`,
+        );
+      }
     }
   }
   process.stdout.write("PASS\n");

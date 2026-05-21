@@ -162,6 +162,63 @@ function propertiesBlockOf(objectNode) {
   return null;
 }
 
+// Returns every top-level pair in `objectNode` whose value is a function
+// expression / arrow function / method-definition shorthand. Used to find
+// Page lifecycle handlers and Component legacy lifecycle handlers.
+function functionValuedPairs(objectNode) {
+  const out = [];
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    const child = objectNode.namedChild(i);
+    if (child.type === "method_definition") {
+      out.push(child);
+    } else if (child.type === "pair") {
+      const valueNode = fieldChild(child, "value") ?? child.namedChild(1);
+      if (valueNode && FUNCTION_VALUE_TYPES.has(valueNode.type)) {
+        out.push(valueNode);
+      }
+    }
+  }
+  return out;
+}
+
+// Returns the inner object node for a named pair (e.g. `lifetimes: { ... }`).
+// Returns null if the key is missing or the value isn't an object literal.
+function namedObjectBlock(objectNode, blockName) {
+  for (let i = 0; i < objectNode.namedChildCount; i++) {
+    const child = objectNode.namedChild(i);
+    if (child.type !== "pair") continue;
+    const keyNode = fieldChild(child, "key") ?? firstChildOfType(child, "property_identifier");
+    if (!keyNode || keyNode.type !== "property_identifier" || keyNode.text !== blockName) continue;
+    const valueNode = fieldChild(child, "value") ?? child.namedChild(1);
+    if (valueNode && valueNode.type === "object") return valueNode;
+  }
+  return null;
+}
+
+// Collects observer function nodes from `properties: { <name>: { observer: <fn> } }`.
+function propertyObservers(propertiesBlockNode) {
+  const out = [];
+  for (let i = 0; i < propertiesBlockNode.namedChildCount; i++) {
+    const propPair = propertiesBlockNode.namedChild(i);
+    if (propPair.type !== "pair") continue;
+    const descriptor = fieldChild(propPair, "value") ?? propPair.namedChild(1);
+    if (!descriptor || descriptor.type !== "object") continue;
+    for (let j = 0; j < descriptor.namedChildCount; j++) {
+      const field = descriptor.namedChild(j);
+      if (field.type === "method_definition") {
+        const nameNode = firstChildOfType(field, "property_identifier");
+        if (nameNode && nameNode.text === "observer") out.push(field);
+      } else if (field.type === "pair") {
+        const keyNode = fieldChild(field, "key") ?? firstChildOfType(field, "property_identifier");
+        if (!keyNode || keyNode.type !== "property_identifier" || keyNode.text !== "observer") continue;
+        const valueNode = fieldChild(field, "value") ?? field.namedChild(1);
+        if (valueNode && FUNCTION_VALUE_TYPES.has(valueNode.type)) out.push(valueNode);
+      }
+    }
+  }
+  return out;
+}
+
 const IDENTIFIER_SHAPE = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
 
 function extractDataKeys(dataObjectNode, source) {
@@ -350,6 +407,59 @@ export function extractMethods(parser, source) {
           if (propertiesBlock) {
             if (containsSpread(propertiesBlock)) hasDynamicData = true;
             propertyKeys.push(...extractDataKeys(propertiesBlock, "property"));
+          }
+
+          // setData key collection. Sink accumulates across every owner-
+          // context function body; merged into dataKeys after the visit.
+          const setDataSink = { keys: [], dynamic: false };
+
+          if (factory === "Page") {
+            // Page: every top-level function-valued pair is an owner-
+            // context function (lifecycle + user-defined methods both live
+            // here; there's no separate methods block).
+            for (const fn of functionValuedPairs(opts)) {
+              walkOwnerFunctionForSetData(fn, setDataSink);
+            }
+          } else {
+            // Component: walk legacy top-level lifecycle + the methods,
+            // lifetimes, pageLifetimes, observers blocks + observer functions
+            // inside properties descriptors.
+            for (const fn of functionValuedPairs(opts)) {
+              walkOwnerFunctionForSetData(fn, setDataSink);
+            }
+            const methodsBlock = methodsBlockOf(opts);
+            if (methodsBlock) {
+              for (const fn of functionValuedPairs(methodsBlock)) {
+                walkOwnerFunctionForSetData(fn, setDataSink);
+              }
+            }
+            for (const blockName of ["lifetimes", "pageLifetimes", "observers"]) {
+              const block = namedObjectBlock(opts, blockName);
+              if (block) {
+                for (const fn of functionValuedPairs(block)) {
+                  walkOwnerFunctionForSetData(fn, setDataSink);
+                }
+              }
+            }
+            const propertiesBlockForObservers = propertiesBlockOf(opts);
+            if (propertiesBlockForObservers) {
+              for (const obs of propertyObservers(propertiesBlockForObservers)) {
+                walkOwnerFunctionForSetData(obs, setDataSink);
+              }
+            }
+          }
+
+          if (setDataSink.dynamic) hasDynamicData = true;
+
+          // Dedup setData keys against the data block: data-block declaration
+          // is more authoritative (has a static default value), so keep it
+          // and silently drop the setData copy. Preserves natural reading
+          // order: data block first, then setData additions.
+          const existingDataNames = new Set(dataKeys.map((k) => k.name));
+          for (const key of setDataSink.keys) {
+            if (existingDataNames.has(key.name)) continue;
+            existingDataNames.add(key.name);
+            dataKeys.push(key);
           }
         }
       }
