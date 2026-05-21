@@ -270,9 +270,10 @@ function extractSetDataKeysFromCall(callNode) {
 // definition node), running extractSetDataKeysFromCall on each.
 //
 // Critical: stops at nested function boundaries that REBIND `this` —
-// regular function_expression / function_declaration / method_definition
-// each get their own `this`, so a `this.setData(...)` inside them is NOT
-// a call on the component instance and must be ignored. arrow_function
+// regular function_expression / function_declaration / method_definition /
+// generator_function / generator_function_declaration each get their own
+// `this`, so a `this.setData(...)` inside them is NOT a call on the
+// component instance and must be ignored. arrow_function
 // continues to be walked because arrows inherit `this` lexically; that
 // covers the common Promise.then(res => this.setData(...)) /
 // setTimeout(() => this.setData(...)) patterns.
@@ -286,7 +287,9 @@ function walkOwnerFunctionForSetData(funcNode, sink) {
     if (node !== funcNode && (
       node.type === "function_expression" ||
       node.type === "function_declaration" ||
-      node.type === "method_definition"
+      node.type === "method_definition" ||
+      node.type === "generator_function" ||
+      node.type === "generator_function_declaration"
     )) {
       return;
     }
