@@ -927,8 +927,9 @@ every owner-context function body:
 
 Walker recurses into nested arrow_function bodies (lexical this) but
 stops at function_expression / function_declaration / method_definition
-boundaries (those rebind this — a setTimeout(function () { this.setData
-... }) is NOT a call on the component instance).
+/ generator_function / generator_function_declaration boundaries (those
+rebind this — a setTimeout(function () { this.setData ... }) is NOT a
+call on the component instance).
 
 setData keys merge into dataKeys with source: "setData". Data block
 declarations win on name collision. Non-object args, spread elements,
