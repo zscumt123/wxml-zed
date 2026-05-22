@@ -713,15 +713,15 @@ TDD commit: T5 is the smallest case that exercises the wiring end-to-end. The cr
 Near the top of `scripts/verify-wxml-language-service.mjs` (alongside `HOME_WXML` / `HOME_WXML_GRAPH_PATH`), add:
 
 ```js
-const CROSS_BINDING_WXML = path.join(ROOT, "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml");
-const CROSS_BINDING_WXML_GRAPH_PATH = toPosixRelative(CROSS_BINDING_WXML);
-const DYN_PAGE_WXML = path.join(ROOT, "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml");
-const DYN_PAGE_WXML_GRAPH_PATH = toPosixRelative(DYN_PAGE_WXML);
+const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cross-binding.wxml");
+const CROSS_BINDING_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml";
+const DYN_PAGE_WXML = path.join(MINIPROGRAM_ROOT, "pages/dyn-page/dyn-page.wxml");
+const DYN_PAGE_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml";
 const LOCAL_BAR_CONFIG_PATH = "fixtures/miniprogram/components/local-bar/local-bar.json";
 const DYN_CARD_CONFIG_PATH = "fixtures/miniprogram/components/dyn-card/dyn-card.json";
 ```
 
-(Reuse the existing `toPosixRelative` helper or whichever name converts an absolute path to the graph-relative posix path. Look at how `HOME_WXML_GRAPH_PATH` is computed and mirror that.)
+Mirrors the existing pattern in `scripts/verify-wxml-language-service.mjs:17` (`HOME_WXML = path.join(MINIPROGRAM_ROOT, ...)`) and `:26` (`HOME_WXML_GRAPH_PATH = "fixtures/miniprogram/..."`) — graph paths are hardcoded posix-relative strings, not computed via a helper. The graph paths must match exactly the strings `extract-wxml-project-graph.mjs` emits (`toPosix(path.relative(ROOT, ...))`); the hardcoded forms above are the correct values when the wxml-zed repo root is the `ROOT` baseline.
 
 - [ ] **Step 2: Write T5 first (TDD — expect failure)**
 
@@ -1393,13 +1393,13 @@ The language-service tests prove logic; LSP tests prove wire format. L2 specific
 
 - [ ] **Step 1: Add path constants and locate insertion point**
 
-In `scripts/verify-lsp-diagnostics.mjs`, locate the existing fixture path constants. Add adjacent:
+In `scripts/verify-lsp-diagnostics.mjs`, locate the existing fixture path constants (around line 10-15, where `MINIPROGRAM_ROOT`, `HOME_WXML`, etc. are defined). Add adjacent:
 
 ```js
-const CROSS_BINDING_WXML = path.join(MINI_ROOT, "pages/cross-binding/cross-binding.wxml");
+const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cross-binding.wxml");
 ```
 
-(Reuse `MINI_ROOT` or whichever constant points at `fixtures/miniprogram/`.)
+The existing constant for the fixtures/miniprogram root is `MINIPROGRAM_ROOT` (verified at `scripts/verify-lsp-diagnostics.mjs:10`).
 
 - [ ] **Step 2: Add L1 — dead-component-binding wire format**
 
@@ -1415,7 +1415,7 @@ async function testDeadComponentBindingWireFormat() {
   // changeDocument to a WXML where one binding references an undefined
   // identifier (which local-bar declares as a prop). Assert that
   // publishDiagnostics carries dead-component-binding with severity 3.
-  await withClient({ rootPath: MINI_ROOT }, async (client) => {
+  await withClient({ rootPath: MINIPROGRAM_ROOT }, async (client) => {
     const uri = client.openDocument(CROSS_BINDING_WXML);
     await client.waitForDiagnostics(
       uri,
@@ -1462,7 +1462,7 @@ async function testDeadComponentBindingPreservesEventHandler() {
   //
   // Assert both appear in the SAME publishDiagnostics. Proves the new rule
   // does not suppress event-handler diagnostics at the wire layer.
-  await withClient({ rootPath: MINI_ROOT }, async (client) => {
+  await withClient({ rootPath: MINIPROGRAM_ROOT }, async (client) => {
     const uri = client.openDocument(CROSS_BINDING_WXML);
     await client.waitForDiagnostics(
       uri,
