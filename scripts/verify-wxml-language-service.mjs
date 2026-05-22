@@ -24,6 +24,12 @@ const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/g
 const LOCAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/local-badge/local-badge.wxml");
 const USER_CARD_TARGET = path.join(MINIPROGRAM_ROOT, "components/user-card/user-card.wxml");
 const HOME_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/home/home.wxml";
+const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cross-binding.wxml");
+const CROSS_BINDING_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml";
+const DYN_PAGE_WXML = path.join(MINIPROGRAM_ROOT, "pages/dyn-page/dyn-page.wxml");
+const DYN_PAGE_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml";
+const LOCAL_BAR_CONFIG_PATH = "fixtures/miniprogram/components/local-bar/local-bar.json";
+const DYN_CARD_CONFIG_PATH = "fixtures/miniprogram/components/dyn-card/dyn-card.json";
 
 function assert(condition, message) {
   if (!condition) {
@@ -834,6 +840,8 @@ function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
   const synthetic = {
     name: "__synthetic_for_user__",
     source: "interpolation",
+    containingTag: null,
+    containingAttribute: null,
     range: { start: { row: 0, column: 0 }, end: { row: 0, column: 24 } },
     expressionRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 24 } },
   };
@@ -855,6 +863,51 @@ function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
     if (homeFile.wxForBindings) {
       homeFile.wxForBindings = { ...homeFile.wxForBindings, items: originalItems };
     }
+  }
+}
+
+function assertCrossBindingT5DeclaredProp(graph) {
+  // T5 (happy path): parent's <local-bar locationError="{{locationError}}">
+  // on lines 2 and 6 of cross-binding.wxml. With locationError removed from
+  // the page's dataKeys, both refs become unresolved against parent scope.
+  // local-bar declares locationError as a property → exactly 2
+  // dead-component-binding Information diagnostics for locationError,
+  // and ZERO missing-expression-ref for locationError.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T5 setup: cross-binding config must have script");
+  const originalDataKeys = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = originalDataKeys.filter((k) => k.name !== "locationError");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const allDead = diagnostics.filter((d) => d.code === "dead-component-binding");
+    const locationErrorDead = allDead.filter((d) => d.message.includes('"locationError"'));
+    const locationErrorWarn = diagnostics.filter((d) => (
+      d.code === "missing-expression-ref" && d.message.includes('"locationError"')
+    ));
+    assert(
+      locationErrorDead.length === 2,
+      `T5: expected exactly 2 dead-component-binding for locationError; got ${locationErrorDead.length}. All: ${JSON.stringify(allDead)}`,
+    );
+    assert(
+      locationErrorWarn.length === 0,
+      `T5: locationError must NOT also be a warning; got ${locationErrorWarn.length}: ${JSON.stringify(locationErrorWarn)}`,
+    );
+    for (const d of locationErrorDead) {
+      assert(d.severity === 3, `T5: severity ${d.severity} !== 3 for ${JSON.stringify(d)}`);
+      assert(d.source === "wxml-zed", `T5: source ${d.source}`);
+      assert(
+        d.message.includes("receive undefined and use its property default if one exists"),
+        `T5: message mismatch: ${d.message}`,
+      );
+    }
+    // Also assert there are no UNEXPECTED diagnostics on this file.
+    const otherDiags = diagnostics.filter((d) => !d.message.includes('"locationError"'));
+    assert(
+      otherDiags.length === 0,
+      `T5: unexpected non-locationError diagnostics: ${JSON.stringify(otherDiags)}`,
+    );
+  } finally {
+    pageConfig.script.dataKeys = originalDataKeys;
   }
 }
 
@@ -1903,6 +1956,7 @@ assertExpressionRefDiagnosticNoScriptSkips(graph);
 assertExpressionRefDiagnosticUserCardClean(graph);
 assertExpressionRefDiagnosticSuppressedInTemplateDefinition(graph);
 assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
+assertCrossBindingT5DeclaredProp(graph);
 assertFolderComponentResolvesViaIndex(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);

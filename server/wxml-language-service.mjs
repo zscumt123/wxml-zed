@@ -885,11 +885,34 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
   const out = [];
   for (const ref of refs) {
     // Refs inside `<template name="X">...</template>` resolve in the caller's
-    // data scope (passed via `<template is="X" data="{{...}}"/>`) at use
-    // time, not in this file's owner script. Skip them — we don't have the
-    // call-site context here to validate.
+    // data scope at use time (via `<template is="X" data="{{...}}"/>`), not
+    // in this file's owner script. Skip — we don't have call-site context.
     if (ref.inTemplateDefinition) continue;
     if (scope.has(ref.name)) continue;
+
+    // Cross-component prop binding check: if the failing identifier is
+    // inside a non-reserved attribute and the child component statically
+    // declares that attribute as a property, downgrade to
+    // dead-component-binding Information.
+    const isCandidateBinding =
+      ref.containingAttribute !== null &&
+      !isReservedAttribute(ref.containingAttribute);
+
+    if (isCandidateBinding) {
+      const status = findChildProperty(graph, documentGraphPath, ref.containingTag, ref.containingAttribute);
+      if (status === "declared") {
+        out.push({
+          range: rangeFromSymbolRange(ref.range),
+          severity: INFORMATION,
+          source: "wxml-zed",
+          code: "dead-component-binding",
+          message: `"${ref.name}" is not defined in this file, but <${ref.containingTag}> declares "${ref.containingAttribute}" as a property — the child will receive undefined and use its property default if one exists. If you intended to pass a value, declare "${ref.name}" in this page/component's data, properties, or setData.`,
+        });
+        continue;
+      }
+      // status === 'not-declared' or 'unresolvable' → fall through to warning
+    }
+
     out.push({
       range: rangeFromSymbolRange(ref.range),
       severity: WARNING,
