@@ -836,6 +836,36 @@ round. Seed for a future P2.2 plan. See plan's Outcome section.
 
 ---
 
+### Follow-up: cross-component prop binding diagnostic
+
+P2.2-B added a new diagnostic code `dead-component-binding` (LSP
+Information severity) downgrading missing-expression-ref warnings
+at component-tag custom-attribute binding sites when the child
+statically declares the attribute as a property. Plan:
+`docs/superpowers/plans/2026-05-22-cross-component-prop-binding-diagnostic.md`.
+
+Lookup direction: by attribute name (child's prop API), not by
+expression identifier (parent's namespace). Order: trust static
+propertyKeys hit first; consult hasDynamicData only when the name
+is NOT in the static set — preserves the static observation as
+authoritative even when the child has unrelated dynamic data
+elsewhere. Parent's own hasDynamicData=true still suppresses ALL
+expression diagnostics including the new code (parent-scope-
+completeness inheritance via the existing early return).
+
+Outcome on the same chelaile snapshot: 26 -> 26 total (pure
+reclassification, no new entries). The 7 missing-event-handler
+diagnostics (all real bugs) preserved unchanged. missing-expression-
+ref dropped from 19 to 7. dead-component-binding count: 0 -> 12 —
+caught 12 cross-component pass-through cases, including 9 the
+round 1 surviving-bucket classification had not surfaced as their
+own pattern. The 7 surviving warnings are fully classified: 2
+library-mediated (P2.2-A bucket), 4 inside `wx:if` (correctly
+reserved-out by the rule), 1 Taro template-fragment scope. See
+plan's Outcome section for the full table.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:

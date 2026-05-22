@@ -1766,3 +1766,48 @@ These are absolute pass/fail gates:
 - L2 uses `changeDocument` to engineer both diagnostic codes on the same file — proves the new rule does not consume the event-handler path at the wire layer.
 - Dogfood uses explicit `--out /tmp/wxml-zed-diagnostics-p22b/{before,after}/` paths — no dependency on `/tmp/claude-501/` or session-private paths.
 - Each commit message is HEREDOC-formatted with consistent style.
+
+---
+
+## Outcome
+
+Real-project dogfood on `mp-wx-chelaile/wx` (BEFORE captured at Task 0, AFTER captured at Task 6):
+
+| metric | BEFORE (P2 round 1 AFTER) | AFTER (P2.2-B) |
+|---|---|---|
+| total | 26 | 26 |
+| missing-event-handler | 7 | 7 |
+| missing-expression-ref | 19 | 7 |
+| dead-component-binding | 0 | 12 |
+
+### Hard gates (all passed)
+
+- `missing-event-handler`: 7 → 7 (precision regression lock — all 7 are real bugs in the project, none affected)
+- Total count: 26 → 26 (no new entries; pure reclassification — 12 of the 19 surviving expression-ref warnings downgraded to dead-component-binding Information)
+- `dead-component-binding`: 0 → 12 (12 cross-component pass-through cases successfully caught)
+
+### Result is stronger than the plan anticipated
+
+The plan estimated `dead-component-binding count >= 1` based on the 3 cross-component samples identified in the P2 round 1 surviving-bucket classification (`locationError` x3 + `popupLevel` x1). The actual count is **12** — meaning the new rule caught 9 additional cross-component pass-through cases that were buried in the broader expression-ref bucket but weren't surfaced as their own pattern during round 1 classification.
+
+### Surviving 7 missing-expression-ref entries — full classification
+
+Population is small enough to fully classify all of them.
+
+| # | file:line | name | bucket | reason |
+|---|---|---|---|---|
+| 1 | `pages/main/fav-page/index.wxml:3` | load_state | library-mediated setData | `States.applyTo(this)` pattern, deferred to P2.2-A |
+| 2 | `pages/my-fav/index.wxml:1` | load_state | library-mediated setData | same as #1 |
+| 3 | `pages/main/home-page/components/operation-postion/index.wxml:1` | hiddenOperation | reserved-attribute (wx:if) | identifier inside `wx:if="{{hiddenOperation}}"` — reserved prefilter correctly excludes from cross-component check |
+| 4 | `pages/login/components/sync-popup/index.wxml:1` | show | reserved-attribute (wx:if) | same pattern |
+| 5 | `pages/linedetail/components/bus-profile-normal/cell-history/index.wxml:7` | cell | reserved-attribute (wx:if) | `wx:if="{{cell.tomorrow}}"` — `cell` root identifier reserved |
+| 6 | `pages/more-buses/components/bus/index.wxml:32` | tomorrow | reserved-attribute (wx:if) | `wx:if="{{tomorrow}}"` |
+| 7 | `ad/components/taro-weapp/comp.wxml:3` | i | template-fragment scope | `<template is="{{'tmpl_0_' + i.nn}}">` — Taro compiled template fragment binding |
+
+### Buckets (next-round input)
+
+- **Library-mediated computed/spread setData** (2 entries) — the deferred P2.2-A target. `States.applyTo(this)` helper-class pattern. Will be its own brainstorm.
+- **Reserved-attribute inside wx:if** (4 entries) — correctly NOT downgraded because the rule design treats `wx:if` as control flow, not a custom prop binding. They're genuine "missing data" warnings on parent's `wx:if` expressions; could be real bugs the dev wants surfaced. Not in scope for any current bucket.
+- **Taro compiled template-fragment** (1 entry) — Taro framework's compilation output uses `<template is="{{... + i.nn}}">` patterns where `i` is a sibling-template data field. Could be a fourth-round target if dogfood reveals more Taro projects affected.
+
+The 12 successful downgrades + 7 fully-classified survivors mean every diagnostic on the file is now either signal (real bug or fully-explained reservation) or in a named deferred bucket.
