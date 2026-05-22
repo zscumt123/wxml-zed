@@ -84,7 +84,15 @@ parent WXML graph path (documentGraphPath)
      [does child declare this attribute as a property?]
 ```
 
-All four jumps use existing graph fields. The `c.resolved === true` filter and `c.script.hasDynamicData === true` check correctly handle unresolvable / dynamic-properties cases by collapsing them to "unresolvable" — which falls back to the existing warning per the user's "no silent miss" rule.
+All four jumps use existing graph fields. The `c.resolved === true` filter correctly handles unresolved cases.
+
+**`hasDynamicData` semantics**: this flag is a broad signal that the child's data shape includes runtime-dynamic sources (data-block spread, non-empty `behaviors:`, `properties: someVar`, etc.). It does NOT invalidate statically-extracted `propertyKeys`. The lookup order is:
+
+1. Does `propertyKeys` contain the attribute name? → `'declared'` (trust the static fact regardless of `hasDynamicData`).
+2. Otherwise, is `hasDynamicData === true`? → `'unresolvable'` (we can't enumerate the full prop set, so be pessimistic).
+3. Otherwise → `'not-declared'` (child's prop set is fully known and doesn't include this name).
+
+This ordering is the key correctness point: if the child's JS literally has `properties: { locationError: { type: Boolean, value: false } }`, then `locationError` IS declared even if the same Component also has `data: { ...spread }` or `behaviors: [foo]` elsewhere. The `data:` spread / behaviors might inject *additional* keys we can't see — but they don't *remove* the ones we already extracted.
 
 ### Data Shape Changes
 
@@ -107,9 +115,11 @@ For each `expressionRef`, the diagnostic path follows:
 |---|---|---|---|---|---|
 | C1 | ✓ | — | — | — | **No diagnostic** (existing behavior) |
 | C2 | ✗ | ✗ (built-in/unknown tag, OR text node, OR reserved attribute) | — | — | `missing-expression-ref` Warning (preserved) |
-| C3 | ✗ | ✓ | ✗ (no using-components entry resolved, no JS, or `hasDynamicData=true`) | — | `missing-expression-ref` Warning (preserved — no silent miss) |
-| C4 | ✗ | ✓ | ✓ | ✗ | `missing-expression-ref` Warning (preserved — truly dead, neither side has it) |
-| C5 | ✗ | ✓ | ✓ | ✓ | **`dead-component-binding` Information** (new) |
+| C3 | ✗ | ✓ | ✗ (no using-components entry resolved, no JS) — OR — child resolved but `hasDynamicData=true` AND attr NOT in static propertyKeys | — | `missing-expression-ref` Warning (preserved — no silent miss) |
+| C4 | ✗ | ✓ | ✓ (or `hasDynamicData` but attr would be enumerable if present) | ✗ | `missing-expression-ref` Warning (preserved — truly dead, neither side has it) |
+| C5 | ✗ | ✓ | ✓ (attr IS in static propertyKeys) | ✓ | **`dead-component-binding` Information** (new) |
+
+C3 deliberately distinguishes "we have no information about the child" from "we have partial information and `attr` is in the known partial". C5 fires on any child where the static extraction caught the attribute name, regardless of whether other parts of that child's data shape are dynamic.
 
 The `inTemplateDefinition` short-circuit (refs inside `<template name="X">...</template>` are skipped because their scope resolves at the use site) takes precedence over the entire matrix. Template-fragment refs are unaffected by this change.
 
@@ -138,7 +148,7 @@ Rationale:
 ## Diagnostic Message
 
 ```
-"X" is not defined in this file, but <local-bar> declares "locationError" as a property — the child will fall back to its default value. If you intended to pass a value, declare it in this page/component's data, properties, or setData.
+"X" is not defined in this file, but <local-bar> declares "locationError" as a property — the child will receive undefined and use its property default if one exists. If you intended to pass a value, declare "X" in this page/component's data, properties, or setData.
 ```
 
 Substitutions:
@@ -146,7 +156,7 @@ Substitutions:
 - `<local-bar>` = the containing tag (`ref.containingTag`)
 - `"locationError"` = the containing attribute name (`ref.containingAttribute`)
 
-The message explicitly names both namespaces (parent identifier + child prop API) and the runtime behavior (default value fallback), so the developer can decide between "intended fallback" and "forgot to declare" without re-reading the WXML.
+The wording "use its property default if one exists" is deliberately precise: WeChat resolves the property's default in three layers — the explicit `value: <x>` in the property descriptor, the implicit type default (0 for `type: Number`, false for Boolean, "" for String, etc.) when only `type` is declared, and undefined for shorthand declarations like `properties: { foo: null }`. The diagnostic flags the binding-time fact ("no value flows from parent") without committing to a specific default-resolution outcome at runtime.
 
 ## Implementation Sketch
 
@@ -183,11 +193,22 @@ function findChildProperty(graph, ownerWxmlGraphPath, childTag, attributeName) {
     c => c.owner === using.target && c.script
   );
   if (!childConfig) return 'unresolvable';
+
+  // Trust static propertyKeys FIRST — they're authoritative facts the
+  // extractor read from the child's own properties: { ... } block.
+  // hasDynamicData being true elsewhere (data spread, behaviors, etc.)
+  // does NOT remove keys we already extracted; it only means there may
+  // be ADDITIONAL keys we can't see.
+  if ((childConfig.script.propertyKeys ?? []).some(k => k.name === attributeName)) {
+    return 'declared';
+  }
+
+  // Not in the static set. If the child has dynamic data sources, the
+  // missing entry might be injected at runtime — be pessimistic.
   if (childConfig.script.hasDynamicData) return 'unresolvable';
 
-  const declared = (childConfig.script.propertyKeys ?? [])
-    .some(k => k.name === attributeName);
-  return declared ? 'declared' : 'not-declared';
+  // Static prop set is fully known and doesn't include this name.
+  return 'not-declared';
 }
 
 // Main loop modification (only the failure branch — success/short-circuit unchanged):
@@ -238,7 +259,9 @@ for (const ref of refs) {
 | E4 | `<local-bar generic:Item="MyItem">` | `generic:` prefix is reserved. Even if `MyItem` were a `{{...}}` expression and unresolved, prefilter falls through to existing rule. |
 | E5 | `<local-bar wx:if="{{undef}}">` | `wx:if` is reserved. Existing `missing-expression-ref` warning. |
 | E6 | `<local-bar bind:tap="handler">` | `bind:` prefix reserved AND this is event-handler territory anyway. New rule does not interfere. |
-| E7 | Child uses `behaviors: [foo]` | `hasDynamicData = true` on child script. `findChildProperty` returns `'unresolvable'`. Falls C3 → warning. |
+| E7 | Child uses `behaviors: [foo]` AND its own `properties:` block declares `attr` | `hasDynamicData = true`, but `propertyKeys` contains `attr`. New lookup order: static hit wins → `'declared'` → C5 dead-component-binding. (Behaviors might *also* inject more props, but `attr` is provably here regardless.) |
+| E7b | Child uses `behaviors: [foo]` AND its own `properties:` block does NOT declare `attr` | `hasDynamicData = true`, `propertyKeys` does not contain `attr`. The missing prop might be injected by behaviors — be pessimistic. `'unresolvable'` → C3 warning. |
+| E7c | Child has `data: { ...spread }` (sets `hasDynamicData`) AND `properties: { locationError: ... }` (statically declared) | `propertyKeys` has `locationError` → `'declared'` → C5. The unrelated data spread does not invalidate the prop API. |
 | E8 | Child uses wrapper factory `Fw.Component({...})` | Existing extractor unwraps. Lookup chain unchanged. |
 | E9 | Child config exists but JS file missing | `script` is undefined. `findChildProperty` returns `'unresolvable'`. C3 → warning. |
 | E10 | Child declares the name via setData, not via `properties:` | Lookup only inspects `propertyKeys`, not `dataKeys`. setData-injected keys are runtime data, not part of the child's public prop API. C4 → warning. Correct. |
@@ -261,7 +284,9 @@ Append to the existing synthetic-project test set. Each test sets up a parent + 
 | T5 | parent: `<local-bar locationError="{{undef}}">`, child declares `locationError` property | 1 × `dead-component-binding` Information (C5 — happy path) |
 | T6 | parent: `<local-bar locationError="{{undef}}">`, child does NOT declare `locationError` | 1 × `missing-expression-ref` (C4) |
 | T7 | parent: `<local-bar locationError="{{undef}}">`, child config has no JS file | 1 × `missing-expression-ref` (C3 — child unresolvable) |
-| T8 | parent: `<local-bar locationError="{{undef}}">`, child uses `behaviors: [foo]` so `hasDynamicData=true` | 1 × `missing-expression-ref` (C3) |
+| T8a | parent: `<local-bar locationError="{{undef}}">`, child uses `behaviors: [foo]` AND child's own `properties:` block declares `locationError` | 1 × `dead-component-binding` (C5 — static hit wins over `hasDynamicData`; regression lock for Finding 1) |
+| T8b | parent: `<local-bar locationError="{{undef}}">`, child uses `behaviors: [foo]` AND child's own `properties:` block does NOT declare `locationError` | 1 × `missing-expression-ref` (C3 — behaviors might inject, be pessimistic) |
+| T8c | parent: `<local-bar locationError="{{undef}}">`, child has `data: { ...spread, foo: 1 }` so `hasDynamicData=true` AND child's `properties:` block declares `locationError` | 1 × `dead-component-binding` (C5 — `data` spread doesn't invalidate prop API) |
 | T9 | parent: `<template name="x"><local-bar locationError="{{undef}}"/></template>`, child declares the prop | **No diagnostic** (inTemplateDefinition short-circuit precedence) |
 | T10 | parent: `<local-bar locationError="{{userIsLost}}">`, child declares `locationError`, parent has neither `userIsLost` nor `locationError` | 1 × `dead-component-binding` (lookup by attribute name, NOT by identifier name — regression lock) |
 | T11 | parent: `<local-bar locationError="{{a}}" otherProp="{{b}}">`, child declares only `locationError` | 1 × `dead-component-binding` (for `a`) + 1 × `missing-expression-ref` (for `b`) — same-tag independence |
@@ -280,6 +305,19 @@ Extend the wxml-symbol extraction tests (existing in `verify-wasm-symbol-baselin
 
 All `fixtures/wasm-spike/*-symbols-baseline.json` snapshots that include `expressionRefs` need regeneration. Each ref gains `containingTag` + `containingAttribute` (possibly null). Purely additive — no existing fields change.
 
+### LSP protocol-layer tests (`scripts/verify-lsp-diagnostics.mjs --suite graph-smoke`)
+
+The synthetic language-service tests above prove the diagnostic logic; the LSP protocol-layer tests prove the wire format clients actually see. Without this layer, a divergence between `getDiagnostics`' return shape and `publishDiagnostics`' published format could go undetected. Same gap the P1 overlay work explicitly added regression locks for.
+
+Add to the existing `graph-smoke` suite (in addition to the existing 13 tests):
+
+| Test | Setup | Assertion |
+|---|---|---|
+| L1 | Synthetic mini-program project where parent's WXML has `<local-bar locationError="{{undef}}">` and child declares `locationError` property | `publishDiagnostics` for the parent file contains exactly one diagnostic with `code === "dead-component-binding"` and `severity === 3`. The original `missing-expression-ref` (severity 2) MUST NOT appear for this ref. |
+| L2 | Same project, but add a `<local-bar bind:tap="handler">` where `handler` isn't declared | Parent file's published diagnostics include the L1 `dead-component-binding` AND a separate `missing-event-handler` warning — proving the new code doesn't suppress the existing event-handler diagnostic. |
+
+L2 specifically locks in the "doesn't break existing diagnostics" property end-to-end through the LSP wire, which the language-service-only tests can't fully verify (they don't go through `publishDiagnostics`).
+
 ### Real-project dogfood (`scripts/dump-project-diagnostics.mjs`)
 
 Re-run on `mp-wx-chelaile/wx` after the implementation lands. Expected outcome:
@@ -294,13 +332,14 @@ Hard gates for the dogfood verification: event-handler unchanged, total count no
 ## Acceptance Criteria
 
 1. All existing tests pass (umbrella `bash scripts/verify-tree-sitter.sh`).
-2. All 12 new synthetic cases (T1–T12) pass — each asserts exact code/severity/count.
+2. All 14 new synthetic cases (T1–T7, T8a/b/c, T9–T12) pass — each asserts exact code/severity/count. The T8a case specifically locks in the "static propertyKeys win over hasDynamicData" semantic (regression lock for the lookup-order correctness).
 3. Extractor tests confirm `containingTag` / `containingAttribute` populate correctly per the four shapes above.
-4. `dump-project-diagnostics.mjs` on `mp-wx-chelaile/wx` shows:
+4. Two new LSP protocol-layer tests (L1, L2) pass in the `graph-smoke` suite — confirming `publishDiagnostics` emits `code: "dead-component-binding"` with `severity: 3` and does not suppress existing `missing-event-handler` warnings.
+5. `dump-project-diagnostics.mjs` on `mp-wx-chelaile/wx` shows:
    - `missing-event-handler` count unchanged from 7.
    - Total diagnostic count not increased.
    - `dead-component-binding` count ≥ 1 (i.e., at least one of the 3 known samples successfully downgrades).
-5. The baseline regeneration diff is purely additive (no existing fields/values modified).
+6. The baseline regeneration diff is purely additive (no existing fields/values modified).
 
 ## Out of Scope (deferred to future plans)
 
