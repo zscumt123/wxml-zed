@@ -592,6 +592,264 @@ const CASES = [
     propertyKeySources: {},
     hasDynamicData: false,
   },
+  {
+    label: "J2: injector config absent leaves matching source untouched",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("load").applyTo(this);
+      },
+    });`,
+    dataInjectors: [],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J3: injector emits keys for multiple distinct constructor literals",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("foo").applyTo(this);
+        new LoadStates("bar").applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["foo_state", "foo_states", "bar_state", "bar_states"],
+    dataKeySources: {
+      foo_state: "injector",
+      foo_states: "injector",
+      bar_state: "injector",
+      bar_states: "injector",
+    },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J4: injector skips non-literal constructor arg",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates(name).applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J5: injector skips receiver that is not this",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("load").applyTo(otherPage);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J6: injector skips methodName not in config",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("load").otherMethod(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J7: injector skips className not in config",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new OtherClass("load").applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J8: injector dedup keeps data source first",
+    source: `Page({
+      data: { load_state: null },
+      onLoad() {
+        new LoadStates("load").applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["load_state", "load_states"],
+    dataKeySources: { load_state: "data", load_states: "injector" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J9: injector descends into nested arrow function",
+    source: `Page({
+      data: {},
+      onLoad() {
+        setTimeout(() => new LoadStates("load").applyTo(this), 0);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["load_state", "load_states"],
+    dataKeySources: { load_state: "injector", load_states: "injector" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J10: injector stops at nested regular function boundary",
+    source: `Page({
+      data: {},
+      onLoad() {
+        setTimeout(function () { new LoadStates("load").applyTo(this); }, 0);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state", "${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: [],
+    dataKeySources: {},
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J11: injector skips only templates with unknown placeholders",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new X("a").m(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "X",
+        constructorArgs: ["name"],
+        methods: { m: ["${unknown}_x", "${name}_ok"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["a_ok"],
+    dataKeySources: { a_ok: "injector" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
+  {
+    label: "J12: injector duplicate className/method entries are additive",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("load").applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_state"] },
+      },
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: { applyTo: ["${name}_states"] },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["load_state", "load_states"],
+    dataKeySources: { load_state: "injector", load_states: "injector" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
 ];
 
 function assert(condition, message) {
