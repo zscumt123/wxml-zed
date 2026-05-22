@@ -49,7 +49,7 @@ The diagnostic SHAPE (range, message, ability to suppress) for the new code is c
 ## Non-Goals
 
 - Following helper-class injection patterns (e.g., `States.applyTo(this)` where keys are constructed via string concat in a helper class). This is the OTHER bucket from the round-1 surviving classification and remains deferred to P2.2-A.
-- Tracking properties contributed by `behaviors:` mixin chains. When `hasDynamicData = true` on the child (which the extractor sets for any non-empty `behaviors:` array), the new rule falls back to the current warning. Following behavior chains is multi-file analysis and out of scope.
+- Following `behaviors:` mixin chains across files to enumerate the FULL extended property set. When a child has `behaviors: [foo]`, the extractor sets `hasDynamicData = true` to acknowledge "additional keys may exist." The new rule still trusts the child's own statically-declared `properties:` block (so `<child knownProp="...">` where `knownProp` IS in the child's own properties block becomes `dead-component-binding`), but does NOT chase behaviors to discover prop names that exist only in mixins (those collapse to `unresolvable` → warning).
 - Quick-fix code actions ("add this key to parent's data block"). The diagnostic data field is structured to make this feasible later, but the action itself is deferred.
 - TypeScript siblings — needs `tree-sitter-typescript.wasm`, separate plan.
 - Distinguishing the diagnostic locus between the expression range, attribute name range, and attribute-value range. The range stays on the expression (matching `missing-expression-ref`) for code-path symmetry and minimum baseline disruption.
@@ -121,20 +121,42 @@ For each `expressionRef`, the diagnostic path follows:
 
 C3 deliberately distinguishes "we have no information about the child" from "we have partial information and `attr` is in the known partial". C5 fires on any child where the static extraction caught the attribute name, regardless of whether other parts of that child's data shape are dynamic.
 
-The `inTemplateDefinition` short-circuit (refs inside `<template name="X">...</template>` are skipped because their scope resolves at the use site) takes precedence over the entire matrix. Template-fragment refs are unaffected by this change.
+Two precedence rules sit ABOVE the C1-C5 matrix and short-circuit it entirely:
+
+- **Parent's `hasDynamicData = true`**: existing `expressionRefDiagnostics` returns `[]` for the whole file at the top. The matrix is never reached, no `dead-component-binding` is emitted. See "Parent Scope Completeness Inheritance" below.
+- **`inTemplateDefinition`**: refs inside `<template name="X">...</template>` are skipped because their scope resolves at the use site. Template-fragment refs are unaffected by this change.
 
 ### Prefilter: which attributes count as "custom"
 
-A `containingAttribute` is treated as a custom prop binding ONLY when:
+A `containingAttribute` is treated as a candidate custom prop binding when ALL hold:
 
 - `containingTag !== null` (not a text node)
-- `containingAttribute !== null`
-- `containingTag` appears in `fileModel.components` (i.e., is a non-builtin tag declared in this file's WXML)
+- `containingAttribute !== null` (not a text node)
 - `containingAttribute` is NOT in the reserved set OR reserved prefixes:
   - **Reserved set**: `wx:if`, `wx:elif`, `wx:else`, `wx:for`, `wx:for-item`, `wx:for-index`, `wx:key`, `class`, `style`, `id`, `slot`, `hidden`
   - **Reserved prefixes**: `bind:`, `catch:`, `mut-bind:`, `capture-bind:`, `capture-catch:`, `data-`, `generic:`
 
-Everything else (text nodes, built-in tags, control-flow attrs on component tags, event attrs on component tags) falls through to the existing `missing-expression-ref` path unchanged.
+We deliberately do NOT prefilter on "is the tag a component" — that question is answered by `findChildProperty`'s `graph.usingComponents` lookup. If the tag has no `usingComponents` entry for this owner, the lookup returns `'unresolvable'` and we fall back to `missing-expression-ref` exactly as we would for a text node or built-in tag.
+
+**Why not use `fileModel.components`**: that field is the WXML-side candidate list filtered by `name.includes("-")` heuristic (see `shared/wxml-symbol-extractor.mjs`). It's correct for "tags that LOOK custom" but misses tags declared in `usingComponents` without hyphens (e.g., `usingComponents: { mycomp: "..." }` — `<mycomp>` is a real component but not in `fileModel.components`). The graph is the source of truth for "what's actually a component in this file"; pushing the question to `findChildProperty` makes the prefilter robust to any tag-naming convention.
+
+Text nodes, built-in tags with reserved attributes, and component tags with reserved attributes all still fall through to existing `missing-expression-ref` paths unchanged.
+
+## Parent Scope Completeness Inheritance
+
+The existing `expressionRefDiagnostics` function has an early return at line 791 of `server/wxml-language-service.mjs`:
+
+```js
+if (ownerConfig.script.hasDynamicData) return [];
+```
+
+When the PARENT's own script has dynamic data (e.g., `data: { ...spread }`, non-empty `behaviors:`, or `properties: someVar`), the whole expression-ref diagnostic is suppressed for that file — the rule says "we can't know what's in parent scope, so don't report anything."
+
+This early return is preserved unchanged. **The new `dead-component-binding` rule inherits the same constraint**: when we can't confirm the identifier is missing from the parent's scope, we don't emit ANY diagnostic for it — not warning, not information. The C5 path requires "identifier is provably missing from parent scope" as a precondition (the existing `scope.has(ref.name)` check after the early return), and that precondition can only hold when the parent's scope is fully enumerable.
+
+In matrix terms: the entire decision matrix (C1–C5) is gated on the parent's scope being statically complete. When it isn't, NONE of C2/C3/C4/C5 fires; the function returns `[]` upstream and the cross-component lookup is never reached.
+
+Locked by test T13 below.
 
 ## Severity Choice
 
@@ -212,17 +234,21 @@ function findChildProperty(graph, ownerWxmlGraphPath, childTag, attributeName) {
 }
 
 // Main loop modification (only the failure branch — success/short-circuit unchanged):
+// Note: the existing early-return `if (ownerConfig.script.hasDynamicData) return [];`
+// at the top of expressionRefDiagnostics REMAINS — when the parent's own data shape
+// is opaque, we don't claim parent-scope misses and therefore don't emit
+// dead-component-binding either. This is the same constraint the existing
+// missing-expression-ref rule inherits.
 for (const ref of refs) {
   if (ref.inTemplateDefinition) continue;
   if (scope.has(ref.name)) continue;
 
-  const isCrossComponentBinding =
+  const isCandidateBinding =
     ref.containingTag !== null &&
     ref.containingAttribute !== null &&
-    fileModel.components.some(c => c.tag === ref.containingTag) &&
     !isReservedAttribute(ref.containingAttribute);
 
-  if (isCrossComponentBinding) {
+  if (isCandidateBinding) {
     const status = findChildProperty(
       graph, documentGraphPath, ref.containingTag, ref.containingAttribute,
     );
@@ -232,11 +258,11 @@ for (const ref of refs) {
         severity: INFORMATION,
         source: "wxml-zed",
         code: "dead-component-binding",
-        message: `"${ref.name}" is not defined in this file, but <${ref.containingTag}> declares "${ref.containingAttribute}" as a property — the child will fall back to its default value. If you intended to pass a value, declare it in this page/component's data, properties, or setData.`,
+        message: `"${ref.name}" is not defined in this file, but <${ref.containingTag}> declares "${ref.containingAttribute}" as a property — the child will receive undefined and use its property default if one exists. If you intended to pass a value, declare "${ref.name}" in this page/component's data, properties, or setData.`,
       });
       continue;
     }
-    // status === 'not-declared' or 'unresolvable' → fall through
+    // status === 'not-declared' or 'unresolvable' → fall through to existing rule
   }
 
   out.push({
@@ -291,6 +317,7 @@ Append to the existing synthetic-project test set. Each test sets up a parent + 
 | T10 | parent: `<local-bar locationError="{{userIsLost}}">`, child declares `locationError`, parent has neither `userIsLost` nor `locationError` | 1 × `dead-component-binding` (lookup by attribute name, NOT by identifier name — regression lock) |
 | T11 | parent: `<local-bar locationError="{{a}}" otherProp="{{b}}">`, child declares only `locationError` | 1 × `dead-component-binding` (for `a`) + 1 × `missing-expression-ref` (for `b`) — same-tag independence |
 | T12 | parent: `<local-bar bind:tap="handler">`, parent does not declare `handler` method | 1 × `missing-event-handler` warning — existing rule, not touched by this change |
+| T13 | parent has `data: { ...spread }` so parent's `hasDynamicData=true`; parent's WXML `<local-bar locationError="{{undef}}">`; child statically declares `locationError` | **No expression-ref diagnostic at all** (parent scope opaque → early return precedes the cross-component lookup; new rule does NOT promote dead-component-binding when parent's data is unenumerable). Event-handler diagnostics on this file are unaffected. |
 
 ### Extractor unit tests
 
@@ -332,7 +359,7 @@ Hard gates for the dogfood verification: event-handler unchanged, total count no
 ## Acceptance Criteria
 
 1. All existing tests pass (umbrella `bash scripts/verify-tree-sitter.sh`).
-2. All 14 new synthetic cases (T1–T7, T8a/b/c, T9–T12) pass — each asserts exact code/severity/count. The T8a case specifically locks in the "static propertyKeys win over hasDynamicData" semantic (regression lock for the lookup-order correctness).
+2. All 15 new synthetic cases (T1–T7, T8a/b/c, T9–T13) pass — each asserts exact code/severity/count. T8a specifically locks the "static propertyKeys win over hasDynamicData" semantic (regression lock for the lookup-order correctness). T13 locks the parent-scope-completeness inheritance — parent's own `hasDynamicData=true` short-circuits the cross-component rule too, NOT just the existing warning.
 3. Extractor tests confirm `containingTag` / `containingAttribute` populate correctly per the four shapes above.
 4. Two new LSP protocol-layer tests (L1, L2) pass in the `graph-smoke` suite — confirming `publishDiagnostics` emits `code: "dead-component-binding"` with `severity: 3` and does not suppress existing `missing-event-handler` warnings.
 5. `dump-project-diagnostics.mjs` on `mp-wx-chelaile/wx` shows:
