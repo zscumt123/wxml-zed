@@ -866,6 +866,41 @@ plan's Outcome section for the full table.
 
 ---
 
+### Follow-up: config-driven data injectors (P2.2-A)
+
+P2.2-A added a project-level `wxml-zed.config.json` mechanism for
+declaring helper-class data-injection patterns. v1 narrow scope:
+recognizes `new ClassName(string-literal).method(this)` direct
+expression shape (whitespace/newlines insignificant — AST-shape-
+based, not line-based). Plan:
+`docs/superpowers/plans/2026-05-22-config-driven-data-injectors.md`.
+
+Mechanism: `shared/project-config.mjs` hosts `loadProjectConfig`
+which reads + validates the config file at graph build time.
+`shared/js-method-extractor.mjs` gains `matchInjectorCall` +
+`applyTemplate` + `walkOwnerFunctionForInjectors` running alongside
+the existing setData walker. Matched calls produce identifier keys
+via produces-template substitution; merged into dataKeys with
+`source: "injector"` (third valid value alongside `"data"` and
+`"setData"`).
+
+Outcome on the same chelaile snapshot: 26 -> 18 total. The 7
+missing-event-handler diagnostics (all real bugs) preserved
+unchanged. missing-expression-ref dropped 7 -> 5 after the two
+reserved-attribute `load_state` warnings cleared. dead-component-
+binding dropped 12 -> 6 because six `states-view` bindings used the
+same injected parent identifiers (`load_state` / `load_states`) for
+child props (`state` / `states`); once those identifiers became
+in-scope parent dataKeys, those bindings were no longer dead.
+
+The 5 surviving missing-expression-ref warnings match P2.2-B's
+classification: 4 inside `wx:if` (reserved-attribute, correctly NOT
+downgraded) + 1 Taro compiled template-fragment. LSP overlay path is
+unaffected; editing `wxml-zed.config.json` triggers a graph rebuild
+via the existing `**/*.json` watcher.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
