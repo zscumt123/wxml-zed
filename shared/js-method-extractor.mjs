@@ -360,6 +360,112 @@ function walkOwnerFunctionForSetData(funcNode, sink) {
   visit(funcNode);
 }
 
+function matchInjectorCall(callNode, dataInjectors) {
+  if (callNode.type !== "call_expression") return null;
+
+  const memberExpr = fieldChild(callNode, "function");
+  if (!memberExpr || memberExpr.type !== "member_expression") return null;
+
+  const newExpr = fieldChild(memberExpr, "object");
+  if (!newExpr || newExpr.type !== "new_expression") return null;
+
+  const ctorIdent = fieldChild(newExpr, "constructor");
+  if (!ctorIdent || ctorIdent.type !== "identifier") return null;
+  const className = ctorIdent.text;
+
+  const methodIdent = fieldChild(memberExpr, "property");
+  if (!methodIdent || methodIdent.type !== "property_identifier") return null;
+  const methodName = methodIdent.text;
+
+  const callArgs = fieldChild(callNode, "arguments");
+  if (!callArgs || callArgs.namedChildCount !== 1) return null;
+  const receiver = callArgs.namedChild(0);
+  if (!receiver || receiver.type !== "this") return null;
+
+  const matchedConfigs = dataInjectors.filter((cfg) => (
+    cfg.className === className
+    && Object.hasOwn(cfg.methods, methodName)
+  ));
+  if (matchedConfigs.length === 0) return null;
+
+  const ctorArgs = fieldChild(newExpr, "arguments");
+  if (!ctorArgs) return null;
+
+  const keys = [];
+  for (const matched of matchedConfigs) {
+    const required = matched.constructorArgs.length;
+    if (ctorArgs.namedChildCount < required) continue;
+
+    const subst = Object.create(null);
+    let primaryRange = null;
+    let ok = true;
+    for (let i = 0; i < required; i++) {
+      const argNode = ctorArgs.namedChild(i);
+      if (!argNode || argNode.type !== "string") {
+        ok = false;
+        break;
+      }
+      const fragment = firstChildOfType(argNode, "string_fragment");
+      if (!fragment) {
+        ok = false;
+        break;
+      }
+      subst[matched.constructorArgs[i]] = fragment.text;
+      if (primaryRange === null) primaryRange = rangeOf(fragment);
+    }
+    if (!ok) continue;
+
+    for (const template of matched.methods[methodName]) {
+      const name = applyTemplate(template, subst);
+      if (name === null) continue;
+      if (!IDENTIFIER_SHAPE.test(name)) continue;
+      keys.push({ name, nameRange: primaryRange, source: "injector" });
+    }
+  }
+  return keys;
+}
+
+function applyTemplate(template, subst) {
+  let out = "";
+  let i = 0;
+  while (i < template.length) {
+    if (template[i] === "$" && template[i + 1] === "{") {
+      const end = template.indexOf("}", i + 2);
+      if (end === -1) return null;
+      const argName = template.slice(i + 2, end);
+      if (!Object.hasOwn(subst, argName)) return null;
+      out += subst[argName];
+      i = end + 1;
+    } else {
+      out += template[i];
+      i += 1;
+    }
+  }
+  return out;
+}
+
+function walkOwnerFunctionForInjectors(funcNode, sink, dataInjectors) {
+  const visit = (node) => {
+    if (node !== funcNode && (
+      node.type === "function_expression" ||
+      node.type === "function_declaration" ||
+      node.type === "method_definition" ||
+      node.type === "generator_function" ||
+      node.type === "generator_function_declaration"
+    )) {
+      return;
+    }
+    if (node.type === "call_expression") {
+      const keys = matchInjectorCall(node, dataInjectors);
+      if (keys !== null) {
+        for (const key of keys) sink.keys.push(key);
+      }
+    }
+    for (let i = 0; i < node.namedChildCount; i++) visit(node.namedChild(i));
+  };
+  visit(funcNode);
+}
+
 export function extractMethods(parser, source) {
   const tree = parser.parse(source);
   const methods = [];
