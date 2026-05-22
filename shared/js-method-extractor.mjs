@@ -466,7 +466,8 @@ function walkOwnerFunctionForInjectors(funcNode, sink, dataInjectors) {
   visit(funcNode);
 }
 
-export function extractMethods(parser, source) {
+export function extractMethods(parser, source, options = {}) {
+  const dataInjectors = options.dataInjectors ?? [];
   const tree = parser.parse(source);
   const methods = [];
   const dataKeys = [];
@@ -566,6 +567,46 @@ export function extractMethods(parser, source) {
             if (existingDataNames.has(key.name)) continue;
             existingDataNames.add(key.name);
             dataKeys.push(key);
+          }
+
+          if (dataInjectors.length > 0) {
+            const injectorSink = { keys: [] };
+            if (factory === "Page") {
+              for (const fn of functionValuedPairs(opts)) {
+                walkOwnerFunctionForInjectors(fn, injectorSink, dataInjectors);
+              }
+            } else {
+              for (const fn of functionValuedPairs(opts)) {
+                walkOwnerFunctionForInjectors(fn, injectorSink, dataInjectors);
+              }
+              const methodsBlockForInjector = methodsBlockOf(opts);
+              if (methodsBlockForInjector) {
+                for (const fn of functionValuedPairs(methodsBlockForInjector)) {
+                  walkOwnerFunctionForInjectors(fn, injectorSink, dataInjectors);
+                }
+              }
+              for (const blockName of ["lifetimes", "pageLifetimes", "observers"]) {
+                const block = namedObjectBlock(opts, blockName);
+                if (block) {
+                  for (const fn of functionValuedPairs(block)) {
+                    walkOwnerFunctionForInjectors(fn, injectorSink, dataInjectors);
+                  }
+                }
+              }
+              const propertiesBlockForInjector = propertiesBlockOf(opts);
+              if (propertiesBlockForInjector) {
+                for (const obs of propertyObservers(propertiesBlockForInjector)) {
+                  walkOwnerFunctionForInjectors(obs, injectorSink, dataInjectors);
+                }
+              }
+            }
+
+            const existingNamesAfterSetData = new Set(dataKeys.map((k) => k.name));
+            for (const key of injectorSink.keys) {
+              if (existingNamesAfterSetData.has(key.name)) continue;
+              existingNamesAfterSetData.add(key.name);
+              dataKeys.push(key);
+            }
           }
         }
       }

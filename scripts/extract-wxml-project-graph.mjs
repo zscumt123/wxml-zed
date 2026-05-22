@@ -7,6 +7,7 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { Parser, Language } from "web-tree-sitter";
 import { extractMethods } from "../shared/js-method-extractor.mjs";
+import { loadProjectConfig } from "../shared/project-config.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SYMBOL_EXTRACTOR = path.join(ROOT, "scripts/extract-wxml-symbols.mjs");
@@ -419,7 +420,7 @@ function toPosixPath(p) {
   return p.split(path.sep).join(path.posix.sep);
 }
 
-async function attachScripts(graph) {
+async function attachScripts(graph, projectRoot) {
   // For each non-app config that has a .wxml owner, look for a sibling .js
   // (path with .wxml extension swapped for .js) and attach extracted
   // Page/Component methods as configs[i].script = {path, methods}.
@@ -432,6 +433,8 @@ async function attachScripts(graph) {
   let parser;
   let parserSetupAttempted = false;
   let parserSetupFailed = false;
+  const projectConfig = loadProjectConfig(projectRoot);
+  const dataInjectors = projectConfig.dataInjectors;
   for (const config of graph.configs) {
     if (config.kind === "app" || !config.owner) continue;
     const ownerAbs = path.resolve(ROOT, config.owner);
@@ -459,7 +462,7 @@ async function attachScripts(graph) {
     if (parserSetupFailed) continue;
     let info;
     try {
-      info = extractMethods(parser, source);
+      info = extractMethods(parser, source, { dataInjectors });
     } catch {
       continue;
     }
@@ -481,5 +484,5 @@ if (!projectRoot) {
 }
 
 const graph = extractProject(projectRoot);
-await attachScripts(graph);
+await attachScripts(graph, path.resolve(projectRoot));
 process.stdout.write(`${JSON.stringify(graph, null, 2)}\n`);

@@ -567,6 +567,31 @@ const CASES = [
     propertyKeySources: {},
     hasDynamicData: false,
   },
+  {
+    label: "J1: injector happy path in Page onLoad",
+    source: `Page({
+      data: {},
+      onLoad() {
+        new LoadStates("load").applyTo(this);
+      },
+    });`,
+    dataInjectors: [
+      {
+        className: "LoadStates",
+        constructorArgs: ["name"],
+        methods: {
+          applyTo: ["${name}_state", "${name}_states"],
+        },
+      },
+    ],
+    hasDynamicMethods: false,
+    methodNames: ["onLoad"],
+    dataKeys: ["load_state", "load_states"],
+    dataKeySources: { load_state: "injector", load_states: "injector" },
+    propertyKeys: [],
+    propertyKeySources: {},
+    hasDynamicData: false,
+  },
 ];
 
 function assert(condition, message) {
@@ -583,8 +608,8 @@ async function main() {
   const parser = new Parser();
   parser.setLanguage(lang);
 
-  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData, dataKeySources, propertyKeySources } of CASES) {
-    const result = extractMethods(parser, source);
+  for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData, dataKeySources, propertyKeySources, dataInjectors } of CASES) {
+    const result = extractMethods(parser, source, { dataInjectors: dataInjectors ?? [] });
     assert(
       typeof result === "object" && result !== null
         && Array.isArray(result.methods)
@@ -634,7 +659,7 @@ async function main() {
         `${label}: dataKey "${entry.name}" missing valid nameRange ${JSON.stringify(entry.nameRange)}`,
       );
       assert(
-        entry.source === "data" || entry.source === "setData",
+        entry.source === "data" || entry.source === "setData" || entry.source === "injector",
         `${label}: dataKey "${entry.name}" has invalid source ${JSON.stringify(entry.source)}`,
       );
     }
