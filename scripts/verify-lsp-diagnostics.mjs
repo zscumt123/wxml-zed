@@ -16,6 +16,7 @@ const SECONDARY_WXML = path.join(MINIPROGRAM_ROOT, "templates/secondary.wxml");
 const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
+const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cross-binding.wxml");
 // Some coalescing scenarios intentionally wait for two serial graph extractor
 // runs; local Tree-sitter extraction can take multiple minutes per run.
 const TIMEOUT_MS = 600_000;
@@ -1055,6 +1056,96 @@ async function testOverlayCancelledByDidClose() {
   });
 }
 
+async function testDeadComponentBindingWireFormat() {
+  // L1: open cross-binding.wxml. The fixture's default data includes 'a' so
+  // line 4's <local-bar locationError="{{a}}"> would be clean. To engineer
+  // a dead-component-binding via the LSP path, use changeDocument to drop
+  // 'a' from references (i.e., switch the binding to a known-undefined
+  // identifier).
+  //
+  // Strategy: open the doc, await initial empty diagnostics, then
+  // changeDocument to a WXML where one binding references an undefined
+  // identifier (which local-bar declares as a prop). Assert that
+  // publishDiagnostics carries dead-component-binding with severity 3.
+  await withClient({ rootPath: MINIPROGRAM_ROOT }, async (client) => {
+    const uri = client.openDocument(CROSS_BINDING_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 0,
+      "L1: initial cross-binding diagnostics empty (baseline)",
+    );
+
+    // Inject an undefined identifier into a custom attribute on local-bar.
+    // local-bar declares locationError as a property, so this should produce
+    // exactly one dead-component-binding.
+    const modified = `<view class="container {{theme}}">
+  <local-bar locationError="{{__undef_a__}}" referer="{{referer}}" />
+  <view class="row">{{textValue}}</view>
+</view>
+`;
+    const cursor = client.diagnosticCursor();
+    client.changeDocument(CROSS_BINDING_WXML, modified);
+
+    const params = await client.waitForDiagnosticsAfter(
+      uri,
+      cursor,
+      (items) => items.some((d) => d.code === "dead-component-binding" && d.message.includes('"__undef_a__"')),
+      "L1: dead-component-binding for __undef_a__ via LSP wire",
+    );
+    const items = params.diagnostics;
+    const dead = items.filter((d) => d.code === "dead-component-binding" && d.message.includes('"__undef_a__"'));
+    const warn = items.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"__undef_a__"'));
+    assert(dead.length === 1, `L1: expected 1 dead-component-binding for __undef_a__; got ${dead.length}`);
+    assert(dead[0].severity === 3, `L1: severity ${dead[0].severity} !== 3`);
+    assert(warn.length === 0, `L1: __undef_a__ must NOT also be a warning; got ${warn.length}`);
+  });
+}
+
+async function testDeadComponentBindingPreservesEventHandler() {
+  // L2: engineer a state where the file's publishDiagnostics carries BOTH a
+  // dead-component-binding AND a missing-event-handler. Open cross-binding,
+  // then changeDocument so:
+  // - line has <local-bar locationError="{{__undef_a__}}"> → dead-component-binding
+  // - line has <local-bar bind:tap="__notInJs__"> → missing-event-handler
+  //
+  // Assert both appear in the SAME publishDiagnostics. Proves the new rule
+  // does not suppress event-handler diagnostics at the wire layer.
+  await withClient({ rootPath: MINIPROGRAM_ROOT }, async (client) => {
+    const uri = client.openDocument(CROSS_BINDING_WXML);
+    await client.waitForDiagnostics(
+      uri,
+      (items) => items.length === 0,
+      "L2: initial cross-binding diagnostics empty (baseline)",
+    );
+
+    const modified = `<view class="container {{theme}}">
+  <local-bar locationError="{{__undef_a__}}" />
+  <local-bar bind:tap="__notInJs__" />
+  <view class="row">{{textValue}}</view>
+</view>
+`;
+    const cursor = client.diagnosticCursor();
+    client.changeDocument(CROSS_BINDING_WXML, modified);
+
+    const params = await client.waitForDiagnosticsAfter(
+      uri,
+      cursor,
+      (items) => (
+        items.some((d) => d.code === "dead-component-binding" && d.message.includes('"__undef_a__"')) &&
+        items.some((d) => d.code === "missing-event-handler" && d.message.includes("__notInJs__"))
+      ),
+      "L2: both dead-component-binding and missing-event-handler on same file",
+    );
+    const items = params.diagnostics;
+    const dead = items.filter((d) => d.code === "dead-component-binding");
+    const handler = items.filter((d) => d.code === "missing-event-handler" && d.message.includes("__notInJs__"));
+    assert(dead.length >= 1, `L2: expected at least 1 dead-component-binding; got ${dead.length}`);
+    assert(handler.length === 1, `L2: expected exactly 1 missing-event-handler for __notInJs__; got ${handler.length}: ${JSON.stringify(handler)}`);
+    assert(dead.some((d) => d.severity === 3), "L2: at least one dead-component-binding must have severity 3");
+    assert(handler[0].severity === 2, `L2: missing-event-handler severity ${handler[0].severity} !== 2`);
+  });
+}
+
 async function testTemplateCompletion() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1619,6 +1710,8 @@ const scenarios = [
   ["overlay survives graph rebuild", testOverlaySurvivesGraphRebuild],
   ["overlay before initial graph", testOverlayBeforeInitialGraph],
   ["overlay cancelled by didClose", testOverlayCancelledByDidClose],
+  ["dead-component-binding wire format", testDeadComponentBindingWireFormat],
+  ["dead-component-binding preserves event handler", testDeadComponentBindingPreservesEventHandler],
 ];
 
 const SCENARIO_SUITES = {
@@ -1645,6 +1738,8 @@ const SCENARIO_SUITES = {
     "overlay before initial graph",
     "overlay cancelled by didClose",
     "unsupported request behavior",
+    "dead-component-binding wire format",
+    "dead-component-binding preserves event handler",
   ],
   full: scenarios.map(([name]) => name),
 };
