@@ -11,6 +11,35 @@ import {
 } from "../shared/wxml-expression-helpers.mjs";
 
 const WARNING = 2;
+const INFORMATION = 3;
+
+// Attribute names that have special WXML semantics (control flow, runtime,
+// styling) and are NOT custom prop bindings on child components. When an
+// expressionRef appears inside one of these, the cross-component prop
+// binding rule does NOT apply — fall through to the existing
+// missing-expression-ref check unchanged.
+const RESERVED_ATTRIBUTES = new Set([
+  "wx:if", "wx:elif", "wx:else",
+  "wx:for", "wx:for-item", "wx:for-index", "wx:key",
+  "class", "style", "id", "slot", "hidden",
+]);
+
+// Attribute name prefixes that carry WXML semantics other than custom prop
+// binding (event bindings, custom data attrs, generic-type slots). Matched
+// by startsWith — these are reserved regardless of the suffix.
+const RESERVED_ATTRIBUTE_PREFIXES = [
+  "bind:", "catch:", "mut-bind:", "capture-bind:", "capture-catch:",
+  "data-", "generic:",
+];
+
+function isReservedAttribute(name) {
+  if (RESERVED_ATTRIBUTES.has(name)) return true;
+  for (const prefix of RESERVED_ATTRIBUTE_PREFIXES) {
+    if (name.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 const DOCUMENT_SYMBOL_KIND_FILE = 1;
 const DOCUMENT_SYMBOL_KIND_MODULE = 2;
 const DOCUMENT_SYMBOL_KIND_FUNCTION = 12;
@@ -783,6 +812,41 @@ function eventHandlerDiagnostics(graph, documentGraphPath, fileModel) {
     });
   }
   return out;
+}
+
+// Returns 'declared' | 'not-declared' | 'unresolvable'.
+//
+// 'declared'      — child's static propertyKeys provably contains the name.
+//                   Even if child.script.hasDynamicData === true elsewhere
+//                   (data spread, non-empty behaviors), a static hit is
+//                   authoritative. Nothing in the rest of the script can
+//                   REMOVE what the extractor already observed.
+// 'not-declared'  — child resolves, prop set is fully knowable
+//                   (no hasDynamicData), AND the name is not in propertyKeys.
+// 'unresolvable'  — child has no resolved usingComponents entry, OR child
+//                   resolves but has no JS, OR child has hasDynamicData=true
+//                   AND the name is not in the static propertyKeys (might
+//                   be injected by behaviors / spread).
+function findChildProperty(graph, ownerWxmlGraphPath, childTag, attributeName) {
+  const using = graph.usingComponents.find((c) => (
+    c.owner === ownerWxmlGraphPath &&
+    c.tag === childTag &&
+    c.resolved
+  ));
+  if (!using) return "unresolvable";
+
+  const childConfig = graph.configs.find((c) => (
+    c.owner === using.target &&
+    c.script
+  ));
+  if (!childConfig) return "unresolvable";
+
+  const propertyKeys = childConfig.script.propertyKeys ?? [];
+  if (propertyKeys.some((k) => k.name === attributeName)) {
+    return "declared";
+  }
+  if (childConfig.script.hasDynamicData) return "unresolvable";
+  return "not-declared";
 }
 
 function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
