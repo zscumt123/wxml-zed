@@ -27,9 +27,18 @@ const RESERVED_ATTRIBUTES = new Set([
 // Attribute name prefixes that carry WXML semantics other than custom prop
 // binding (event bindings, custom data attrs, generic-type slots). Matched
 // by startsWith — these are reserved regardless of the suffix.
+// Note: only the colon forms are listed for the event-binding prefixes
+// (bind:tap, catch:tap, etc.). The no-colon forms (bindtap, catchtap,
+// capture-bindtap, capture-catchtap, mut-bindtap) conventionally take
+// a string method name, not a `{{...}}` interpolation, so they don't
+// produce expressionRefs that would reach the dead-component-binding
+// check. If the no-colon form ever appears with an expression, it
+// falls through to missing-expression-ref — acceptable since the
+// no-colon form is rare in modern WeChat code.
 const RESERVED_ATTRIBUTE_PREFIXES = [
   "bind:", "catch:", "mut-bind:", "capture-bind:", "capture-catch:",
   "data-", "generic:",
+  "model:", // two-way binding on a child component's property
 ];
 
 function isReservedAttribute(name) {
