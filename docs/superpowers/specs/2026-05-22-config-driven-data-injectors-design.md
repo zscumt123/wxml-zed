@@ -2,7 +2,7 @@
 
 **Status:** spec drafted, awaiting user review before plan.
 
-**One-line summary:** Add a project-level `wxml-zed.config.json` mechanism that declares helper-class data-injection patterns (`new ClassName(literal).method(this)` shape). When the JS extractor encounters a matching call site inside an owner-context function body, the produces-template's substituted identifiers are merged into the page's `dataKeys` with `source: "injector"`. v1 is deliberately narrow: only single-line `new X(string-literal).method(this)` chains match.
+**One-line summary:** Add a project-level `wxml-zed.config.json` mechanism that declares helper-class data-injection patterns (`new ClassName(literal).method(this)` shape). When the JS extractor encounters a matching call site inside an owner-context function body, the produces-template's substituted identifiers are merged into the page's `dataKeys` with `source: "injector"`. v1 is deliberately narrow: only direct `new X(string-literal).method(this)` expression shape matches (whitespace/newlines are insignificant — the matcher is AST-shape-based, not line-based).
 
 ## Background
 
@@ -61,7 +61,7 @@ This release deliberately defers the following to v2 (each enumerated explicitly
 - **Parenthesized new expressions**: `(new X('a')).m(this)` — v1 requires direct AST shape, no extra parens.
 - **Optional chaining**: `new X('a')?.m?.(this)` — out of scope.
 - **Namespaced constructor**: `new ns.X('a').m(this)` — constructor must be a simple identifier.
-- **Config file change watching**: editing `wxml-zed.config.json` requires a graph rebuild (no live-reload).
+- **Dedicated config watcher**: the LSP server already watches `**/*.json` via its existing `workspace/didChangeWatchedFiles` registration (see `server/wxml-lsp.mjs` `WATCH_REGISTRATION_GLOBS` + `GRAPH_AFFECTING_EXTENSIONS`). Saving `wxml-zed.config.json` triggers a project graph rebuild via the same path as `usingComponents`/component-json changes — no separate watcher is needed. This is NOT a v2 deferral; it is the intended behavior and works out of the box.
 
 ## Architecture
 
@@ -128,7 +128,7 @@ If the file doesn't exist, the loader returns `{ dataInjectors: [] }` silently. 
 Field semantics:
 
 - **`className`** (string, required) — exact identifier as it appears at the call site's `new` expression. NOT the import source path.
-- **`constructorArgs`** (string[], optional, default `[]`) — names for positional constructor args. Each must be a valid JS identifier (matches `IDENTIFIER_SHAPE`). v1 limits literal-arg requirement to exactly this length; additional args are unconstrained.
+- **`constructorArgs`** (string[], required, MUST be non-empty for v1) — names for positional constructor args. Each must be a valid JS identifier (matches `IDENTIFIER_SHAPE`). v1 requires at least one constructor arg because the matched call's `nameRange` (used by `getDefinition`) points at the first constructor literal's range. An empty `constructorArgs` would leave no defensible `nameRange` and break the "go to definition" path; the niche use case of "inject static keys with zero constructor args" can be expressed via the page's own `data: {}` block instead. Validation: empty `constructorArgs` → `stderr` warn + skip the entry.
 - **`methods`** (object, required, at least one entry) — keys are method names; values are produces-template arrays. Each template string may contain `${argName}` placeholders that reference names in `constructorArgs`.
 
 ### Validation
@@ -142,7 +142,7 @@ Performed once at config load (graph build time). Failures log to stderr and ski
 | C3 | Top-level `dataInjectors` missing | Treat as empty (not an error) |
 | C4 | Entry has no `className` or it's not a string | `stderr` warn; skip entry |
 | C5 | Entry has no `methods` or `methods` is empty | `stderr` warn; skip entry |
-| C6 | `constructorArgs` contains a non-identifier name | `stderr` warn; skip entry |
+| C6 | `constructorArgs` is missing, empty (`[]`), or contains a non-identifier name | `stderr` warn; skip entry |
 | C7 | `methods.<name>` value is not a string array | `stderr` warn; skip entry |
 | C8 | Same `className` appears in two entries | Both entries kept; their methods merge at lookup time (additive) |
 
@@ -262,7 +262,7 @@ assert(
 | A1 | `(new X('a')).m(this)` | Extra parens change AST shape |
 | A2 | `new X?.('a')?.m?.(this)` | Optional chaining |
 | A3 | `new X.Y('a').m(this)` | Namespaced constructor |
-| A4 | `new X('a', ...rest).m(this)` | Rest in constructor args (depending on tree-sitter node shape; conservatively reject) |
+| ~~A4~~ | ~~spread in args~~ | (removed — `...rest` in position ≥ N is irrelevant per the "first N args are checked, subsequent ignored" rule; spread in position < N naturally fails the "must be `string` type" check at that position) |
 | A5 | `new X(variable).m(this)` | First arg not a string literal |
 | A6 | `new X(\`tmpl_${x}\`).m(this)` | Template literal, not a plain string literal |
 | A7 | `new X('a').m()` | Wrong arg count (receiver requirement fails) |
@@ -306,7 +306,6 @@ Add ~12 cases exercising the matcher and walker through synthetic source strings
 | J9 | `methods: { reload() { setTimeout(() => new LoadStates('load').applyTo(this), 0); } }` | LoadStates injector | `["load_state","load_states"]` (arrow inherits this) |
 | J10 | `methods: { reload() { setTimeout(function () { new LoadStates('load').applyTo(this); }); } }` | LoadStates injector | `[]` (regular function boundary blocks) |
 | J11 | `new X('a').m(this)` | X ⇒ m ⇒ ["${unknown}_x","${name}_ok"] (unknown undeclared) | `["a_ok"]` (only the valid template result) |
-| J12 | `new X().m(this)` | X with constructorArgs:[], methods:{ m: ["static_key"] } | `["static_key"]` |
 
 ### Level 2: Config loader unit test
 
@@ -316,6 +315,7 @@ Either extend `scripts/verify-wxml-language-service.mjs` or create a tiny `scrip
 - C-L2: Malformed JSON → returns empty, writes stderr warn
 - C-L3: Valid full config → returns normalized injectors with all fields preserved
 - C-L4: Mixed valid + invalid entries → invalid entries skipped (with stderr warn), valid entries returned
+- C-L5: Entry with empty `constructorArgs: []` → skipped with stderr warn (v1 requires non-empty constructorArgs)
 
 ### Level 3: Real-project dogfood
 
@@ -358,9 +358,9 @@ Remove config file after the dogfood capture (it's not part of our project; just
 ## Acceptance Criteria
 
 1. All existing tests pass (`bash scripts/verify-tree-sitter.sh` → `wxml-zed tree-sitter verification passed`).
-2. 12 new synthetic cases (J1–J12) pass in `verify-js-script-info.mjs` with exact dataKey + dataKeySources matching.
-3. Config loader unit tests pass (4 cases C-L1 to C-L4).
-4. The 47+12 = 59 total cases in verify-js-script-info pass; structural source-validity assertion now accepts `"injector"` as a valid value.
+2. 11 new synthetic cases (J1–J11) pass in `verify-js-script-info.mjs` with exact dataKey + dataKeySources matching.
+3. Config loader unit tests pass (5 cases C-L1 to C-L5).
+4. The 47+11 = 58 total cases in verify-js-script-info pass; structural source-validity assertion now accepts `"injector"` as a valid value.
 5. Real-project dogfood on chelaile (with the temporary config above):
    - total count: 26 → 24
    - `missing-event-handler` unchanged at 7
@@ -379,6 +379,6 @@ Listed earlier in **Non-Goals**. Specifically:
 - Parenthesized new expressions
 - Optional chaining in match path
 - Namespaced constructors
-- Config file change watching / live reload
+- (Config file watching is handled by the existing JSON watcher — see Non-Goals; not an explicit v2 candidate.)
 
 Each is a clear v2 candidate but not required to meaningfully eliminate the helper-class noise pattern observed in real chelaile use.
