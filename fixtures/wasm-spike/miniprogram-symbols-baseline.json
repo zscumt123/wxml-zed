@@ -2,6 +2,48 @@
   "version": 1,
   "files": [
     {
+      "path": "fixtures/miniprogram/components/dyn-card/dyn-card.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "knownProp",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 34
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 34
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
+    },
+    {
       "path": "fixtures/miniprogram/components/folder-comp/index.wxml",
       "dependencies": [],
       "symbols": [],
@@ -32,7 +74,9 @@
               "row": 1,
               "column": 17
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -72,7 +116,9 @@
               "row": 1,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -112,7 +158,78 @@
               "row": 1,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
+    },
+    {
+      "path": "fixtures/miniprogram/components/local-bar/local-bar.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "locationError",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 17
+            },
+            "end": {
+              "row": 1,
+              "column": 30
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 17
+            },
+            "end": {
+              "row": 1,
+              "column": 30
+            }
+          },
+          "containingTag": "text",
+          "containingAttribute": "wx:if"
+        },
+        {
+          "name": "referer",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 18
+            },
+            "end": {
+              "row": 2,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 18
+            },
+            "end": {
+              "row": 2,
+              "column": 25
+            }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -152,7 +269,9 @@
               "row": 0,
               "column": 35
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "status",
@@ -177,7 +296,9 @@
               "row": 1,
               "column": 16
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -231,7 +352,9 @@
               "row": 0,
               "column": 52
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "user",
@@ -256,7 +379,9 @@
               "row": 1,
               "column": 32
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "user",
@@ -281,7 +406,9 @@
               "row": 2,
               "column": 37
             }
-          }
+          },
+          "containingTag": "status-badge",
+          "containingAttribute": "status"
         }
       ],
       "wxForBindings": {
@@ -312,6 +439,517 @@
       ],
       "eventHandlers": [],
       "expressionRefs": [],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
+    },
+    {
+      "path": "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 2
+            },
+            "end": {
+              "row": 1,
+              "column": 71
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 2
+            },
+            "end": {
+              "row": 2,
+              "column": 46
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 2
+            },
+            "end": {
+              "row": 3,
+              "column": 53
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 2
+            },
+            "end": {
+              "row": 4,
+              "column": 40
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 2
+            },
+            "end": {
+              "row": 5,
+              "column": 72
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 2
+            },
+            "end": {
+              "row": 6,
+              "column": 38
+            }
+          }
+        },
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 7,
+              "column": 48
+            }
+          }
+        },
+        {
+          "tag": "dyn-card",
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 2
+            },
+            "end": {
+              "row": 8,
+              "column": 39
+            }
+          }
+        },
+        {
+          "tag": "user-card",
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 9,
+              "column": 35
+            }
+          }
+        }
+      ],
+      "eventHandlers": [
+        {
+          "event": "tap",
+          "handler": "onLocalBarTap",
+          "binding": "bind:",
+          "dynamic": false,
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 13
+            },
+            "end": {
+              "row": 4,
+              "column": 37
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 4,
+              "column": 23
+            },
+            "end": {
+              "row": 4,
+              "column": 36
+            }
+          }
+        }
+      ],
+      "expressionRefs": [
+        {
+          "name": "theme",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 30
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 25
+            },
+            "end": {
+              "row": 0,
+              "column": 30
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
+        },
+        {
+          "name": "locationError",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 30
+            },
+            "end": {
+              "row": 1,
+              "column": 43
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 30
+            },
+            "end": {
+              "row": 1,
+              "column": 43
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "locationError"
+        },
+        {
+          "name": "referer",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 58
+            },
+            "end": {
+              "row": 1,
+              "column": 65
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 58
+            },
+            "end": {
+              "row": 1,
+              "column": 65
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "referer"
+        },
+        {
+          "name": "missingVar",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 30
+            },
+            "end": {
+              "row": 2,
+              "column": 40
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 30
+            },
+            "end": {
+              "row": 2,
+              "column": 40
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "locationError"
+        },
+        {
+          "name": "a",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 30
+            },
+            "end": {
+              "row": 3,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 30
+            },
+            "end": {
+              "row": 3,
+              "column": 31
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "locationError"
+        },
+        {
+          "name": "b",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 46
+            },
+            "end": {
+              "row": 3,
+              "column": 47
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 46
+            },
+            "end": {
+              "row": 3,
+              "column": 47
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "referer"
+        },
+        {
+          "name": "shouldShow",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 22
+            },
+            "end": {
+              "row": 5,
+              "column": 32
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 5,
+              "column": 22
+            },
+            "end": {
+              "row": 5,
+              "column": 32
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "wx:if"
+        },
+        {
+          "name": "locationError",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 5,
+              "column": 53
+            },
+            "end": {
+              "row": 5,
+              "column": 66
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 5,
+              "column": 53
+            },
+            "end": {
+              "row": 5,
+              "column": 66
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "locationError"
+        },
+        {
+          "name": "customId",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 6,
+              "column": 24
+            },
+            "end": {
+              "row": 6,
+              "column": 32
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 6,
+              "column": 24
+            },
+            "end": {
+              "row": 6,
+              "column": 32
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "data-id"
+        },
+        {
+          "name": "customGeneric",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 7,
+              "column": 29
+            },
+            "end": {
+              "row": 7,
+              "column": 42
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 7,
+              "column": 29
+            },
+            "end": {
+              "row": 7,
+              "column": 42
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "generic:Item"
+        },
+        {
+          "name": "dynValue",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 25
+            },
+            "end": {
+              "row": 8,
+              "column": 33
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 25
+            },
+            "end": {
+              "row": 8,
+              "column": 33
+            }
+          },
+          "containingTag": "dyn-card",
+          "containingAttribute": "knownProp"
+        },
+        {
+          "name": "userInfo",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 21
+            },
+            "end": {
+              "row": 9,
+              "column": 29
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 9,
+              "column": 21
+            },
+            "end": {
+              "row": 9,
+              "column": 29
+            }
+          },
+          "containingTag": "user-card",
+          "containingAttribute": "user"
+        },
+        {
+          "name": "textValue",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 22
+            },
+            "end": {
+              "row": 10,
+              "column": 31
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 22
+            },
+            "end": {
+              "row": 10,
+              "column": 31
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        }
+      ],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -379,7 +1017,9 @@
               "row": 3,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "title",
@@ -404,7 +1044,65 @@
               "row": 4,
               "column": 31
             }
+          },
+          "containingTag": "folder-comp",
+          "containingAttribute": "caption"
+        }
+      ],
+      "wxForBindings": {
+        "items": [],
+        "indexes": [],
+        "hasAnyWxFor": false
+      }
+    },
+    {
+      "path": "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [
+        {
+          "tag": "local-bar",
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 2
+            },
+            "end": {
+              "row": 1,
+              "column": 44
+            }
           }
+        }
+      ],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "undefVar",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 30
+            },
+            "end": {
+              "row": 1,
+              "column": 38
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 30
+            },
+            "end": {
+              "row": 1,
+              "column": 38
+            }
+          },
+          "containingTag": "local-bar",
+          "containingAttribute": "locationError"
         }
       ],
       "wxForBindings": {
@@ -606,7 +1304,9 @@
               "row": 4,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "users",
@@ -631,7 +1331,9 @@
               "row": 8,
               "column": 19
             }
-          }
+          },
+          "containingTag": "user-card",
+          "containingAttribute": "wx:for"
         },
         {
           "name": "item",
@@ -656,7 +1358,9 @@
               "row": 10,
               "column": 16
             }
-          }
+          },
+          "containingTag": "user-card",
+          "containingAttribute": "user"
         },
         {
           "name": "emptyReason",
@@ -681,7 +1385,9 @@
               "row": 14,
               "column": 37
             }
-          }
+          },
+          "containingTag": "missing-card",
+          "containingAttribute": "reason"
         },
         {
           "name": "format",
@@ -706,7 +1412,9 @@
               "row": 18,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "total",
@@ -731,7 +1439,9 @@
               "row": 18,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -771,7 +1481,9 @@
               "row": 1,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -826,7 +1538,9 @@
               "row": 2,
               "column": 19
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -881,7 +1595,9 @@
               "row": 2,
               "column": 17
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {
@@ -936,7 +1652,9 @@
               "row": 2,
               "column": 19
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {

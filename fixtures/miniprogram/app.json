@@ -1,7 +1,9 @@
 {
   "pages": [
     "pages/home/home",
-    "pages/detail/detail"
+    "pages/detail/detail",
+    "pages/cross-binding/cross-binding",
+    "pages/dyn-page/dyn-page"
   ],
   "subPackages": [
     {

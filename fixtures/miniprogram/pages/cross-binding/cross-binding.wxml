@@ -1,0 +1,12 @@
+<view class="container {{theme}}">
+  <local-bar locationError="{{locationError}}" referer="{{referer}}" />
+  <local-bar locationError="{{missingVar}}" />
+  <local-bar locationError="{{a}}" referer="{{b}}" />
+  <local-bar bind:tap="onLocalBarTap" />
+  <local-bar wx:if="{{shouldShow}}" locationError="{{locationError}}" />
+  <local-bar data-id="{{customId}}" />
+  <local-bar generic:Item="{{customGeneric}}" />
+  <dyn-card knownProp="{{dynValue}}" />
+  <user-card user="{{userInfo}}" />
+  <view class="row">{{textValue}}</view>
+</view>

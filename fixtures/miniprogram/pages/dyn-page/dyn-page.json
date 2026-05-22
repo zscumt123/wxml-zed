@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "local-bar": "/components/local-bar/local-bar"
+  }
+}

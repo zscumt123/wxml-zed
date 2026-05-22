@@ -1,0 +1,7 @@
+{
+  "usingComponents": {
+    "local-bar": "/components/local-bar/local-bar",
+    "dyn-card": "/components/dyn-card/dyn-card",
+    "user-card": "/components/user-card/user-card"
+  }
+}

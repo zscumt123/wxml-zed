@@ -111,7 +111,9 @@
               "row": 7,
               "column": 22
             }
-          }
+          },
+          "containingTag": null,
+          "containingAttribute": "data-id"
         }
       ],
       "wxForBindings": {

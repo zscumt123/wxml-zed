@@ -32,7 +32,9 @@
               "row": 0,
               "column": 21
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
         },
         {
           "name": "user",
@@ -57,7 +59,9 @@
               "row": 1,
               "column": 13
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "i",
@@ -82,7 +86,9 @@
               "row": 1,
               "column": 21
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {

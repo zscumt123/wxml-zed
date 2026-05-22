@@ -419,7 +419,9 @@
               "row": 5,
               "column": 23
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:if"
         },
         {
           "name": "showFlag",
@@ -444,7 +446,9 @@
               "row": 6,
               "column": 45
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:elif"
         },
         {
           "name": "list",
@@ -469,7 +473,9 @@
               "row": 6,
               "column": 45
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:elif"
         },
         {
           "name": "condition",
@@ -494,7 +500,9 @@
               "row": 10,
               "column": 25
             }
-          }
+          },
+          "containingTag": null,
+          "containingAttribute": "wx:if"
         },
         {
           "name": "items",
@@ -519,7 +527,9 @@
               "row": 17,
               "column": 17
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
         },
         {
           "name": "idx",
@@ -544,7 +554,9 @@
               "row": 23,
               "column": 13
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "row",
@@ -569,7 +581,9 @@
               "row": 23,
               "column": 28
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "list",
@@ -594,7 +608,9 @@
               "row": 27,
               "column": 20
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
         },
         {
           "name": "item",
@@ -619,7 +635,9 @@
               "row": 27,
               "column": 45
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "inputValue",
@@ -644,7 +662,9 @@
               "row": 30,
               "column": 32
             }
-          }
+          },
+          "containingTag": "input",
+          "containingAttribute": "model:value"
         },
         {
           "name": "item",
@@ -669,7 +689,9 @@
               "row": 31,
               "column": 24
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "data-id"
         },
         {
           "name": "item",
@@ -694,7 +716,9 @@
               "row": 31,
               "column": 50
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "data-name"
         },
         {
           "name": "type",
@@ -719,7 +743,9 @@
               "row": 35,
               "column": 29
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "active",
@@ -744,7 +770,9 @@
               "row": 35,
               "column": 59
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "message",
@@ -769,7 +797,9 @@
               "row": 38,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "user",
@@ -794,7 +824,9 @@
               "row": 39,
               "column": 23
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "count",
@@ -819,7 +851,9 @@
               "row": 39,
               "column": 43
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "name",
@@ -844,7 +878,9 @@
               "row": 68,
               "column": 16
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "age",
@@ -869,7 +905,9 @@
               "row": 69,
               "column": 15
             }
-          }
+          },
+          "containingTag": "text",
+          "containingAttribute": null
         },
         {
           "name": "cond",
@@ -894,7 +932,9 @@
               "row": 80,
               "column": 38
             }
-          }
+          },
+          "containingTag": null,
+          "containingAttribute": null
         },
         {
           "name": "payload",
@@ -919,7 +959,9 @@
               "row": 80,
               "column": 57
             }
-          }
+          },
+          "containingTag": null,
+          "containingAttribute": "data"
         },
         {
           "name": "inline",
@@ -944,7 +986,9 @@
               "row": 98,
               "column": 32
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "inline",
@@ -969,7 +1013,9 @@
               "row": 99,
               "column": 31
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "user",
@@ -994,7 +1040,9 @@
               "row": 99,
               "column": 31
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {

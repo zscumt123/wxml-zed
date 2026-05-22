@@ -32,7 +32,9 @@
               "row": 6,
               "column": 26
             }
-          }
+          },
+          "containingTag": null,
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {

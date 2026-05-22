@@ -1,0 +1,1 @@
+<view class="dyn-card">{{knownProp}}</view>

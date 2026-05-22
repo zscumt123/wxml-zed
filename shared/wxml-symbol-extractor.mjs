@@ -147,10 +147,32 @@ export function collectFile(tree, inputAbs) {
   // time (via `<template is="X" data="{{...}}"/>`), NOT in the file's own
   // sibling .js data — so the diagnostic must skip them.
   let templateDefinitionDepth = 0;
+  // Track nearest enclosing element tag name and attribute name during the
+  // walk. expressionRef entries pick up the top of each stack so diagnostics
+  // can distinguish text-node interpolations (containingAttribute=null) from
+  // component-tag prop bindings (containingAttribute=<name>). containingTag
+  // is populated for ALL interpolations inside a valid WXML element —
+  // including text nodes — so future Hover/Definition features have the
+  // enclosing context to leverage.
+  const elementStack = [];
+  const attributeStack = [];
 
   const walk = (node) => {
     const isTemplateDef = node.type === "template_definition";
     if (isTemplateDef) templateDefinitionDepth += 1;
+
+    let pushedElement = false;
+    let pushedAttribute = false;
+    if (node.type === "element") {
+      const tag = firstChildOfType(node, "start_tag") ?? firstChildOfType(node, "self_closing_tag");
+      const tagName = tag ? (firstChildOfType(tag, "tag_name")?.text ?? null) : null;
+      elementStack.push(tagName);
+      pushedElement = true;
+    } else if (node.type === "attribute") {
+      const nameNode = firstChildOfType(node, "attribute_name");
+      attributeStack.push(nameNode?.text ?? null);
+      pushedAttribute = true;
+    }
 
     if (node.type === "interpolation") {
       const exprNode = firstChildOfType(node, "expression");
@@ -173,6 +195,8 @@ export function collectFile(tree, inputAbs) {
               end: { row: startRow, column: startCol + name.length },
             },
             expressionRange: exprRange,
+            containingTag: elementStack.length > 0 ? elementStack[elementStack.length - 1] : null,
+            containingAttribute: attributeStack.length > 0 ? attributeStack[attributeStack.length - 1] : null,
           });
         }
       }
@@ -279,6 +303,8 @@ export function collectFile(tree, inputAbs) {
     for (let i = 0; i < node.namedChildCount; i++) walk(node.namedChild(i));
 
     if (isTemplateDef) templateDefinitionDepth -= 1;
+    if (pushedElement) elementStack.pop();
+    if (pushedAttribute) attributeStack.pop();
   };
   walk(tree.rootNode);
 

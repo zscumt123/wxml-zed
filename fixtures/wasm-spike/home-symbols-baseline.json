@@ -194,7 +194,9 @@
               "row": 4,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": "class"
         },
         {
           "name": "users",
@@ -219,7 +221,9 @@
               "row": 8,
               "column": 19
             }
-          }
+          },
+          "containingTag": "user-card",
+          "containingAttribute": "wx:for"
         },
         {
           "name": "item",
@@ -244,7 +248,9 @@
               "row": 10,
               "column": 16
             }
-          }
+          },
+          "containingTag": "user-card",
+          "containingAttribute": "user"
         },
         {
           "name": "emptyReason",
@@ -269,7 +275,9 @@
               "row": 14,
               "column": 37
             }
-          }
+          },
+          "containingTag": "missing-card",
+          "containingAttribute": "reason"
         },
         {
           "name": "format",
@@ -294,7 +302,9 @@
               "row": 18,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         },
         {
           "name": "total",
@@ -319,7 +329,9 @@
               "row": 18,
               "column": 25
             }
-          }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         }
       ],
       "wxForBindings": {

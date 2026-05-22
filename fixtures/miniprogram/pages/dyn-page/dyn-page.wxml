@@ -1,0 +1,3 @@
+<view>
+  <local-bar locationError="{{undefVar}}" />
+</view>

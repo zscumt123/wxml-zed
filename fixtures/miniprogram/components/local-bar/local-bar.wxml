@@ -1,0 +1,4 @@
+<view class="local-bar">
+  <text wx:if="{{locationError}}">Location error</text>
+  <text wx:else>{{referer}}</text>
+</view>
