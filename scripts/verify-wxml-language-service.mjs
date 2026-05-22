@@ -911,6 +911,304 @@ function assertCrossBindingT5DeclaredProp(graph) {
   }
 }
 
+function assertCrossBindingT1BuiltinTag(graph) {
+  // T1: remove `theme` from data → line 1's <view class="container {{theme}}">
+  // produces exactly 1 missing-expression-ref. No dead-component-binding
+  // (view is a built-in tag; class is a reserved attribute regardless).
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T1 setup: cross-binding config must have script");
+  const originalDataKeys = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = originalDataKeys.filter((k) => k.name !== "theme");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"theme"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"theme"'));
+    assert(warn.length === 1, `T1: expected exactly 1 missing-expression-ref for theme; got ${warn.length}`);
+    assert(dead.length === 0, `T1: theme must NOT be dead-component-binding; got ${dead.length}`);
+    const others = diagnostics.filter((d) => !d.message.includes('"theme"'));
+    assert(others.length === 0, `T1: unexpected non-theme diagnostics: ${JSON.stringify(others)}`);
+  } finally {
+    pageConfig.script.dataKeys = originalDataKeys;
+  }
+}
+
+function assertCrossBindingT2ReservedWxIf(graph) {
+  // T2: remove `shouldShow` from data → line 6's <local-bar wx:if="{{shouldShow}}" ...>
+  // produces missing-expression-ref. wx:if is reserved; even though local-bar
+  // is a component, the attr is reserved → no dead-component-binding.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T2 setup");
+  const original = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = original.filter((k) => k.name !== "shouldShow");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"shouldShow"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"shouldShow"'));
+    assert(warn.length === 1, `T2: expected 1 missing-expression-ref for shouldShow; got ${warn.length}`);
+    assert(dead.length === 0, `T2: shouldShow must NOT be dead-component-binding (wx:if reserved); got ${dead.length}`);
+    const others = diagnostics.filter((d) => !d.message.includes('"shouldShow"'));
+    assert(others.length === 0, `T2: unexpected others: ${JSON.stringify(others)}`);
+  } finally {
+    pageConfig.script.dataKeys = original;
+  }
+}
+
+function assertCrossBindingT3ReservedDataPrefix(graph) {
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T3 setup");
+  const original = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = original.filter((k) => k.name !== "customId");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"customId"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"customId"'));
+    assert(warn.length === 1, `T3: expected 1 missing-expression-ref for customId; got ${warn.length}`);
+    assert(dead.length === 0, `T3: customId must NOT be dead-component-binding (data- reserved); got ${dead.length}`);
+    const others = diagnostics.filter((d) => !d.message.includes('"customId"'));
+    assert(others.length === 0, `T3: unexpected others: ${JSON.stringify(others)}`);
+  } finally {
+    pageConfig.script.dataKeys = original;
+  }
+}
+
+function assertCrossBindingT4ReservedGenericPrefix(graph) {
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T4 setup");
+  const original = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = original.filter((k) => k.name !== "customGeneric");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"customGeneric"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"customGeneric"'));
+    assert(warn.length === 1, `T4: expected 1 missing-expression-ref for customGeneric; got ${warn.length}`);
+    assert(dead.length === 0, `T4: customGeneric must NOT be dead-component-binding (generic: reserved); got ${dead.length}`);
+    const others = diagnostics.filter((d) => !d.message.includes('"customGeneric"'));
+    assert(others.length === 0, `T4: unexpected others: ${JSON.stringify(others)}`);
+  } finally {
+    pageConfig.script.dataKeys = original;
+  }
+}
+
+function assertCrossBindingT6ChildLacksProp(graph) {
+  // T6: remove `locationError` from page data AND from local-bar propertyKeys.
+  // Lines 2 + 6 reference {{locationError}} on local-bar's `locationError`
+  // attribute. local-bar no longer declares it. Expect 2 missing-expression-ref
+  // and 0 dead-component-binding.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const childConfig = graph.configs.find((c) => c.path === LOCAL_BAR_CONFIG_PATH);
+  assert(pageConfig?.script && childConfig?.script, "T6 setup");
+  const origPage = pageConfig.script.dataKeys;
+  const origChild = childConfig.script.propertyKeys;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "locationError");
+  childConfig.script.propertyKeys = origChild.filter((k) => k.name !== "locationError");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"locationError"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"locationError"'));
+    assert(warn.length === 2, `T6: expected 2 missing-expression-ref for locationError; got ${warn.length}`);
+    assert(dead.length === 0, `T6: locationError must NOT be dead-component-binding (child lacks prop); got ${dead.length}`);
+    for (const d of warn) assert(d.severity === 2, `T6: severity ${d.severity} !== 2`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+    childConfig.script.propertyKeys = origChild;
+  }
+}
+
+function assertCrossBindingT7ChildNoScript(graph) {
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const childConfig = graph.configs.find((c) => c.path === LOCAL_BAR_CONFIG_PATH);
+  assert(pageConfig?.script && childConfig?.script, "T7 setup");
+  const origPage = pageConfig.script.dataKeys;
+  const origChildScript = childConfig.script;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "locationError");
+  delete childConfig.script;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"locationError"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"locationError"'));
+    assert(warn.length === 2, `T7: expected 2 missing-expression-ref for locationError; got ${warn.length}`);
+    assert(dead.length === 0, `T7: must NOT be dead-component-binding (child has no script); got ${dead.length}`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+    childConfig.script = origChildScript;
+  }
+}
+
+function assertCrossBindingT8aStaticHitWinsOverDynamic(graph) {
+  // T8a (regression lock for lookup ordering): dyn-card has behaviors
+  // (hasDynamicData=true) AND statically declares knownProp. Remove dynValue
+  // from page data. Line 9's <dyn-card knownProp="{{dynValue}}"> must
+  // downgrade to dead-component-binding because the static propertyKeys
+  // hit precedes the hasDynamicData fallback.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const dynCardConfig = graph.configs.find((c) => c.path === DYN_CARD_CONFIG_PATH);
+  assert(pageConfig?.script && dynCardConfig?.script, "T8a setup");
+  assert(dynCardConfig.script.hasDynamicData === true, "T8a setup: dyn-card must have hasDynamicData=true");
+  assert(dynCardConfig.script.propertyKeys.some((k) => k.name === "knownProp"), "T8a setup: dyn-card must declare knownProp");
+  const origPage = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "dynValue");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"dynValue"'));
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"dynValue"'));
+    assert(dead.length === 1, `T8a: expected 1 dead-component-binding for dynValue (static hit wins); got ${dead.length}`);
+    assert(warn.length === 0, `T8a: dynValue must NOT be a warning; got ${warn.length}`);
+    assert(dead[0].severity === 3, `T8a: severity ${dead[0].severity} !== 3`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+  }
+}
+
+function assertCrossBindingT8bDynamicChildLacksProp(graph) {
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const dynCardConfig = graph.configs.find((c) => c.path === DYN_CARD_CONFIG_PATH);
+  assert(pageConfig?.script && dynCardConfig?.script, "T8b setup");
+  const origPage = pageConfig.script.dataKeys;
+  const origChild = dynCardConfig.script.propertyKeys;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "dynValue");
+  dynCardConfig.script.propertyKeys = origChild.filter((k) => k.name !== "knownProp");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"dynValue"'));
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"dynValue"'));
+    assert(warn.length === 1, `T8b: expected 1 missing-expression-ref; got ${warn.length}`);
+    assert(dead.length === 0, `T8b: must NOT be dead-component-binding (no static hit + hasDynamicData → unresolvable); got ${dead.length}`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+    dynCardConfig.script.propertyKeys = origChild;
+  }
+}
+
+function assertCrossBindingT8cDataSpreadStaticHit(graph) {
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const childConfig = graph.configs.find((c) => c.path === LOCAL_BAR_CONFIG_PATH);
+  assert(pageConfig?.script && childConfig?.script, "T8c setup");
+  const origPage = pageConfig.script.dataKeys;
+  const origHasDynamic = childConfig.script.hasDynamicData;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "locationError");
+  childConfig.script.hasDynamicData = true;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"locationError"'));
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"locationError"'));
+    assert(dead.length === 2, `T8c: expected 2 dead-component-binding for locationError; got ${dead.length}`);
+    assert(warn.length === 0, `T8c: locationError must NOT be a warning; got ${warn.length}`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+    childConfig.script.hasDynamicData = origHasDynamic;
+  }
+}
+
+function assertCrossBindingT9InTemplateDefSkipped(graph) {
+  // T9: mutate ONE specific locationError ref's inTemplateDefinition flag to
+  // true. Then remove locationError from page data. The flagged ref must be
+  // suppressed entirely; the other (unflagged) ref still emits.
+  // Expect 1 dead-component-binding (NOT 2 — one was suppressed).
+  const wxmlEntry = graph.wxml.find((w) => w.path === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(wxmlEntry, "T9 setup: cross-binding wxml entry");
+  const targets = wxmlEntry.expressionRefs.filter((r) => (
+    r.name === "locationError" &&
+    r.containingTag === "local-bar" &&
+    r.containingAttribute === "locationError"
+  ));
+  assert(targets.length === 2, `T9 setup: expected 2 locationError refs on local-bar.locationError; got ${targets.length}`);
+  const ref = targets[0];
+  const originalFlag = ref.inTemplateDefinition;
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  const origPage = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = origPage.filter((k) => k.name !== "locationError");
+  ref.inTemplateDefinition = true;
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"locationError"'));
+    assert(dead.length === 1, `T9: expected exactly 1 dead-component-binding (other was suppressed by inTemplateDefinition); got ${dead.length}`);
+  } finally {
+    pageConfig.script.dataKeys = origPage;
+    ref.inTemplateDefinition = originalFlag;
+  }
+}
+
+function assertCrossBindingT10LookupByAttributeName(graph) {
+  // T10 (regression lock): line 3 has <local-bar locationError="{{missingVar}}"/>.
+  // Remove missingVar from page data. The identifier 'missingVar' is NOT a
+  // property of local-bar — but the attribute 'locationError' IS. Lookup must
+  // key on attribute name → 1 dead-component-binding for missingVar.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T10 setup");
+  const original = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = original.filter((k) => k.name !== "missingVar");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const dead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"missingVar"'));
+    const warn = diagnostics.filter((d) => d.code === "missing-expression-ref" && d.message.includes('"missingVar"'));
+    assert(dead.length === 1, `T10: expected 1 dead-component-binding for missingVar (lookup by attribute name); got ${dead.length}`);
+    assert(warn.length === 0, `T10: missingVar must NOT be a warning; got ${warn.length}`);
+    assert(
+      dead[0].message.includes('"locationError"'),
+      `T10: message must mention the attribute name "locationError"; got ${dead[0].message}`,
+    );
+  } finally {
+    pageConfig.script.dataKeys = original;
+  }
+}
+
+function assertCrossBindingT11MultiAttrIndependent(graph) {
+  // T11: line 4 has <local-bar locationError="{{a}}" referer="{{b}}"/>. Remove
+  // BOTH 'a' and 'b' from page data. local-bar declares BOTH locationError
+  // AND referer. Expect 2 dead-component-binding total — one for each attr.
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T11 setup");
+  const original = pageConfig.script.dataKeys;
+  pageConfig.script.dataKeys = original.filter((k) => k.name !== "a" && k.name !== "b");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const aDead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"a"'));
+    const bDead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes('"b"'));
+    assert(aDead.length === 1, `T11: expected 1 dead-component-binding for 'a'; got ${aDead.length}`);
+    assert(bDead.length === 1, `T11: expected 1 dead-component-binding for 'b'; got ${bDead.length}`);
+    assert(aDead[0].message.includes('"locationError"'), `T11: 'a' must mention locationError attr`);
+    assert(bDead[0].message.includes('"referer"'), `T11: 'b' must mention referer attr`);
+    const totalNonAB = diagnostics.filter((d) => !d.message.includes('"a"') && !d.message.includes('"b"'));
+    assert(totalNonAB.length === 0, `T11: unexpected others: ${JSON.stringify(totalNonAB)}`);
+  } finally {
+    pageConfig.script.dataKeys = original;
+  }
+}
+
+function assertCrossBindingT12EventBindingNotAffected(graph) {
+  // T12: line 5 has <local-bar bind:tap="onLocalBarTap"/>. Remove
+  // onLocalBarTap from the page's methods. The existing missing-event-handler
+  // rule must fire (1 diagnostic); the new dead-component-binding rule must
+  // NOT fire (bind: is reserved).
+  const pageConfig = graph.configs.find((c) => c.owner === CROSS_BINDING_WXML_GRAPH_PATH);
+  assert(pageConfig?.script, "T12 setup");
+  const original = pageConfig.script.methods;
+  pageConfig.script.methods = original.filter((m) => m.name !== "onLocalBarTap");
+  try {
+    const diagnostics = getDiagnostics({ graph, documentPath: CROSS_BINDING_WXML, extensionRoot: ROOT });
+    const handlerMiss = diagnostics.filter((d) => d.code === "missing-event-handler" && d.message.includes("onLocalBarTap"));
+    const handlerDead = diagnostics.filter((d) => d.code === "dead-component-binding" && d.message.includes("onLocalBarTap"));
+    assert(handlerMiss.length === 1, `T12: expected 1 missing-event-handler for onLocalBarTap; got ${handlerMiss.length}`);
+    assert(handlerDead.length === 0, `T12: onLocalBarTap must NOT be dead-component-binding (bind: reserved); got ${handlerDead.length}`);
+  } finally {
+    pageConfig.script.methods = original;
+  }
+}
+
+function assertDynPageT13ParentDynamicBlocksAll(graph) {
+  const dynConfig = graph.configs.find((c) => c.owner === DYN_PAGE_WXML_GRAPH_PATH);
+  assert(dynConfig?.script, "T13 setup: dyn-page config");
+  assert(dynConfig.script.hasDynamicData === true, "T13 setup: dyn-page must have hasDynamicData=true");
+  const diagnostics = getDiagnostics({ graph, documentPath: DYN_PAGE_WXML, extensionRoot: ROOT });
+  const exprDiags = diagnostics.filter((d) => (
+    d.code === "missing-expression-ref" || d.code === "dead-component-binding"
+  ));
+  assert(
+    exprDiags.length === 0,
+    `T13: parent hasDynamicData=true must suppress ALL expression diagnostics; got ${exprDiags.length}: ${JSON.stringify(exprDiags)}`,
+  );
+}
+
 function assertLocationTarget(location, targetPath, label) {
   assert(location, `${label}: expected definition location`);
   assert(location.uri === pathToFileURL(targetPath).href, `${label}: unexpected URI ${JSON.stringify(location)}`);
@@ -1956,7 +2254,21 @@ assertExpressionRefDiagnosticNoScriptSkips(graph);
 assertExpressionRefDiagnosticUserCardClean(graph);
 assertExpressionRefDiagnosticSuppressedInTemplateDefinition(graph);
 assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph);
+assertCrossBindingT1BuiltinTag(graph);
+assertCrossBindingT2ReservedWxIf(graph);
+assertCrossBindingT3ReservedDataPrefix(graph);
+assertCrossBindingT4ReservedGenericPrefix(graph);
 assertCrossBindingT5DeclaredProp(graph);
+assertCrossBindingT6ChildLacksProp(graph);
+assertCrossBindingT7ChildNoScript(graph);
+assertCrossBindingT8aStaticHitWinsOverDynamic(graph);
+assertCrossBindingT8bDynamicChildLacksProp(graph);
+assertCrossBindingT8cDataSpreadStaticHit(graph);
+assertCrossBindingT9InTemplateDefSkipped(graph);
+assertCrossBindingT10LookupByAttributeName(graph);
+assertCrossBindingT11MultiAttrIndependent(graph);
+assertCrossBindingT12EventBindingNotAffected(graph);
+assertDynPageT13ParentDynamicBlocksAll(graph);
 assertFolderComponentResolvesViaIndex(graph);
 assertDefinition(graph);
 assertGlobalBadgeDefinition(graph);
