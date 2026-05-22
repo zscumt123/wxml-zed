@@ -35,7 +35,8 @@ Authoritative design: `docs/superpowers/specs/2026-05-22-config-driven-data-inje
 
 - `shared/js-method-extractor.mjs` — add three new helper functions (`matchInjectorCall`, `applyTemplate`, `walkOwnerFunctionForInjectors`); extend `extractMethods` to accept `options.dataInjectors` and run the new walker after the setData walker.
 - `scripts/extract-wxml-project-graph.mjs` — import `loadProjectConfig`, call it at graph build time, pass `options.dataInjectors` through to `extractMethods` in `attachScripts`.
-- `scripts/verify-js-script-info.mjs` — add 11 synthetic test cases (J1–J11); update structural source-validity assertion to accept `"injector"`.
+- `scripts/verify-js-script-info.mjs` — add 12 synthetic test cases (J1–J12); update structural source-validity assertion to accept `"injector"`.
+- `scripts/verify-tree-sitter.sh` — wire `verify-project-config-loading.mjs` into the umbrella verifier so config-loader regressions cannot silently bypass the main test command.
 
 **No other source changes.** No new LSP capabilities. `server/wxml-language-service.mjs` is NOT modified — the injector keys flow through the existing `expressionRefDiagnostics` via the augmented dataKeys.
 
@@ -43,10 +44,10 @@ Authoritative design: `docs/superpowers/specs/2026-05-22-config-driven-data-inje
 
 Every commit is independently green. The injector helpers in Task 2 are unreferenced dead code; Task 3 wires them in along with J1 as the regression lock. The chelaile dogfood in Task 5 confirms the real-project outcome.
 
-- Task 1 (commit, green): `loadProjectConfig` module + 5 config loader tests.
+- Task 1 (commit, green): `loadProjectConfig` module + 5 config loader tests + umbrella verifier wiring.
 - Task 2 (commit, green): three injector helpers in `shared/js-method-extractor.mjs` as unreferenced dead code.
 - Task 3 (commit, green): wire helpers into `extractMethods` + thread `options.dataInjectors` from graph extractor + J1 happy-path test + accept `"injector"` in source-validity assertion.
-- Task 4 (commit, green): 10 more synthetic test cases (J2–J11).
+- Task 4 (commit, green): 11 more synthetic test cases (J2–J12), including additive duplicate-class config coverage.
 - Task 5 (commit, green): chelaile dogfood with temporary config + Outcome notes + spike notes follow-up.
 
 ---
@@ -56,6 +57,7 @@ Every commit is independently green. The injector helpers in Task 2 are unrefere
 **Files:**
 - Create: `/Users/zs/Desktop/study/wxml-zed/shared/project-config.mjs`
 - Create: `/Users/zs/Desktop/study/wxml-zed/scripts/verify-project-config-loading.mjs`
+- Modify: `/Users/zs/Desktop/study/wxml-zed/scripts/verify-tree-sitter.sh`
 
 - [ ] **Step 1: Create `shared/project-config.mjs` with the loader + validator**
 
@@ -372,13 +374,25 @@ Result: 5 passed, 0 failed
 
 If any fails, the loader logic is wrong — fix in `shared/project-config.mjs` and re-run.
 
-- [ ] **Step 4: Run the umbrella verify — confirm no other test breaks**
+- [ ] **Step 4: Wire the config loader verifier into the umbrella script**
+
+In `/Users/zs/Desktop/study/wxml-zed/scripts/verify-tree-sitter.sh`, near the bottom where the node verifiers are listed, insert the new verifier after `verify-js-script-info.mjs`:
+
+```bash
+node "$ROOT_DIR/scripts/verify-js-script-info.mjs"
+node "$ROOT_DIR/scripts/verify-project-config-loading.mjs"
+node "$ROOT_DIR/scripts/verify-wxml-expression-helpers.mjs"
+```
+
+This is intentional even though Task 1's loader is not yet consumed by production code: config validation is now part of the project contract, so the umbrella command must run it.
+
+- [ ] **Step 5: Run the umbrella verify — confirm no other test breaks**
 
 ```bash
 bash /Users/zs/Desktop/study/wxml-zed/scripts/verify-tree-sitter.sh 2>&1 | tail -3
 ```
 
-Expected final line: `wxml-zed tree-sitter verification passed`. The new files are isolated (no existing consumer imports them yet), so umbrella stays green.
+Expected final line: `wxml-zed tree-sitter verification passed`. The new loader is isolated (no existing production consumer imports it yet), but the umbrella now proves its 5 cases every run.
 
 If EACCES on tree-sitter-cli, run node sub-verifiers manually:
 
@@ -392,11 +406,11 @@ node /Users/zs/Desktop/study/wxml-zed/scripts/verify-project-config-loading.mjs
 
 All must exit 0.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 cd /Users/zs/Desktop/study/wxml-zed
-git add shared/project-config.mjs scripts/verify-project-config-loading.mjs
+git add shared/project-config.mjs scripts/verify-project-config-loading.mjs scripts/verify-tree-sitter.sh
 git commit -m "$(cat <<'EOF'
 feat: loadProjectConfig + 5 config loader unit tests (P2.2-A scaffolding)
 
@@ -419,8 +433,10 @@ valid+invalid, and empty constructorArgs rejection. Uses tmpdir-
 based fixtures with try/finally cleanup; captures stderr via
 process.stderr.write override.
 
-No consumer wires loadProjectConfig yet; Task 3 connects it to
-the graph extractor.
+Wires verify-project-config-loading.mjs into scripts/verify-tree-sitter.sh
+so config-loader regressions are covered by the umbrella verifier from
+the first commit. No production consumer wires loadProjectConfig yet;
+Task 3 connects it to the graph extractor.
 EOF
 )"
 ```
@@ -468,37 +484,53 @@ function matchInjectorCall(callNode, dataInjectors) {
   const receiver = callArgs.namedChild(0);
   if (!receiver || receiver.type !== "this") return null;
 
-  // Find matching injector (className + methodName both required).
-  const matched = dataInjectors.find((cfg) => (
+  // Find matching injectors (className + methodName both required). Multiple
+  // config entries with the same className are additive; do NOT stop at the
+  // first match. Use own-property checks so prototype names like `toString`
+  // cannot accidentally match.
+  const matchedConfigs = dataInjectors.filter((cfg) => (
     cfg.className === className &&
-    cfg.methods[methodName] !== undefined
+    Object.hasOwn(cfg.methods, methodName)
   ));
-  if (!matched) return null;
+  if (matchedConfigs.length === 0) return null;
 
-  // Extract first N constructor literals.
+  const keys = [];
   const ctorArgs = fieldChild(newExpr, "arguments");
   if (!ctorArgs) return null;
-  const required = matched.constructorArgs.length;
-  if (ctorArgs.namedChildCount < required) return null;
 
-  const subst = {};
-  let primaryRange = null;
-  for (let i = 0; i < required; i++) {
-    const argNode = ctorArgs.namedChild(i);
-    if (!argNode || argNode.type !== "string") return null;
-    const fragment = firstChildOfType(argNode, "string_fragment");
-    if (!fragment) return null;
-    subst[matched.constructorArgs[i]] = fragment.text;
-    if (primaryRange === null) primaryRange = rangeOf(fragment);
-  }
+  for (const matched of matchedConfigs) {
+    // Extract first N constructor literals for this config entry. Different
+    // entries with the same className may declare different constructorArgs;
+    // each entry is evaluated independently.
+    const required = matched.constructorArgs.length;
+    if (ctorArgs.namedChildCount < required) continue;
 
-  // Apply produces templates. Per-template failures skip just that key.
-  const keys = [];
-  for (const template of matched.methods[methodName]) {
-    const name = applyTemplate(template, subst);
-    if (name === null) continue;
-    if (!IDENTIFIER_SHAPE.test(name)) continue;
-    keys.push({ name, nameRange: primaryRange, source: "injector" });
+    const subst = Object.create(null);
+    let primaryRange = null;
+    let ok = true;
+    for (let i = 0; i < required; i++) {
+      const argNode = ctorArgs.namedChild(i);
+      if (!argNode || argNode.type !== "string") {
+        ok = false;
+        break;
+      }
+      const fragment = firstChildOfType(argNode, "string_fragment");
+      if (!fragment) {
+        ok = false;
+        break;
+      }
+      subst[matched.constructorArgs[i]] = fragment.text;
+      if (primaryRange === null) primaryRange = rangeOf(fragment);
+    }
+    if (!ok) continue;
+
+    // Apply produces templates. Per-template failures skip just that key.
+    for (const template of matched.methods[methodName]) {
+      const name = applyTemplate(template, subst);
+      if (name === null) continue;
+      if (!IDENTIFIER_SHAPE.test(name)) continue;
+      keys.push({ name, nameRange: primaryRange, source: "injector" });
+    }
   }
   return keys;
 }
@@ -521,7 +553,7 @@ function applyTemplate(template, subst) {
       const end = template.indexOf("}", i + 2);
       if (end === -1) return null;
       const argName = template.slice(i + 2, end);
-      if (!(argName in subst)) return null;
+      if (!Object.hasOwn(subst, argName)) return null;
       out += subst[argName];
       i = end + 1;
     } else {
@@ -602,16 +634,19 @@ unreferenced dead code; Task 3 wires them in:
   `new <ClassName>(<args>).<methodName>(this)` direct expression
   shape. Match requires call_expression → member_expression →
   new_expression (identifier ctor) → property_identifier method →
-  exactly one `this` receiver argument. First N constructor args
-  must be string literals (N = injector.constructorArgs.length);
-  subsequent args are ignored. Returns matched dataKey entries
-  with source: "injector" and nameRange pointing at the first
-  constructor literal's string_fragment range, or null on no
-  match.
+  exactly one `this` receiver argument. Every matching config entry
+  for the same className + methodName is additive; own-property
+  checks prevent prototype names like toString from matching.
+  First N constructor args must be string literals (N =
+  injector.constructorArgs.length); subsequent args are ignored.
+  Returns matched dataKey entries with source: "injector" and
+  nameRange pointing at the first constructor literal's
+  string_fragment range, or null on no match.
 
 - applyTemplate(template, subst): substitutes ${argName}
-  placeholders using the subst map. Returns null on unclosed
-  ${ or unknown argName — that template is skipped silently.
+  placeholders using the subst map. Uses own-property lookup on a
+  null-prototype substitution map. Returns null on unclosed ${ or
+  unknown argName — that template is skipped silently.
 
 - walkOwnerFunctionForInjectors(funcNode, sink, dataInjectors):
   mirrors walkOwnerFunctionForSetData's boundary semantics. Stops
@@ -782,15 +817,18 @@ Update the assertion's accepted-source set to include `"injector"`:
 
 - [ ] **Step 4: Add J1 (happy path) to verify-js-script-info.mjs**
 
-The existing file has a `CASES` array of test cases. Locate it (search for "label:" entries). Add J1 to the CASES array. Each case object has fields like `label`, `source`, `dataInjectors` (we're adding this new field), `expectedDataKeys`, `expectedDataKeySources`, etc. Look at how setData cases are constructed (P2 round 1 added many) and follow the same pattern, with one new field `dataInjectors`.
+The existing file has a `CASES` array of test cases. Locate it (search for "label:" entries). Add J1 to the CASES array using the current verifier field names: `label`, `source`, `hasDynamicMethods`, `methodNames`, `dataKeys`, `propertyKeys`, `hasDynamicData`, and optional `dataKeySources`. Add one new optional field: `dataInjectors`.
 
-If the CASES item shape doesn't yet support `dataInjectors`, the runner also needs an update. Find where the runner does:
+The runner currently destructures case fields in the `for (const { ... } of CASES)` loop and calls `extractMethods(parser, source)`. Add `dataInjectors` to that destructuring list, then pass it through:
 
 ```js
-const result = extractMethods(parser, c.source);
+for (const { label, source, hasDynamicMethods, methodNames, dataKeys, propertyKeys, hasDynamicData, dataKeySources, propertyKeySources, dataInjectors } of CASES) {
+  const result = extractMethods(parser, source, { dataInjectors: dataInjectors ?? [] });
+  // existing assertions continue unchanged...
+}
 ```
 
-Replace with:
+If the local code has been refactored to use `c.source` instead of destructuring, use the equivalent form:
 
 ```js
 const result = extractMethods(parser, c.source, { dataInjectors: c.dataInjectors ?? [] });
@@ -816,16 +854,16 @@ Add this J1 case at the end of CASES (before the closing `];`):
       },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: ["load_state", "load_states"],
-  expectedDataKeySources: { load_state: "injector", load_states: "injector" },
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: ["load_state", "load_states"],
+  dataKeySources: { load_state: "injector", load_states: "injector" },
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
-(If the existing CASES shape uses different field names like `dataKeys` instead of `expectedDataKeys`, mirror what the existing setData test cases use — read 2-3 of them and follow the pattern exactly.)
+Do not use `expectedDataKeys` / `expectedMethods` style names here; the current runner destructures `dataKeys`, `methodNames`, `hasDynamicData`, etc. directly.
 
 - [ ] **Step 5: Run verify-js-script-info — expect 48 cases pass (47 + J1)**
 
@@ -946,12 +984,12 @@ EOF
 
 ---
 
-## Task 4: J2–J11 — 10 more synthetic test cases
+## Task 4: J2–J12 — 11 more synthetic test cases
 
 **Files:**
-- Modify: `/Users/zs/Desktop/study/wxml-zed/scripts/verify-js-script-info.mjs` — append 10 new test cases.
+- Modify: `/Users/zs/Desktop/study/wxml-zed/scripts/verify-js-script-info.mjs` — append 11 new test cases.
 
-These lock all the non-happy-path branches: no injectors, multi-class, non-literal arg, non-this receiver, no-method-match, no-class-match, data block dedup, arrow descends, regular function blocks, undefined template variable.
+These lock all the non-happy-path branches: no injectors, multi-class, non-literal arg, non-this receiver, no-method-match, no-class-match, data block dedup, arrow descends, regular function blocks, undefined template variable, and duplicate className/method entries applying additively.
 
 Add each case to the CASES array in the same format as J1.
 
@@ -967,12 +1005,12 @@ Add each case to the CASES array in the same format as J1.
     },
   });`,
   dataInjectors: [],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -995,17 +1033,17 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: ["foo_state", "foo_states", "bar_state", "bar_states"],
-  expectedDataKeySources: {
+  methodNames: ["onLoad"],
+  dataKeys: ["foo_state", "foo_states", "bar_state", "bar_states"],
+  dataKeySources: {
     foo_state: "injector",
     foo_states: "injector",
     bar_state: "injector",
     bar_states: "injector",
   },
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1027,12 +1065,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1054,12 +1092,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1081,12 +1119,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1108,12 +1146,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1135,12 +1173,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: ["load_state", "load_states"],
-  expectedDataKeySources: { load_state: "data", load_states: "injector" },
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: ["load_state", "load_states"],
+  dataKeySources: { load_state: "data", load_states: "injector" },
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1162,12 +1200,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: ["load_state", "load_states"],
-  expectedDataKeySources: { load_state: "injector", load_states: "injector" },
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: ["load_state", "load_states"],
+  dataKeySources: { load_state: "injector", load_states: "injector" },
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1189,12 +1227,12 @@ Add each case to the CASES array in the same format as J1.
       methods: { applyTo: ["${name}_state", "${name}_states"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: [],
-  expectedDataKeySources: {},
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: [],
+  dataKeySources: {},
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
@@ -1216,22 +1254,56 @@ Add each case to the CASES array in the same format as J1.
       methods: { m: ["${unknown}_x", "${name}_ok"] },
     },
   ],
-  expectedMethods: ["onLoad"],
-  expectedDataKeys: ["a_ok"],
-  expectedDataKeySources: { a_ok: "injector" },
-  expectedPropertyKeys: [],
-  expectedHasDynamicMethods: false,
-  expectedHasDynamicData: false,
+  methodNames: ["onLoad"],
+  dataKeys: ["a_ok"],
+  dataKeySources: { a_ok: "injector" },
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
 },
 ```
 
-- [ ] **Step 11: Run verify — 58 cases must pass (47 + J1 + J2–J11)**
+- [ ] **Step 11: Add J12 (same className + same method entries are additive)**
+
+```js
+{
+  label: "J12: injector — duplicate className/method config entries are additive",
+  source: `Page({
+    data: {},
+    onLoad() {
+      new LoadStates("load").applyTo(this);
+    },
+  });`,
+  dataInjectors: [
+    {
+      className: "LoadStates",
+      constructorArgs: ["name"],
+      methods: { applyTo: ["${name}_state"] },
+    },
+    {
+      className: "LoadStates",
+      constructorArgs: ["name"],
+      methods: { applyTo: ["${name}_states"] },
+    },
+  ],
+  methodNames: ["onLoad"],
+  dataKeys: ["load_state", "load_states"],
+  dataKeySources: { load_state: "injector", load_states: "injector" },
+  propertyKeys: [],
+  hasDynamicMethods: false,
+  hasDynamicData: false,
+},
+```
+
+This locks the spec rule that duplicate `className` entries are kept and methods merge additively. It would fail if `matchInjectorCall` uses `.find(...)` instead of collecting every matching config.
+
+- [ ] **Step 12: Run verify — 59 cases must pass (47 + J1 + J2–J12)**
 
 ```bash
 node /Users/zs/Desktop/study/wxml-zed/scripts/verify-js-script-info.mjs
 ```
 
-Expected: `[verify-js-script-info] All 58 script-info cases match. PASS`.
+Expected: `[verify-js-script-info] All 59 script-info cases match. PASS`.
 
 Per-case failure-mode triage:
 
@@ -1239,14 +1311,15 @@ Per-case failure-mode triage:
 - **J3 fails with only 2 keys instead of 4** → walker is matching the first new expression but stopping. Likely the visit function's recursion ends prematurely; check the recursion at the end of `walkOwnerFunctionForInjectors`'s `visit` function.
 - **J4 fails with non-empty dataKeys** → matchInjectorCall isn't checking that constructor args are string literals. Check the loop in `matchInjectorCall`: `if (!argNode || argNode.type !== "string") return null;`.
 - **J5 fails** → receiver check missing. Check `if (receiver.type !== "this") return null;`.
-- **J6 fails** → method-name check missing. Check `cfg.methods[methodName] !== undefined`.
+- **J6 fails** → method-name check missing. Check `Object.hasOwn(cfg.methods, methodName)`.
 - **J7 fails** → className check missing. Check `cfg.className === className`.
 - **J8 fails with load_state source as "injector"** → dedup is wrong. Data block keys are pushed first by `extractDataKeys`; the injector merge's `existingNamesAfterSetData.has` check must catch this. Verify the dedup uses the CURRENT `dataKeys` array (which already has data block + setData entries) when building `existingNamesAfterSetData`.
 - **J9 fails with empty dataKeys** → walker boundary check is OVER-broad (excluding arrow_function). Check the boundary check in `walkOwnerFunctionForInjectors`: arrow_function MUST NOT be in the boundary set.
 - **J10 fails with non-empty dataKeys** → walker boundary check is missing function_expression. Verify the 5-type boundary set in `walkOwnerFunctionForInjectors`.
-- **J11 fails with both keys or no keys** → applyTemplate isn't returning null on unknown ${argName}. Check the `if (!(argName in subst)) return null;` line.
+- **J11 fails with both keys or no keys** → applyTemplate isn't returning null on unknown ${argName}. Check the `if (!Object.hasOwn(subst, argName)) return null;` line.
+- **J12 fails with only one key** → matcher is stopping at the first duplicate-class config entry. Replace `.find(...)` with additive collection over all matching entries.
 
-- [ ] **Step 12: Umbrella verify**
+- [ ] **Step 13: Umbrella verify**
 
 ```bash
 bash /Users/zs/Desktop/study/wxml-zed/scripts/verify-tree-sitter.sh 2>&1 | tail -3
@@ -1254,16 +1327,16 @@ bash /Users/zs/Desktop/study/wxml-zed/scripts/verify-tree-sitter.sh 2>&1 | tail 
 
 Expected: `wxml-zed tree-sitter verification passed`.
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 cd /Users/zs/Desktop/study/wxml-zed
 git add scripts/verify-js-script-info.mjs
 git commit -m "$(cat <<'EOF'
-test: lock 10 more injector walker decision-matrix branches (J2-J11)
+test: lock 11 more injector walker decision-matrix branches (J2-J12)
 
-Adds J2-J11 to verify-js-script-info.mjs with exact dataKey +
-dataKeySources matching. Combined with J1 (Task 3) these 11
+Adds J2-J12 to verify-js-script-info.mjs with exact dataKey +
+dataKeySources matching. Combined with J1 (Task 3) these 12
 cases cover all of v1's match conditions and non-match paths:
 
 - J1: happy path — `new LoadStates("load").applyTo(this)` in
@@ -1282,8 +1355,10 @@ cases cover all of v1's match conditions and non-match paths:
        walker's design.)
 - J11: undefined ${unknown} in template → that template skipped,
        other templates in same produces array still emit.
+- J12: duplicate className + same method config entries → additive
+       merge across matching entries, not first-match-only.
 
-58 cases pass (47 existing + 11 J-cases). All exact-count
+59 cases pass (47 existing + 12 J-cases). All exact-count
 assertions.
 EOF
 )"
@@ -1297,13 +1372,34 @@ EOF
 - Modify: `/Users/zs/Desktop/study/wxml-zed/docs/superpowers/plans/2026-05-22-config-driven-data-injectors.md` (this plan) — append Outcome section.
 - Modify: `/Users/zs/Desktop/study/wxml-zed/docs/wasm-parser-spike-notes.md` — append follow-up section.
 
-- [ ] **Step 1: Create the chelaile dogfood AFTER snapshot directory**
+- [ ] **Step 1: Create the chelaile dogfood snapshot directory and config paths**
 
 ```bash
 mkdir -p /tmp/wxml-zed-diagnostics-p22a/before /tmp/wxml-zed-diagnostics-p22a/after
+CHELAILE_ROOT=/Users/zs/Desktop/zs_work/mp-wx-chelaile/wx
+CHELAILE_CONFIG="$CHELAILE_ROOT/wxml-zed.config.json"
+CHELAILE_CONFIG_BACKUP=/tmp/wxml-zed-diagnostics-p22a/wxml-zed.config.json.backup
 ```
 
-- [ ] **Step 2: Capture BEFORE snapshot (current state, no config)**
+- [ ] **Step 2: Guard against overwriting a real chelaile config**
+
+Before writing the temporary config, check whether chelaile already has a `wxml-zed.config.json`.
+
+```bash
+CHELAILE_ROOT=/Users/zs/Desktop/zs_work/mp-wx-chelaile/wx
+CHELAILE_CONFIG="$CHELAILE_ROOT/wxml-zed.config.json"
+CHELAILE_CONFIG_BACKUP=/tmp/wxml-zed-diagnostics-p22a/wxml-zed.config.json.backup
+if [ -f "$CHELAILE_CONFIG" ]; then
+  cp "$CHELAILE_CONFIG" "$CHELAILE_CONFIG_BACKUP"
+  echo "Existing chelaile wxml-zed.config.json backed up to $CHELAILE_CONFIG_BACKUP"
+else
+  rm -f "$CHELAILE_CONFIG_BACKUP"
+fi
+```
+
+This prevents the dogfood run from destroying a real user/project config. Step 8 restores the backup if one existed.
+
+- [ ] **Step 3: Capture BEFORE snapshot (current state, before temporary config)**
 
 ```bash
 node /Users/zs/Desktop/study/wxml-zed/scripts/dump-project-diagnostics.mjs \
@@ -1319,10 +1415,11 @@ node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/wxml-zed-diagnost
 
 Expected: `BEFORE total: 26 byCode: {"missing-expression-ref":7,"missing-event-handler":7,"dead-component-binding":12}` (or close — the precise byCode depends on chelaile working-tree state).
 
-- [ ] **Step 3: Drop a temporary `wxml-zed.config.json` into chelaile (NOT committed there)**
+- [ ] **Step 4: Drop a temporary `wxml-zed.config.json` into chelaile (NOT committed there)**
 
 ```bash
-cat > /Users/zs/Desktop/zs_work/mp-wx-chelaile/wx/wxml-zed.config.json <<'JSON'
+CHELAILE_CONFIG=/Users/zs/Desktop/zs_work/mp-wx-chelaile/wx/wxml-zed.config.json
+cat > "$CHELAILE_CONFIG" <<'JSON'
 {
   "dataInjectors": [
     {
@@ -1350,7 +1447,7 @@ JSON
 
 This file is temporary for verification. We do NOT commit it to chelaile (it's not our project); the wxml-zed plan's Outcome section documents the config inline so future users know what to put in their own projects.
 
-- [ ] **Step 4: Capture AFTER snapshot (with config)**
+- [ ] **Step 5: Capture AFTER snapshot (with config)**
 
 ```bash
 node /Users/zs/Desktop/study/wxml-zed/scripts/dump-project-diagnostics.mjs \
@@ -1358,7 +1455,7 @@ node /Users/zs/Desktop/study/wxml-zed/scripts/dump-project-diagnostics.mjs \
   --out /tmp/wxml-zed-diagnostics-p22a/after
 ```
 
-- [ ] **Step 5: Verify acceptance gates**
+- [ ] **Step 6: Verify acceptance gates**
 
 ```bash
 node -e '
@@ -1398,7 +1495,7 @@ Failure-mode triage:
 - `missing-event-handler` count changed → precision regression. Sample the new diagnostics to find which event handler is now affected; this would be a bug.
 - `dead-component-binding` count changed → the cross-component logic was accidentally perturbed. Sample to find what shifted.
 
-- [ ] **Step 6: Capture surviving sample (should be 5)**
+- [ ] **Step 7: Capture surviving sample (should be 5)**
 
 ```bash
 grep '"code":"missing-expression-ref"' /tmp/wxml-zed-diagnostics-p22a/after/wx.jsonl | while read -r line; do
@@ -1418,13 +1515,21 @@ pages/more-buses/components/bus/index.wxml:32  name=tomorrow
 
 These are the SAME 5 entries documented in P2.2-B's Outcome as "4 reserved-attribute + 1 Taro template-fragment". Confirms the 2 helper-mediated load_state entries cleared.
 
-- [ ] **Step 7: Remove the temporary config from chelaile**
+- [ ] **Step 8: Restore or remove the temporary config from chelaile**
 
 ```bash
-rm /Users/zs/Desktop/zs_work/mp-wx-chelaile/wx/wxml-zed.config.json
+CHELAILE_CONFIG=/Users/zs/Desktop/zs_work/mp-wx-chelaile/wx/wxml-zed.config.json
+CHELAILE_CONFIG_BACKUP=/tmp/wxml-zed-diagnostics-p22a/wxml-zed.config.json.backup
+if [ -f "$CHELAILE_CONFIG_BACKUP" ]; then
+  cp "$CHELAILE_CONFIG_BACKUP" "$CHELAILE_CONFIG"
+  echo "Restored original chelaile wxml-zed.config.json from backup"
+else
+  rm -f "$CHELAILE_CONFIG"
+  echo "Removed temporary chelaile wxml-zed.config.json"
+fi
 ```
 
-- [ ] **Step 8: Append Outcome section to this plan**
+- [ ] **Step 9: Append Outcome section to this plan**
 
 Append to the END of `/Users/zs/Desktop/study/wxml-zed/docs/superpowers/plans/2026-05-22-config-driven-data-injectors.md`:
 
@@ -1494,7 +1599,7 @@ The 4 reserved-attribute entries are correct by design — the dead-component-bi
 The config-driven injector approach has zero false positives: every produces-template substitution is grounded in a literal at the call site, and every match condition is AST-shape-precise.
 ```
 
-- [ ] **Step 9: Append spike-notes follow-up**
+- [ ] **Step 10: Append spike-notes follow-up**
 
 Append to `/Users/zs/Desktop/study/wxml-zed/docs/wasm-parser-spike-notes.md` AFTER the existing "Follow-up: cross-component prop binding diagnostic" section's closing `---`:
 
@@ -1546,7 +1651,7 @@ a graph rebuild via the existing `**/*.json` watcher
 ---
 ```
 
-- [ ] **Step 10: Commit Outcome + spike notes**
+- [ ] **Step 11: Commit Outcome + spike notes**
 
 ```bash
 cd /Users/zs/Desktop/study/wxml-zed
@@ -1584,7 +1689,7 @@ These are absolute pass/fail gates:
 
 1. All existing tests pass (`bash scripts/verify-tree-sitter.sh` → `wxml-zed tree-sitter verification passed`, or node sub-verifiers all pass individually if tree-sitter-cli has EACCES).
 2. `verify-project-config-loading.mjs` reports all 5 cases (C-L1 to C-L5) pass.
-3. `verify-js-script-info.mjs` reports all 58 cases (47 existing + J1–J11) pass with exact dataKeys + dataKeySources matching.
+3. `verify-js-script-info.mjs` reports all 59 cases (47 existing + J1–J12) pass with exact dataKeys + dataKeySources matching.
 4. Source-validity assertion in `verify-js-script-info.mjs` now accepts `"injector"` as a valid `dataKey.source` value.
 5. chelaile dogfood with the 2-entry config:
    - `missing-event-handler`: 7 → 7
@@ -1606,6 +1711,6 @@ These are absolute pass/fail gates:
 - Dedup order: data block (source: "data") → setData (source: "setData") → injector (source: "injector"). First-name-wins. Locked by J8 (data block wins).
 - Empty `constructorArgs` reject at LOAD time (validation), not at match time. Test C-L5.
 - Acceptance criteria's chelaile gates are concrete numbers (not `<N>` placeholders).
-- Each commit is green: Task 1 lands new files (no breaking change); Task 2 adds unreferenced dead code; Task 3 wires + adds J1 (TDD-green); Task 4 adds J2–J11 (all should pass against Task 3's wiring); Task 5 is docs-only.
+- Each commit is green: Task 1 lands new files + umbrella wiring (no production behavior change); Task 2 adds unreferenced dead code; Task 3 wires + adds J1 (TDD-green); Task 4 adds J2–J12 (all should pass against Task 3's wiring); Task 5 is docs-only.
 - chelaile dogfood uses an explicit `/tmp/wxml-zed-diagnostics-p22a/{before,after}/` path scheme (no `/tmp/claude-501/` / no `$TMPDIR` dependency).
-- The temporary chelaile config in Task 5 is REMOVED at Step 7 — not left behind.
+- The temporary chelaile config in Task 5 is restored from backup if a real config existed, otherwise removed — not left behind and not destructive.
