@@ -100,10 +100,10 @@ This ordering is the key correctness point: if the child's JS literally has `pro
 
 | Field | Type | Meaning |
 |---|---|---|
-| `containingTag` | `string \| null` | Tag name housing the expression (e.g., `"local-bar"`); `null` if the expression is in a text node (`<view>{{x}}</view>`). |
-| `containingAttribute` | `string \| null` | Attribute name housing the expression (e.g., `"locationError"`); `null` if in a text node or in an attribute on a structurally-special node like template. |
+| `containingTag` | `string \| null` | Nearest enclosing element's tag name (e.g., `"local-bar"`, or `"view"` for a text-node interpolation inside a `<view>`). `null` only if there is no enclosing element (orphaned interpolation, not valid WXML). |
+| `containingAttribute` | `string \| null` | Containing attribute's name (e.g., `"locationError"`); `null` for text-node interpolations and interpolations not housed in any attribute. |
 
-Both fields are derived during tree-sitter-wxml AST walks: from each `interpolation` node, walk up to find either an enclosing `attribute` → `element` chain (sets both fields) or just an enclosing `element` (text node — both fields stay `null`).
+Both fields are derived during tree-sitter-wxml AST walks via a stack-based tracker: push on entry to `element` / `attribute` nodes, pop on exit. Innermost wins for nested elements. The prefilter uses `containingAttribute !== null` to distinguish attribute-housed refs from text-node refs — the `containingTag` field is informative for future Hover/Definition features even when the ref is in a text node.
 
 **No new fields on `fileModel`, no new fields on `graph.*`.**
 
@@ -130,8 +130,8 @@ Two precedence rules sit ABOVE the C1-C5 matrix and short-circuit it entirely:
 
 A `containingAttribute` is treated as a candidate custom prop binding when ALL hold:
 
-- `containingTag !== null` (not a text node)
-- `containingAttribute !== null` (not a text node)
+- `containingTag !== null` (interpolation has some enclosing element — true for any valid WXML site)
+- `containingAttribute !== null` (interpolation is inside an attribute value, not a text node — this is the actual prefilter for "attribute binding site")
 - `containingAttribute` is NOT in the reserved set OR reserved prefixes:
   - **Reserved set**: `wx:if`, `wx:elif`, `wx:else`, `wx:for`, `wx:for-item`, `wx:for-index`, `wx:key`, `class`, `style`, `id`, `slot`, `hidden`
   - **Reserved prefixes**: `bind:`, `catch:`, `mut-bind:`, `capture-bind:`, `capture-catch:`, `data-`, `generic:`
@@ -186,10 +186,12 @@ The existing `server/wxml-language-service.mjs` only declares `const WARNING = 2
 
 ```js
 // shared/wxml-symbol-extractor.mjs — inside the existing expression-ref emit loop:
-// After computing { name, range, inTemplateDefinition }, walk the tree-sitter
-// ancestor chain from the `interpolation` node to find the nearest enclosing
-// attribute (sets containingTag + containingAttribute) or element (text node:
-// both null).
+// After computing { name, range, inTemplateDefinition }, read the top of
+// elementStack and attributeStack (maintained by push/pop on element/attribute
+// entry/exit during the walk). containingTag = nearest enclosing element's
+// tag name (set for any interpolation inside a valid WXML element, including
+// text nodes); containingAttribute = current attribute name or null for text
+// nodes.
 
 // server/wxml-language-service.mjs — inside expressionRefDiagnostics:
 const RESERVED_ATTRIBUTES = new Set([
@@ -323,9 +325,9 @@ Append to the existing synthetic-project test set. Each test sets up a parent + 
 
 Extend the wxml-symbol extraction tests (existing in `verify-wasm-symbol-baselines.mjs` infrastructure) to cover `containingTag` / `containingAttribute`:
 
-- `<view>{{x}}</view>` → `containingTag=null, containingAttribute=null`
+- `<view>{{x}}</view>` → `containingTag="view", containingAttribute=null` (text-node interpolation; containingTag carries the enclosing element for future Hover/Definition value, containingAttribute is null so the cross-component prefilter excludes this site)
 - `<view class="{{x}}">` → `containingTag="view", containingAttribute="class"`
-- `<view><local-bar prop="{{x}}"/></view>` → `containingTag="local-bar", containingAttribute="prop"` (innermost wins)
+- `<view><local-bar prop="{{x}}"/></view>` → `containingTag="local-bar", containingAttribute="prop"` (innermost wins via stack)
 - Self-closing `<local-bar prop="{{x}}"/>` → same as above
 
 ### Baseline regeneration
