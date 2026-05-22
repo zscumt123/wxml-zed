@@ -1780,7 +1780,7 @@ Snapshot caveat: chelaile was on `feature/skill-bus` at `7fb6f7e782961393f115bb5
 
 Hard gates:
 - `missing-event-handler`: 7 → 7 (precision preserved)
-- `missing-expression-ref`: 7 → 5 (2 reserved-attribute `load_state` warnings cleared via injector config)
+- `missing-expression-ref`: 7 → 5 (2 helper-mediated `load_state` warnings cleared via injector config)
 - `dead-component-binding`: 12 → 6 (6 `states-view` pass-through bindings using `load_state` / `load_states` also became valid parent-scope bindings)
 - Total: 26 → 18
 

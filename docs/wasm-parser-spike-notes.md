@@ -887,7 +887,7 @@ via produces-template substitution; merged into dataKeys with
 Outcome on the same chelaile snapshot: 26 -> 18 total. The 7
 missing-event-handler diagnostics (all real bugs) preserved
 unchanged. missing-expression-ref dropped 7 -> 5 after the two
-reserved-attribute `load_state` warnings cleared. dead-component-
+helper-mediated `load_state` warnings cleared. dead-component-
 binding dropped 12 -> 6 because six `states-view` bindings used the
 same injected parent identifiers (`load_state` / `load_states`) for
 child props (`state` / `states`); once those identifiers became
