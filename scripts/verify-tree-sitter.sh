@@ -443,6 +443,7 @@ node "$ROOT_DIR/scripts/verify-wasm-symbol-baselines.mjs"
 node "$ROOT_DIR/scripts/verify-js-wasm-parser.mjs"
 node "$ROOT_DIR/scripts/verify-js-method-baselines.mjs"
 node "$ROOT_DIR/scripts/verify-js-script-info.mjs"
+node "$ROOT_DIR/scripts/verify-project-config-loading.mjs"
 node "$ROOT_DIR/scripts/verify-wxml-expression-helpers.mjs"
 node "$ROOT_DIR/scripts/verify-lsp-diagnostics.mjs" --suite graph-smoke
 
