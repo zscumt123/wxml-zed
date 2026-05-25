@@ -306,9 +306,12 @@ export function collectFile(tree, inputAbs) {
     } else if (node.type === "element") {
       const tag = firstChildOfType(node, "start_tag") ?? firstChildOfType(node, "self_closing_tag");
       if (tag) {
-        const name = firstChildOfType(tag, "tag_name")?.text;
+        const tagNameNode = firstChildOfType(tag, "tag_name");
+        const name = tagNameNode?.text;
         if (name && name.includes("-") && !CONTROL_TAGS.has(name) && !BUILTIN_TAGS.has(name)) {
-          components.push({ tag: name, range: rangeOf(node) });
+          const entry = { tag: name, range: rangeOf(node) };
+          if (tagNameNode) entry.tagNameRange = rangeOf(tagNameNode);
+          components.push(entry);
         }
       }
     }

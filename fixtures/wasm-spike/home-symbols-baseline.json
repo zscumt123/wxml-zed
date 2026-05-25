@@ -123,6 +123,16 @@
               "row": 12,
               "column": 4
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 7,
+              "column": 3
+            },
+            "end": {
+              "row": 7,
+              "column": 12
+            }
           }
         },
         {
@@ -136,6 +146,16 @@
               "row": 14,
               "column": 43
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 14,
+              "column": 3
+            },
+            "end": {
+              "row": 14,
+              "column": 15
+            }
           }
         },
         {
@@ -148,6 +168,16 @@
             "end": {
               "row": 15,
               "column": 41
+            }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 15,
+              "column": 3
+            },
+            "end": {
+              "row": 15,
+              "column": 15
             }
           }
         }

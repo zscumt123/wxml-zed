@@ -58,10 +58,34 @@ function testMalformedWxsProducesNoSymbol() {
     `S-W3: expected nameRange on the surviving wxs symbol; got ${JSON.stringify(wxsSymbols[0])}`);
 }
 
+function testComponentTagNameRange() {
+  const result = extract("fixtures/miniprogram/pages/home/home.wxml");
+  const file = result.files[0];
+  const comp = file.components.find((c) => c.tag === "user-card");
+  assert(comp, `S-C1: expected component 'user-card'; got ${JSON.stringify(file.components)}`);
+  assert(comp.tagNameRange, `S-C1: expected tagNameRange; got ${JSON.stringify(comp)}`);
+  assert(comp.tagNameRange.start.row === 7, `S-C1: start row ${comp.tagNameRange.start.row}`);
+  assert(comp.tagNameRange.start.column === 3, `S-C1: start col ${comp.tagNameRange.start.column}`);
+  assert(comp.tagNameRange.end.column - comp.tagNameRange.start.column === "user-card".length,
+    `S-C1: width ${comp.tagNameRange.end.column - comp.tagNameRange.start.column}`);
+}
+
+function testSelfClosingComponentTagNameRange() {
+  const result = extract("fixtures/miniprogram/pages/home/home.wxml");
+  const file = result.files[0];
+  const comp = file.components.find((c) => c.tag === "global-badge");
+  assert(comp, `S-C2: expected component 'global-badge'; got ${JSON.stringify(file.components)}`);
+  assert(comp.tagNameRange, `S-C2: expected tagNameRange on self-closing; got ${JSON.stringify(comp)}`);
+  assert(comp.tagNameRange.end.column - comp.tagNameRange.start.column === "global-badge".length,
+    `S-C2: width ${comp.tagNameRange.end.column - comp.tagNameRange.start.column}`);
+}
+
 const CASES = [
   ["S-W1: external wxs nameRange", testExternalWxsNameRange],
   ["S-W2: inline wxs nameRange", testInlineWxsNameRange],
   ["S-W3: malformed wxs produces no symbol", testMalformedWxsProducesNoSymbol],
+  ["S-C1: component tagNameRange (start tag)", testComponentTagNameRange],
+  ["S-C2: component tagNameRange (self-closing tag)", testSelfClosingComponentTagNameRange],
 ];
 
 let passed = 0, failed = 0;

@@ -18,6 +18,16 @@
               "row": 6,
               "column": 36
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 6,
+              "column": 5
+            },
+            "end": {
+              "row": 6,
+              "column": 20
+            }
           }
         },
         {
@@ -31,6 +41,16 @@
               "row": 13,
               "column": 74
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 13,
+              "column": 7
+            },
+            "end": {
+              "row": 13,
+              "column": 19
+            }
           }
         },
         {
@@ -43,6 +63,16 @@
             "end": {
               "row": 17,
               "column": 60
+            }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 17,
+              "column": 5
+            },
+            "end": {
+              "row": 17,
+              "column": 16
             }
           }
         }
@@ -632,6 +662,16 @@
               "row": 32,
               "column": 18
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 18,
+              "column": 7
+            },
+            "end": {
+              "row": 18,
+              "column": 16
+            }
           }
         },
         {
@@ -645,6 +685,16 @@
               "row": 31,
               "column": 72
             }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 31,
+              "column": 9
+            },
+            "end": {
+              "row": 31,
+              "column": 18
+            }
           }
         },
         {
@@ -657,6 +707,16 @@
             "end": {
               "row": 34,
               "column": 63
+            }
+          },
+          "tagNameRange": {
+            "start": {
+              "row": 34,
+              "column": 5
+            },
+            "end": {
+              "row": 34,
+              "column": 16
             }
           }
         }
