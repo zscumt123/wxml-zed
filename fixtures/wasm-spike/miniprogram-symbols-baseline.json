@@ -37,6 +37,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -79,6 +80,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -121,6 +123,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -163,6 +166,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -232,6 +236,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -301,6 +306,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -421,6 +427,7 @@
           "containingAttribute": "status"
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -459,6 +466,7 @@
       ],
       "eventHandlers": [],
       "expressionRefs": [],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1060,6 +1068,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1169,6 +1178,7 @@
           "containingAttribute": "caption"
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1235,6 +1245,7 @@
           "containingAttribute": "locationError"
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1614,6 +1625,37 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 4
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 8,
+              "column": 4
+            },
+            "end": {
+              "row": 8,
+              "column": 22
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "user-card"
+        }
+      ],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1980,6 +2022,198 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 2,
+              "column": 2
+            },
+            "end": {
+              "row": 4,
+              "column": 9
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 2,
+              "column": 20
+            },
+            "end": {
+              "row": 2,
+              "column": 38
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 9,
+              "column": 9
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 7,
+              "column": 20
+            },
+            "end": {
+              "row": 7,
+              "column": 41
+            }
+          },
+          "itemName": "prod",
+          "itemNameRange": {
+            "start": {
+              "row": 7,
+              "column": 68
+            },
+            "end": {
+              "row": 7,
+              "column": 72
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "idx",
+          "indexNameRange": {
+            "start": {
+              "row": 7,
+              "column": 88
+            },
+            "end": {
+              "row": 7,
+              "column": 91
+            }
+          },
+          "indexSource": "explicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 12,
+              "column": 2
+            },
+            "end": {
+              "row": 16,
+              "column": 9
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 12,
+              "column": 8
+            },
+            "end": {
+              "row": 12,
+              "column": 27
+            }
+          },
+          "itemName": "outer",
+          "itemNameRange": {
+            "start": {
+              "row": 12,
+              "column": 41
+            },
+            "end": {
+              "row": 12,
+              "column": 46
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 13,
+              "column": 4
+            },
+            "end": {
+              "row": 15,
+              "column": 11
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 13,
+              "column": 10
+            },
+            "end": {
+              "row": 13,
+              "column": 36
+            }
+          },
+          "itemName": "inner",
+          "itemNameRange": {
+            "start": {
+              "row": 13,
+              "column": 50
+            },
+            "end": {
+              "row": 13,
+              "column": 55
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 21,
+              "column": 2
+            },
+            "end": {
+              "row": 23,
+              "column": 9
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 21,
+              "column": 8
+            },
+            "end": {
+              "row": 21,
+              "column": 25
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": {
+            "start": {
+              "row": 21,
+              "column": 39
+            },
+            "end": {
+              "row": 21,
+              "column": 43
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        }
+      ],
       "wxForBindings": {
         "items": [
           "inner",
@@ -2029,6 +2263,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -2086,6 +2321,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -2143,6 +2379,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -2200,6 +2437,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],

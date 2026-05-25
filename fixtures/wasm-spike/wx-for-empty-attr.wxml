@@ -1,0 +1,3 @@
+<view wx:for="{{xs}}" wx:for-item="" wx:for-index="">
+  {{item}}{{index}}
+</view>

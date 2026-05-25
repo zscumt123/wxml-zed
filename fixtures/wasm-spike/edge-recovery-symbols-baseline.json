@@ -37,6 +37,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],

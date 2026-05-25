@@ -91,6 +91,55 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 7
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 0,
+              "column": 6
+            },
+            "end": {
+              "row": 0,
+              "column": 24
+            }
+          },
+          "itemName": "user",
+          "itemNameRange": {
+            "start": {
+              "row": 0,
+              "column": 37
+            },
+            "end": {
+              "row": 0,
+              "column": 41
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "i",
+          "indexNameRange": {
+            "start": {
+              "row": 0,
+              "column": 55
+            },
+            "end": {
+              "row": 0,
+              "column": 56
+            }
+          },
+          "indexSource": "explicit",
+          "ownerTag": "view"
+        }
+      ],
       "wxForBindings": {
         "items": [
           "user"

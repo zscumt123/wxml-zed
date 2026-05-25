@@ -1,0 +1,3 @@
+<view wx:for-item="loose" wx:for-index="loose_idx">
+  {{loose}}
+</view>

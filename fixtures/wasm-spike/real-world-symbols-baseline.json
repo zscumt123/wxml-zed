@@ -535,6 +535,7 @@
           "containingAttribute": "hidden"
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],
@@ -1420,6 +1421,55 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 18,
+              "column": 6
+            },
+            "end": {
+              "row": 32,
+              "column": 18
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 19,
+              "column": 8
+            },
+            "end": {
+              "row": 19,
+              "column": 26
+            }
+          },
+          "itemName": "user",
+          "itemNameRange": {
+            "start": {
+              "row": 20,
+              "column": 21
+            },
+            "end": {
+              "row": 20,
+              "column": 25
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "idx",
+          "indexNameRange": {
+            "start": {
+              "row": 21,
+              "column": 22
+            },
+            "end": {
+              "row": 21,
+              "column": 25
+            }
+          },
+          "indexSource": "explicit",
+          "ownerTag": "user-card"
+        }
+      ],
       "wxForBindings": {
         "items": [
           "user"
@@ -1703,6 +1753,7 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [],
       "wxForBindings": {
         "items": [],
         "indexes": [],

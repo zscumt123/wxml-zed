@@ -374,6 +374,37 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 7,
+              "column": 2
+            },
+            "end": {
+              "row": 12,
+              "column": 4
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 8,
+              "column": 4
+            },
+            "end": {
+              "row": 8,
+              "column": 22
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "user-card"
+        }
+      ],
       "wxForBindings": {
         "items": [],
         "indexes": [],

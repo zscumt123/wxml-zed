@@ -139,9 +139,14 @@ export function collectFile(tree, inputAbs) {
   const components = [];
   const eventHandlers = [];
   const expressionRefs = [];
-  const wxForItems = new Set();
-  const wxForIndexes = new Set();
-  let hasAnyWxFor = false;
+  // wxForScopes: real per-element loop scopes (one entry per element with wx:for).
+  const wxForScopes = [];
+  // Loose accumulators preserve the legacy quirk where wx:for-item /
+  // wx:for-index without wx:for still leaks into wxForBindings.items /
+  // .indexes. Not surfaced in the public schema; only used to derive the
+  // compat shim. Will be removed when wxForBindings itself is retired.
+  const wxForLooseItems = new Set();
+  const wxForLooseIndexes = new Set();
   // Track depth inside `<template name="X">...</template>` nodes. Expressions
   // inside a template definition resolve in the caller's data scope at use
   // time (via `<template is="X" data="{{...}}"/>`), NOT in the file's own
@@ -221,15 +226,6 @@ export function collectFile(tree, inputAbs) {
             });
           }
         }
-        if (attrName === "wx:for") {
-          hasAnyWxFor = true;
-        } else if (attrName === "wx:for-item") {
-          const v = quotedAttrTextValue(node);
-          if (typeof v === "string" && v.length > 0) wxForItems.add(v);
-        } else if (attrName === "wx:for-index") {
-          const v = quotedAttrTextValue(node);
-          if (typeof v === "string" && v.length > 0) wxForIndexes.add(v);
-        }
       }
     }
     if (node.type === "import_statement" || node.type === "include_statement") {
@@ -308,6 +304,66 @@ export function collectFile(tree, inputAbs) {
       if (tag) {
         const tagNameNode = firstChildOfType(tag, "tag_name");
         const name = tagNameNode?.text;
+
+        // wx:for scope extraction (independent of component check).
+        const wxForAttr = findAnyAttribute(tag, "wx:for");
+        const wxForItemAttr = findAnyAttribute(tag, "wx:for-item");
+        const wxForIndexAttr = findAnyAttribute(tag, "wx:for-index");
+        if (wxForAttr) {
+          // Scope creation gates ONLY on wx:for attribute presence. The
+          // legacy extractor sets hasAnyWxFor = true for bare `wx:for`
+          // (no value); we must preserve that by creating a scope record
+          // with defaults regardless of whether wx:for has a value.
+          //
+          // IMPORTANT: read item/index names with quotedAttrTextValue (NOT
+          // attributeRawValue). The legacy helper returns null when the
+          // quoted value contains an `interpolation` child — this is the
+          // gate that keeps dynamic names like wx:for-item="{{dyn}}" out
+          // of the explicit-binding path. Using attributeRawValue would
+          // leak the literal "{{dyn}}" into wxForBindings.items and
+          // break W-7 byte-equal. Locked by S-F7.
+          const itemRaw = wxForItemAttr ? quotedAttrTextValue(wxForItemAttr) : undefined;
+          const indexRaw = wxForIndexAttr ? quotedAttrTextValue(wxForIndexAttr) : undefined;
+          const itemValueNode = wxForItemAttr
+            ? (firstChildOfType(wxForItemAttr, "quoted_attribute_value")
+               ?? firstChildOfType(wxForItemAttr, "attribute_value"))
+            : null;
+          const indexValueNode = wxForIndexAttr
+            ? (firstChildOfType(wxForIndexAttr, "quoted_attribute_value")
+               ?? firstChildOfType(wxForIndexAttr, "attribute_value"))
+            : null;
+
+          const itemExplicit = typeof itemRaw === "string" && itemRaw.length > 0;
+          const indexExplicit = typeof indexRaw === "string" && indexRaw.length > 0;
+
+          wxForScopes.push({
+            scopeRange: rangeOf(node),
+            wxForRange: rangeOf(wxForAttr),
+            itemName: itemExplicit ? itemRaw : "item",
+            itemNameRange: itemExplicit && itemValueNode ? innerValueRange(itemValueNode) : null,
+            itemSource: itemExplicit ? "explicit" : "implicit",
+            indexName: indexExplicit ? indexRaw : "index",
+            indexNameRange: indexExplicit && indexValueNode ? innerValueRange(indexValueNode) : null,
+            indexSource: indexExplicit ? "explicit" : "implicit",
+            ownerTag: name ?? null,
+          });
+        } else {
+          // Loose wx:for-item / wx:for-index (no wx:for on this element).
+          // Preserve legacy behavior verbatim: same quotedAttrTextValue
+          // helper (interpolation values return null and don't leak)
+          // and same `length > 0` gate. Feed into loose accumulators
+          // for the compat shim only; do NOT create a scope.
+          if (wxForItemAttr) {
+            const v = quotedAttrTextValue(wxForItemAttr);
+            if (typeof v === "string" && v.length > 0) wxForLooseItems.add(v);
+          }
+          if (wxForIndexAttr) {
+            const v = quotedAttrTextValue(wxForIndexAttr);
+            if (typeof v === "string" && v.length > 0) wxForLooseIndexes.add(v);
+          }
+        }
+
+        // Existing custom-component extraction (preserved).
         if (name && name.includes("-") && !CONTROL_TAGS.has(name) && !BUILTIN_TAGS.has(name)) {
           const entry = { tag: name, range: rangeOf(node) };
           if (tagNameNode) entry.tagNameRange = rangeOf(tagNameNode);
@@ -337,10 +393,21 @@ export function collectFile(tree, inputAbs) {
     components,
     eventHandlers,
     expressionRefs,
-    wxForBindings: {
-      items: [...wxForItems].sort(),
-      indexes: [...wxForIndexes].sort(),
-      hasAnyWxFor,
-    },
+    wxForScopes,
+    /** @deprecated compatibility shim derived from wxForScopes plus loose-attr accumulators;
+     * new code should consume wxForScopes directly. */
+    wxForBindings: (() => {
+      const explicitItems = wxForScopes
+        .filter((s) => s.itemSource === "explicit")
+        .map((s) => s.itemName);
+      const explicitIndexes = wxForScopes
+        .filter((s) => s.indexSource === "explicit")
+        .map((s) => s.indexName);
+      return {
+        items: [...new Set([...explicitItems, ...wxForLooseItems])].sort(),
+        indexes: [...new Set([...explicitIndexes, ...wxForLooseIndexes])].sort(),
+        hasAnyWxFor: wxForScopes.length > 0,
+      };
+    })(),
   };
 }

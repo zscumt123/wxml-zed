@@ -1075,6 +1075,84 @@
           "containingAttribute": null
         }
       ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 16,
+              "column": 0
+            },
+            "end": {
+              "row": 24,
+              "column": 7
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 17,
+              "column": 2
+            },
+            "end": {
+              "row": 17,
+              "column": 20
+            }
+          },
+          "itemName": "row",
+          "itemNameRange": {
+            "start": {
+              "row": 18,
+              "column": 15
+            },
+            "end": {
+              "row": 18,
+              "column": 18
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "idx",
+          "indexNameRange": {
+            "start": {
+              "row": 19,
+              "column": 16
+            },
+            "end": {
+              "row": 19,
+              "column": 19
+            }
+          },
+          "indexSource": "explicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 27,
+              "column": 0
+            },
+            "end": {
+              "row": 27,
+              "column": 54
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 27,
+              "column": 6
+            },
+            "end": {
+              "row": 27,
+              "column": 23
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        }
+      ],
       "wxForBindings": {
         "items": [
           "row"
