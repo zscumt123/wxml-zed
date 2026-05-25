@@ -1621,6 +1621,379 @@
       }
     },
     {
+      "path": "fixtures/miniprogram/pages/loops/loops.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "users",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 30
+            },
+            "end": {
+              "row": 2,
+              "column": 35
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 2,
+              "column": 30
+            },
+            "end": {
+              "row": 2,
+              "column": 35
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 6
+            },
+            "end": {
+              "row": 3,
+              "column": 10
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 6
+            },
+            "end": {
+              "row": 3,
+              "column": 15
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "index",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 21
+            },
+            "end": {
+              "row": 3,
+              "column": 26
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 21
+            },
+            "end": {
+              "row": 3,
+              "column": 26
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "products",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 7,
+              "column": 30
+            },
+            "end": {
+              "row": 7,
+              "column": 38
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 7,
+              "column": 30
+            },
+            "end": {
+              "row": 7,
+              "column": 38
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "prod",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 6
+            },
+            "end": {
+              "row": 8,
+              "column": 10
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 6
+            },
+            "end": {
+              "row": 8,
+              "column": 16
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "idx",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 8,
+              "column": 22
+            },
+            "end": {
+              "row": 8,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 8,
+              "column": 22
+            },
+            "end": {
+              "row": 8,
+              "column": 25
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "groups",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 12,
+              "column": 18
+            },
+            "end": {
+              "row": 12,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 12,
+              "column": 18
+            },
+            "end": {
+              "row": 12,
+              "column": 24
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "outer",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 13,
+              "column": 20
+            },
+            "end": {
+              "row": 13,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 13,
+              "column": 20
+            },
+            "end": {
+              "row": 13,
+              "column": 33
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "outer",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 8
+            },
+            "end": {
+              "row": 14,
+              "column": 13
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 8
+            },
+            "end": {
+              "row": 14,
+              "column": 19
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "inner",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 27
+            },
+            "end": {
+              "row": 14,
+              "column": 32
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 27
+            },
+            "end": {
+              "row": 14,
+              "column": 38
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 21,
+              "column": 18
+            },
+            "end": {
+              "row": 21,
+              "column": 22
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 21,
+              "column": 18
+            },
+            "end": {
+              "row": 21,
+              "column": 22
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 22,
+              "column": 6
+            },
+            "end": {
+              "row": 22,
+              "column": 10
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 22,
+              "column": 6
+            },
+            "end": {
+              "row": 22,
+              "column": 16
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 26,
+              "column": 31
+            },
+            "end": {
+              "row": 26,
+              "column": 35
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 26,
+              "column": 31
+            },
+            "end": {
+              "row": 26,
+              "column": 35
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "inner",
+          "item",
+          "outer",
+          "prod"
+        ],
+        "indexes": [
+          "idx"
+        ],
+        "hasAnyWxFor": true
+      }
+    },
+    {
       "path": "fixtures/miniprogram/shared/header.wxml",
       "dependencies": [],
       "symbols": [],

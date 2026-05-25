@@ -1,0 +1,28 @@
+<view class="loops">
+  <!-- Default wx:for: itemName="item", indexName="index". -->
+  <view class="row" wx:for="{{users}}" wx:key="id">
+    {{item.name}} ({{index}})
+  </view>
+
+  <!-- Explicit wx:for-item and wx:for-index. -->
+  <view class="row" wx:for="{{products}}" wx:key="sku" wx:for-item="prod" wx:for-index="idx">
+    {{prod.title}} #{{idx}}
+  </view>
+
+  <!-- Nested loops with shadowing on inner name; outer remains addressable. -->
+  <view wx:for="{{groups}}" wx:for-item="outer" wx:key="id">
+    <view wx:for="{{outer.entries}}" wx:for-item="inner" wx:key="id">
+      {{outer.label}} :: {{inner.value}}
+    </view>
+  </view>
+
+  <!-- Iterable name collision: wx:for="{{item}}" wx:for-item="item".
+       Inside wx:for="{{item}}" the `item` reads from outer scope (data),
+       inside body it's the loop variable. -->
+  <view wx:for="{{item}}" wx:for-item="item" wx:key="id">
+    {{item.label}}
+  </view>
+
+  <!-- A reference OUTSIDE any wx:for body — should NOT have item in scope. -->
+  <view class="outside-loop">{{item}}</view>
+</view>
