@@ -289,6 +289,18 @@ class LspClient {
     return response.result;
   }
 
+  async hover(filePath, position) {
+    const id = this.request("textDocument/hover", {
+      textDocument: { uri: pathToFileURL(filePath).href },
+      position,
+    });
+    const response = await this.waitForResponse(id);
+    if (response.error) {
+      throw new Error(`Hover request failed: ${JSON.stringify(response.error)}`);
+    }
+    return response.result;
+  }
+
   async documentSymbols(filePath) {
     const id = this.request("textDocument/documentSymbol", {
       textDocument: { uri: pathToFileURL(filePath).href },
@@ -405,6 +417,7 @@ class LspClient {
     assert(response.result?.capabilities?.definitionProvider === true, "definitionProvider not advertised");
     assert(response.result?.capabilities?.documentSymbolProvider === true, "documentSymbolProvider not advertised");
     assert(response.result?.capabilities?.completionProvider, "completionProvider not advertised");
+    this.initializeResult = response.result;
     this.send("initialized", {});
   }
 
@@ -654,6 +667,42 @@ async function testDataRefDefinition() {
       typeof result.range.start.line === "number" && typeof result.range.start.character === "number",
       `data-ref definition: bad range ${JSON.stringify(result.range)}`,
     );
+  });
+}
+
+async function testHoverCapabilityAdvertised() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    assert(
+      client.initializeResult?.capabilities?.hoverProvider === true,
+      `hoverProvider not advertised: ${JSON.stringify(client.initializeResult?.capabilities)}`,
+    );
+  });
+}
+
+async function testHoverMarkdownForDataRef() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before hover data ref");
+    // home.wxml line 4 `<view class="home {{theme}}">` — cursor inside `theme`.
+    const result = await client.hover(HOME_WXML, { line: 4, character: 22 });
+    assert(result, "hover data ref: expected Hover response, got null");
+    assert(
+      result.contents?.kind === "markdown",
+      `hover data ref: expected markdown contents, got ${JSON.stringify(result.contents)}`,
+    );
+    assert(
+      typeof result.contents?.value === "string" && result.contents.value.startsWith("**theme** — `data`"),
+      `hover data ref: unexpected markdown value ${JSON.stringify(result.contents?.value)}`,
+    );
+  });
+}
+
+async function testHoverNullForMemberChain() {
+  await withClient({ rootPath: ROOT }, async (client) => {
+    client.openDocument(USER_CARD_WXML);
+    // user-card.wxml line 1 member chain `.name` — cursor on `name`.
+    const result = await client.hover(USER_CARD_WXML, { line: 1, character: 30 });
+    assert(result === null, `hover member chain: expected null, got ${JSON.stringify(result)}`);
   });
 }
 
@@ -1665,6 +1714,9 @@ const scenarios = [
   ["home component definition", testHomeComponentDefinition],
   ["event handler definition", testEventHandlerDefinition],
   ["data ref definition", testDataRefDefinition],
+  ["hover capability advertised", testHoverCapabilityAdvertised],
+  ["hover returns markdown for data ref", testHoverMarkdownForDataRef],
+  ["hover returns null for member chain", testHoverNullForMemberChain],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1730,6 +1782,9 @@ const SCENARIO_SUITES = {
     "home component definition",
     "event handler definition",
     "data ref definition",
+    "hover capability advertised",
+    "hover returns markdown for data ref",
+    "hover returns null for member chain",
     "completion immediately after open",
     "event handler completion",
     "data ref completion",

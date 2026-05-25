@@ -10,6 +10,7 @@ import {
   getDefinition,
   getDiagnostics,
   getDocumentSymbols,
+  getHover,
 } from "./wxml-language-service.mjs";
 import { collectFile } from "../shared/wxml-symbol-extractor.mjs";
 
@@ -610,6 +611,40 @@ async function handleDefinitionRequest(id, params) {
   }
 }
 
+async function hoverForRequest(params) {
+  const documentPath = fileUriToPath(params?.textDocument?.uri);
+  if (!documentPath) {
+    return null;
+  }
+
+  const projectRoot = resolveMiniProgramRoot(documentPath);
+  if (!projectRoot) {
+    logDiagnosticError(`No app.json found for ${documentPath}`);
+    return null;
+  }
+
+  const graph = await ensureGraphForRequest(projectRoot);
+  if (!graph) {
+    return null;
+  }
+
+  return getHover({
+    graph,
+    documentPath,
+    position: params?.position,
+    extensionRoot: EXTENSION_ROOT,
+  });
+}
+
+async function handleHoverRequest(id, params) {
+  try {
+    respond(id, await hoverForRequest(params));
+  } catch (error) {
+    logDiagnosticError(error instanceof Error ? error.message : String(error));
+    respond(id, null);
+  }
+}
+
 async function documentSymbolsForRequest(params) {
   const documentPath = fileUriToPath(params?.textDocument?.uri);
   if (!documentPath) {
@@ -705,6 +740,7 @@ function initialize(params) {
         save: true,
       },
       definitionProvider: true,
+      hoverProvider: true,
       documentSymbolProvider: true,
       completionProvider: {
         triggerCharacters: ["<", " ", ":", "\"", "'"],
@@ -803,6 +839,10 @@ function handleMessage(message) {
 
     case "textDocument/definition":
       handleDefinitionRequest(message.id, message.params);
+      break;
+
+    case "textDocument/hover":
+      handleHoverRequest(message.id, message.params);
       break;
 
     case "textDocument/documentSymbol":
