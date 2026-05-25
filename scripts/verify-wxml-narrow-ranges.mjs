@@ -43,12 +43,19 @@ function testInlineWxsNameRange() {
     `S-W2: expected 6-char-wide nameRange, got ${wxs.nameRange.end.column - wxs.nameRange.start.column}`);
 }
 
+// S-W3: a <wxs ... /> without a `module` attribute produces no symbol entry;
+// the well-formed <wxs module="math"> in the same file does produce one,
+// and (per the new nameRange schema) carries nameRange.
 function testMalformedWxsProducesNoSymbol() {
   const result = extract("fixtures/wxs-injection.wxml");
   const file = result.files[0];
-  const noNameWxs = file.symbols.filter((s) => s.kind === "wxs" && !s.name);
-  assert(noNameWxs.length === 0,
-    `S-W3: expected no nameless wxs symbol; got ${JSON.stringify(noNameWxs)}`);
+  const wxsSymbols = file.symbols.filter((s) => s.kind === "wxs");
+  assert(wxsSymbols.length === 1,
+    `S-W3: expected exactly one wxs symbol (math); got ${JSON.stringify(wxsSymbols)}`);
+  assert(wxsSymbols[0].name === "math",
+    `S-W3: expected the surviving wxs symbol to be 'math'; got ${wxsSymbols[0].name}`);
+  assert(wxsSymbols[0].nameRange,
+    `S-W3: expected nameRange on the surviving wxs symbol; got ${JSON.stringify(wxsSymbols[0])}`);
 }
 
 const CASES = [
