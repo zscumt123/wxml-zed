@@ -790,10 +790,10 @@ function assertHoverOnWxsExpressionRef(graph) {
 }
 ```
 
-Register:
+Register by appending a direct call in the flat runner block at the bottom of the file (the file uses flat `assertX(graph);` calls, not a SCENARIOS table):
 
 ```js
-  ["H-10 hover on wxs ident in interpolation", assertHoverOnWxsExpressionRef],
+assertHoverOnWxsExpressionRef(graph);
 ```
 
 - [ ] **Step 2: Run to verify it fails**

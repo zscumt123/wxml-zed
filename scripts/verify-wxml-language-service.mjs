@@ -729,6 +729,50 @@ function assertHoverOnWxsExpressionRef(graph) {
   assert(value.includes("→ `utils/format.wxs`"), `H-10: bad source line: ${value}`);
 }
 
+function assertHoverOnInlineWxsExpressionRef(graph) {
+  // H-10b: inline-wxs arm of step 2c. Synthesize an inline wxs symbol
+  // (no matching dependency entry) plus an expressionRef pointing at it,
+  // then assert hover returns the `inline wxs module in this file` form.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalSymbols = homeFile.symbols;
+  const originalRefs = homeFile.expressionRefs;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_inline_format__",
+    range: { start: { row: 300, column: 0 }, end: { row: 302, column: 6 } },
+    nameRange: { start: { row: 300, column: 13 }, end: { row: 300, column: 36 } },
+  };
+  const syntheticRef = {
+    name: "__hover_inline_format__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 305, column: 0 }, end: { row: 305, column: 23 } },
+    expressionRange: { start: { row: 305, column: 0 }, end: { row: 305, column: 23 } },
+  };
+  homeFile.symbols = [...originalSymbols, syntheticSymbol];
+  homeFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 305, character: 10 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "H-10b: expected Hover for inline wxs expression ref");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**__hover_inline_format__** — `wxs module`"),
+      `H-10b: bad title: ${value}`);
+    assert(value.includes("inline wxs module in this file"),
+      `H-10b: expected inline-note body; got ${value}`);
+    // Sanity: the external-arm marker must NOT appear.
+    assert(!value.includes("→ `"),
+      `H-10b: inline hover should not render arrow-form; got ${value}`);
+  } finally {
+    homeFile.symbols = originalSymbols;
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
 function assertHoverOnMemberChainReturnsNull(graph) {
   // H-11: cursor on `name` in `{{user.name}}`. topLevelIdentifiers skips
   // identifiers preceded by ".", so no expressionRef is produced for `name`.
@@ -2428,6 +2472,7 @@ assertHoverOnMissingDataReturnsNull(graph);
 assertHoverOnMemberChainReturnsNull(graph);
 assertHoverInTemplateDefinitionReturnsNull(graph);
 assertHoverOnWxsExpressionRef(graph);
+assertHoverOnInlineWxsExpressionRef(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);
