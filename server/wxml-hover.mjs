@@ -32,6 +32,8 @@ const HOVER_KIND_LABELS = {
   componentMethod: "component method",
   customComponent: "custom component",
   wxsModule: "wxs module",
+  wxForItem: "wx:for-item",
+  wxForIndex: "wx:for-index",
 };
 
 function relativeToGraphRoot(graphPath, graphRoot) {
@@ -90,6 +92,54 @@ function hoverFromGraphPathLocation({ name, kindLabel, scriptPath, nameRange, gr
     sourcePath: rel,
     sourceLine: nameRange.start.row + 1,
   });
+}
+
+/**
+ * Scan wxForScopes in reverse extraction order (innermost-first AND
+ * later-source-first for ties) and return the first scope whose itemName
+ * or indexName matches the requested name at this cursor position.
+ *
+ * A scope is "active" when the cursor is inside its scopeRange AND NOT
+ * inside its own wxForRange (the iterable-exclusion rule: in
+ * <view wx:for="{{item}}" wx:for-item="item">, cursor inside the wx:for
+ * value evaluates in the outer scope).
+ */
+function findMatchingWxForBinding(scopes, position, name) {
+  for (let i = (scopes ?? []).length - 1; i >= 0; i--) {
+    const scope = scopes[i];
+    if (!containsPosition(scope.scopeRange, position)) continue;
+    if (containsPosition(scope.wxForRange, position)) continue;
+    if (name === scope.itemName) return { scope, kind: "item" };
+    if (name === scope.indexName) return { scope, kind: "index" };
+  }
+  return null;
+}
+
+/**
+ * Render a wx:for binding hover. Same-file always — wx:for declarations
+ * never cross-file by scope semantics. Source line shape:
+ *   ownerTag present + explicit name → `Declared on `<tag>` at line N`
+ *   ownerTag null    + explicit name → `Declared in wx:for at line N`
+ *   ownerTag present + implicit name → `Declared on `<tag>` at line N` (line from wxForRange)
+ *   ownerTag null    + implicit name → `Declared in wx:for at line N`
+ */
+function makeWxForHover(scope, kind, refRange) {
+  const isItem = kind === "item";
+  const name = isItem ? scope.itemName : scope.indexName;
+  const kindLabel = isItem ? HOVER_KIND_LABELS.wxForItem : HOVER_KIND_LABELS.wxForIndex;
+  const explicitNameRange = isItem ? scope.itemNameRange : scope.indexNameRange;
+  const lineRange = explicitNameRange ?? scope.wxForRange;
+  const lineNo = lineRange.start.row + 1;
+  const sourceLine = scope.ownerTag
+    ? `Declared on \`<${scope.ownerTag}>\` at line ${lineNo}`
+    : `Declared in wx:for at line ${lineNo}`;
+  return {
+    contents: {
+      kind: "markdown",
+      value: `**${name}** — \`${kindLabel}\`\n\n${sourceLine}`,
+    },
+    range: rangeFromSymbolRange(refRange),
+  };
 }
 
 /**
@@ -152,11 +202,24 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
     if (expressionRefMatch.inTemplateDefinition) return null;
-    // ownerConfig is needed by 2a/2b only — 2c (in-file wxs symbol lookup) reads
+
+    // 2a. wx:for binding lookup — opportunistic, no ownerConfig needed.
+    // Per WXML lexical scope semantics, wx:for-item / wx:for-index shadow
+    // data / property / wxs of the same name inside the loop body.
+    const wxForBinding = findMatchingWxForBinding(
+      fileModel.wxForScopes,
+      position,
+      expressionRefMatch.name,
+    );
+    if (wxForBinding) {
+      return makeWxForHover(wxForBinding.scope, wxForBinding.kind, expressionRefMatch.range);
+    }
+
+    // ownerConfig is needed by 2b/2c only — 2d (in-file wxs symbol lookup) reads
     // from fileModel and works even for template-only WXML files (no JS sibling).
     const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
 
-    // 2a. dataKeys lookup → kind label per dataKey.source (requires ownerConfig)
+    // 2b. dataKeys lookup → kind label per dataKey.source (requires ownerConfig)
     if (ownerConfig) {
       const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
       if (dataKey) {
@@ -175,7 +238,7 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
         });
       }
 
-      // 2b. propertyKeys lookup → kind label "property" (requires ownerConfig)
+      // 2c. propertyKeys lookup → kind label "property" (requires ownerConfig)
       const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
       if (propKey) {
         return hoverFromGraphPathLocation({
@@ -189,7 +252,7 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
       }
     }
 
-    // 2c. In-file wxs symbol names → kind label "wxs module" (works without ownerConfig).
+    // 2d. In-file wxs symbol names → kind label "wxs module" (works without ownerConfig).
     const wxsSymbol = (fileModel.symbols ?? [])
       .find((s) => s.kind === "wxs" && s.name === expressionRefMatch.name);
     if (wxsSymbol) {
@@ -246,7 +309,7 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   const wxsDeclMatch = (fileModel.symbols ?? [])
     .find((s) => s.kind === "wxs" && s.nameRange && containsPosition(s.nameRange, position));
   if (wxsDeclMatch) {
-    // Same external-vs-inline discrimination as step 2c: presence of dep ⇒ external;
+    // Same external-vs-inline discrimination as step 2d: presence of dep ⇒ external;
     // dep without normalized ⇒ unresolvable external ⇒ no hover (don't mislabel inline).
     const wxsDep = (fileModel.dependencies ?? [])
       .find((d) => d.kind === "wxs" && d.module === wxsDeclMatch.name);

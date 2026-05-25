@@ -29,6 +29,8 @@ const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cros
 const CROSS_BINDING_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml";
 const DYN_PAGE_WXML = path.join(MINIPROGRAM_ROOT, "pages/dyn-page/dyn-page.wxml");
 const DYN_PAGE_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml";
+const LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/loops/loops.wxml");
+const LOOPS_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/loops/loops.wxml";
 const LOCAL_BAR_CONFIG_PATH = "fixtures/miniprogram/components/local-bar/local-bar.json";
 const DYN_CARD_CONFIG_PATH = "fixtures/miniprogram/components/dyn-card/dyn-card.json";
 
@@ -1381,6 +1383,72 @@ function assertHoverOnUnresolvedExternalWxsExprRefReturnsNull(graph) {
     homeFile.dependencies = originalDeps;
     homeFile.expressionRefs = originalRefs;
   }
+}
+
+function assertHoverOnWxForDefaultItem(graph) {
+  // W-1: loops.wxml line 3 has `<view class="row" wx:for="{{users}}" wx:key="id">`
+  // and line 4 has `{{item.name}} ({{index}})`. Cursor on `item` in {{item.name}}.
+  // Find the exact column at runtime to avoid brittleness.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{item.name}}"));
+  assert(lineIdx >= 0, "W-1 setup: expected line with `{{item.name}}` in loops.wxml");
+  const charIdx = lines[lineIdx].indexOf("item");
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },  // mid-name
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-1: expected Hover for default wx:for item, got null");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**item** — `wx:for-item`"), `W-1: bad title: ${value}`);
+  assert(value.includes("Declared on `<view>` at line "), `W-1: bad source line: ${value}`);
+}
+
+function assertHoverOnReferenceOutsideLoopReturnsNull(graph) {
+  // W-5: loops.wxml has `<view class="outside-loop">{{item}}</view>` at the
+  // bottom — outside every wx:for body. Hover on `item` must NOT resolve
+  // to a wx:for binding. (It WILL resolve to data.item via 2b dataKey,
+  // because loops.js declares data.item. That's correct — W-5 specifically
+  // checks the wx:for step DOESN'T fire here. We assert by checking the
+  // kind label is `data`, not `wx:for-item`.)
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("outside-loop") && l.includes("{{item}}"));
+  assert(lineIdx >= 0, "W-5 setup: expected line with outside-loop {{item}}");
+  const charIdx = lines[lineIdx].indexOf("{{item}}") + 2;  // inside the {{
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-5: expected Hover for outside-loop {{item}} (resolves to data); got null");
+  const value = hoverContents(hover);
+  assert(!value.includes("wx:for-item"), `W-5: outside-loop hover MUST NOT be wx:for-item; got ${value}`);
+  assert(value.includes("`data`"), `W-5: expected data kind label; got ${value}`);
+}
+
+function assertHoverOnWxForMemberChainReturnsNull(graph) {
+  // W-6: cursor on `.name` part of {{item.name}} — member chain, not
+  // top-level identifier, so no expressionRef is produced. Hover null.
+  // (Mirrors existing H-11 logic.)
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{item.name}}"));
+  assert(lineIdx >= 0, "W-6 setup: line with {{item.name}}");
+  const charIdx = lines[lineIdx].indexOf("{{item.name}}") + "{{item.".length;  // on `n` of name
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `W-6: expected null on member chain, got ${JSON.stringify(hover)}`);
 }
 
 function assertExpressionRefDiagnosticClean(graph) {
@@ -3075,3 +3143,8 @@ assertEventHandlerCompletionEmptyTyped(graph);
 assertSyntheticHandlerCompletionCases(graph);
 assertEventHandlerCompletionNoSiblingScript(graph);
 assertEventHandlerCompletionSkipsComponentLifecycle(graph);
+
+// Phase 3 Stage D — wx:for scope hover
+assertHoverOnWxForDefaultItem(graph);
+assertHoverOnReferenceOutsideLoopReturnsNull(graph);
+assertHoverOnWxForMemberChainReturnsNull(graph);
