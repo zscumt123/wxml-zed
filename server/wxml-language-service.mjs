@@ -958,6 +958,111 @@ export function getDiagnostics({ graph, documentPath, extensionRoot, fileModelOv
   return [...componentDiags, ...handlerDiags, ...expressionDiags];
 }
 
+// ---- Hover (Phase 3 Stage C) ---------------------------------------------
+
+const HOVER_KIND_LABELS = {
+  data: "data",
+  setData: "setData",
+  injector: "injector",
+  property: "property",
+  pageMethod: "page method",
+  componentMethod: "component method",
+  customComponent: "custom component",
+  wxsModule: "wxs module",
+};
+
+function relativeToGraphRoot(graphPath, graphRoot) {
+  // Returns null when graphPath escapes graphRoot — never leak absolute paths.
+  if (!isInsideGraphRoot(graphPath, graphRoot)) return null;
+  const rel = path.posix.relative(graphRoot, graphPath);
+  return rel === "" ? graphPath : rel;
+}
+
+function formatHoverMarkdown({ name, kindLabel, sourcePath, sourceLine, arrow, inlineNote }) {
+  const title = `**${name}** — \`${kindLabel}\``;
+  let source;
+  if (inlineNote) {
+    source = inlineNote;
+  } else if (arrow) {
+    source = `→ \`${sourcePath}\``;
+  } else {
+    source = `Defined in \`${sourcePath}:${sourceLine}\``;
+  }
+  return `${title}\n\n${source}`;
+}
+
+function hoverFromGraphPathLocation({ name, kindLabel, scriptPath, nameRange, graphRoot, refRange }) {
+  const rel = relativeToGraphRoot(scriptPath, graphRoot);
+  if (!rel) return null;
+  return {
+    contents: {
+      kind: "markdown",
+      value: formatHoverMarkdown({
+        name,
+        kindLabel,
+        sourcePath: rel,
+        sourceLine: nameRange.start.row + 1,
+      }),
+    },
+    range: rangeFromSymbolRange(refRange),
+  };
+}
+
+export function getHover({ graph, documentPath, position, extensionRoot }) {
+  if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
+    return null;
+  }
+  const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
+  if (!fileModel) return null;
+
+  // 1. Event handler match — TODO Task 5.
+
+  // 2. Expression ref match — AUTHORITATIVE.
+  const expressionRefMatch = (fileModel.expressionRefs ?? [])
+    .find((entry) => containsPosition(entry.range, position));
+  if (expressionRefMatch) {
+    if (expressionRefMatch.inTemplateDefinition) return null;
+    const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+    if (!ownerConfig) return null;
+
+    // 2a. dataKeys lookup → kind label per dataKey.source
+    const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+    if (dataKey) {
+      const kindLabel = HOVER_KIND_LABELS[dataKey.source] ?? HOVER_KIND_LABELS.data;
+      return hoverFromGraphPathLocation({
+        name: dataKey.name,
+        kindLabel,
+        scriptPath: ownerConfig.script.path,
+        nameRange: dataKey.nameRange,
+        graphRoot: graph.root,
+        refRange: expressionRefMatch.range,
+      });
+    }
+
+    // 2b. propertyKeys lookup → kind label "property"
+    const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+    if (propKey) {
+      return hoverFromGraphPathLocation({
+        name: propKey.name,
+        kindLabel: HOVER_KIND_LABELS.property,
+        scriptPath: ownerConfig.script.path,
+        nameRange: propKey.nameRange,
+        graphRoot: graph.root,
+        refRange: expressionRefMatch.range,
+      });
+    }
+
+    // 2c. wxs symbol fallback — TODO Task 4.
+
+    return null;
+  }
+
+  // 3. Component tag match — TODO Task 6.
+  // 4. Wxs module declaration match — TODO Task 7.
+
+  return null;
+}
+
 export function getDefinition({ graph, documentPath, position, extensionRoot }) {
   if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
     return null;

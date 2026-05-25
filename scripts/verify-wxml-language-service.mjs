@@ -9,6 +9,7 @@ import {
   getDefinition,
   getDiagnostics,
   getDocumentSymbols,
+  getHover,
 } from "../server/wxml-language-service.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -645,6 +646,172 @@ function assertDataRefDefinitionMissingKeyReturnsNull(graph) {
     );
   } finally {
     homeConfig.script.dataKeys = original;
+  }
+}
+
+// Phase 3 Stage C — Hover v1 ------------------------------------------------
+
+function hoverContents(hover) {
+  if (!hover) return null;
+  return hover.contents && hover.contents.value;
+}
+
+function assertHoverOnDataRef(graph) {
+  // home.wxml line 5 (row 4): `<view class="home {{theme}}">`
+  // 'theme' starts at col 20; cursor mid-name at col 22.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 4, character: 22 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-1: expected Hover, got null");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**theme** — `data`"), `H-1: bad title: ${value}`);
+  assert(value.includes("Defined in `pages/home/home.js:"), `H-1: bad source line: ${value}`);
+  assert(hover.contents.kind === "markdown", `H-1: kind ${hover.contents.kind}`);
+  assert(hover.range, "H-1: expected range");
+}
+
+function assertHoverOnPropertyRef(graph) {
+  // user-card.wxml line 2 (row 1): expressionRef `user` → property
+  const hover = getHover({
+    graph,
+    documentPath: USER_CARD_WXML,
+    position: { line: 1, character: 25 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-2: expected Hover, got null");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**user** — `property`"), `H-2: bad title: ${value}`);
+  assert(value.includes("Defined in `components/user-card/user-card.js:"), `H-2: bad source line: ${value}`);
+}
+
+function assertHoverInTemplateDefinitionReturnsNull(graph) {
+  // H-12: synthesize an expressionRef inside template_definition. Hover must
+  // short-circuit and return null even though "theme" is a real data key.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.expressionRefs;
+  const synthetic = {
+    name: "theme",
+    source: "interpolation",
+    inTemplateDefinition: true,
+    range: { start: { row: 100, column: 0 }, end: { row: 100, column: 5 } },
+    expressionRange: { start: { row: 100, column: 0 }, end: { row: 100, column: 5 } },
+  };
+  homeFile.expressionRefs = [...original, synthetic];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 100, character: 2 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null, `H-12: expected null in template_definition, got ${JSON.stringify(hover)}`);
+  } finally {
+    homeFile.expressionRefs = original;
+  }
+}
+
+function assertHoverOnMemberChainReturnsNull(graph) {
+  // H-11: cursor on `name` in `{{user.name}}`. topLevelIdentifiers skips
+  // identifiers preceded by ".", so no expressionRef is produced for `name`.
+  const hover = getHover({
+    graph,
+    documentPath: USER_CARD_WXML,
+    position: { line: 1, character: 30 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `H-11: expected null on member chain, got ${JSON.stringify(hover)}`);
+}
+
+function assertHoverOnMissingDataReturnsNull(graph) {
+  // H-4 negative twin: temporarily remove `theme` from dataKeys, hover must return null.
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  const original = homeConfig.script.dataKeys;
+  homeConfig.script.dataKeys = original.filter((k) => k.name !== "theme");
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 4, character: 22 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null, `H-4 (missing key): expected null, got ${JSON.stringify(hover)}`);
+  } finally {
+    homeConfig.script.dataKeys = original;
+  }
+}
+
+function assertHoverSourceLabelsDataKind(graph) {
+  // H-3: a key whose source is "setData" gets `setData` kind, not `data`.
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  const originalKeys = homeConfig.script.dataKeys;
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalRefs = homeFile.expressionRefs;
+  const syntheticKey = {
+    name: "__hover_test_setData__",
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 5 } },
+    source: "setData",
+  };
+  const syntheticRef = {
+    name: "__hover_test_setData__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 200, column: 0 }, end: { row: 200, column: 5 } },
+    expressionRange: { start: { row: 200, column: 0 }, end: { row: 200, column: 5 } },
+  };
+  homeConfig.script.dataKeys = [...originalKeys, syntheticKey];
+  homeFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 200, character: 2 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "H-3 (setData): expected Hover");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**__hover_test_setData__** — `setData`"), `H-3: bad kind label: ${value}`);
+  } finally {
+    homeConfig.script.dataKeys = originalKeys;
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
+function assertHoverSourceLabelsInjectorKind(graph) {
+  // H-4: a key whose source is "injector" gets `injector` kind.
+  const homeConfig = graph.configs.find((c) => c.owner === HOME_WXML_GRAPH_PATH);
+  const originalKeys = homeConfig.script.dataKeys;
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalRefs = homeFile.expressionRefs;
+  const syntheticKey = {
+    name: "__hover_test_injector__",
+    nameRange: { start: { row: 0, column: 0 }, end: { row: 0, column: 5 } },
+    source: "injector",
+  };
+  const syntheticRef = {
+    name: "__hover_test_injector__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 201, column: 0 }, end: { row: 201, column: 5 } },
+    expressionRange: { start: { row: 201, column: 0 }, end: { row: 201, column: 5 } },
+  };
+  homeConfig.script.dataKeys = [...originalKeys, syntheticKey];
+  homeFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 201, character: 2 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "H-4 (injector): expected Hover");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**__hover_test_injector__** — `injector`"), `H-4: bad kind label: ${value}`);
+  } finally {
+    homeConfig.script.dataKeys = originalKeys;
+    homeFile.expressionRefs = originalRefs;
   }
 }
 
@@ -2236,6 +2403,14 @@ assertDataRefDefinitionToData(graph);
 assertDataRefDefinitionToProperty(graph);
 assertDataRefDefinitionInTemplateReturnsNull(graph);
 assertDataRefDefinitionMissingKeyReturnsNull(graph);
+// Phase 3 Stage C — Hover v1
+assertHoverOnDataRef(graph);
+assertHoverOnPropertyRef(graph);
+assertHoverSourceLabelsDataKind(graph);
+assertHoverSourceLabelsInjectorKind(graph);
+assertHoverOnMissingDataReturnsNull(graph);
+assertHoverOnMemberChainReturnsNull(graph);
+assertHoverInTemplateDefinitionReturnsNull(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);
