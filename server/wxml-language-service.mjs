@@ -1268,8 +1268,9 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
     }
     // 2c. In-file wxs symbol — external jumps to the resolved .wxs file,
     // inline jumps to the <wxs module="X"> element's nameRange in this file.
-    // Mirrors getHover step 2c (external-vs-inline discrimination by presence
-    // of dep entry; dep without `normalized` ⇒ unresolved external ⇒ null).
+    // Mirrors getHover step 2c (server/wxml-language-service.mjs:1135 area):
+    // external-vs-inline discrimination by presence of dep entry; dep without
+    // `normalized` ⇒ unresolved external ⇒ null. Keep the two in sync.
     const wxsSymbol = (fileModel.symbols ?? [])
       .find((s) => s.kind === "wxs" && s.name === expressionRefMatch.name);
     if (wxsSymbol) {
@@ -1279,7 +1280,11 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
         if (!wxsDep.normalized) return null;
         return locationForGraphPath(wxsDep.normalized, extensionRoot);
       }
-      // Inline: jump to the declaration's nameRange in this file (Task 1's field).
+      // Inline: jump to the declaration's nameRange in this file. Task 1
+      // (commit 243d148) added nameRange to every wxs symbol the extractor
+      // emits; the `nameRange &&` guard is defensive against legacy graphs
+      // predating that field, parallel to branch 4's same defensiveness
+      // (also matches S-W4 legacy-graph-degrades test).
       if (wxsSymbol.nameRange) {
         return locationForGraphPathWithRange(documentGraphPath, wxsSymbol.nameRange, extensionRoot);
       }
