@@ -706,6 +706,33 @@ async function testHoverNullForMemberChain() {
   });
 }
 
+async function testHoverArrowForCustomComponent() {
+  // L-H4: host-level wire test for the FALL-THROUGH branch (custom component).
+  // Locks the arrow-form markdown payload — getHover's component branch is
+  // never AUTHORITATIVE, so a regression in how the host serializes the
+  // arrow shape would only surface here.
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(HOME_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 1, "home diagnostics before hover custom component");
+    // home.wxml line 8 (row 7) `  <user-card` — cursor mid-tag at col 5.
+    const result = await client.hover(HOME_WXML, { line: 7, character: 5 });
+    assert(result, "hover custom component: expected Hover response, got null");
+    assert(
+      result.contents?.kind === "markdown",
+      `hover custom component: expected markdown contents, got ${JSON.stringify(result.contents)}`,
+    );
+    const value = result.contents?.value;
+    assert(
+      typeof value === "string" && value.startsWith("**user-card** — `custom component`"),
+      `hover custom component: bad title ${JSON.stringify(value)}`,
+    );
+    assert(
+      typeof value === "string" && value.includes("→ `components/user-card/user-card.wxml`"),
+      `hover custom component: expected arrow-form path; got ${JSON.stringify(value)}`,
+    );
+  });
+}
+
 async function testImportDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1717,6 +1744,7 @@ const scenarios = [
   ["hover capability advertised", testHoverCapabilityAdvertised],
   ["hover returns markdown for data ref", testHoverMarkdownForDataRef],
   ["hover returns null for member chain", testHoverNullForMemberChain],
+  ["hover returns arrow form for custom component", testHoverArrowForCustomComponent],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1785,6 +1813,7 @@ const SCENARIO_SUITES = {
     "hover capability advertised",
     "hover returns markdown for data ref",
     "hover returns null for member chain",
+    "hover returns arrow form for custom component",
     "completion immediately after open",
     "event handler completion",
     "data ref completion",
