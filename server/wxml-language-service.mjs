@@ -135,6 +135,8 @@ function rangeKey(range) {
   return `${range.start.row}:${range.start.column}-${range.end.row}:${range.end.column}`;
 }
 
+// @internal — exported only for sibling server/wxml-*.mjs modules; not part of
+// the public LSP-host import surface (use getHover/getDefinition/etc instead).
 export function findWxmlFileModel(graph, documentPath, extensionRoot) {
   const documentGraphPath = graphPathForAbsolute(documentPath, extensionRoot);
   const fileModel = graph.wxml.find((entry) => entry.path === documentGraphPath);
@@ -155,6 +157,7 @@ function locationForGraphPathWithRange(graphPath, range, extensionRoot) {
   };
 }
 
+// @internal — exported only for sibling server/wxml-*.mjs modules.
 export function isInsideGraphRoot(graphPath, graphRoot) {
   const relative = path.posix.relative(graphRoot, graphPath);
   return relative === "" || (!relative.startsWith("..") && !path.posix.isAbsolute(relative));
@@ -653,6 +656,7 @@ function attributeCompletionItems(range) {
 // Locate the owner config (page/component .json) for a WXML document's
 // graph path, returning null if it has no sibling JS script. Shared by the
 // event-handler definition (getDefinition) and completion paths.
+// @internal — exported only for sibling server/wxml-*.mjs modules.
 export function findOwnerConfigWithScript(graph, documentGraphPath) {
   return graph.configs.find((c) => (
     c.owner === documentGraphPath && c.script && Array.isArray(c.script.methods)

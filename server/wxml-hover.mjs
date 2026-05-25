@@ -8,6 +8,15 @@ import {
   rangeFromSymbolRange,
 } from "./wxml-language-service.mjs";
 
+// NOTE: wxml-hover.mjs ↔ wxml-language-service.mjs is a circular module
+// graph (the language-service re-exports getHover from here). It's safe
+// today because no imported helper is invoked at module top level — all
+// usage is inside getHover's body, which only runs at request time. Do NOT
+// invoke imported helpers (containsPosition, findOwnerConfigWithScript,
+// findWxmlFileModel, isInsideGraphRoot, rangeFromSymbolRange) at module
+// top level; doing so would trigger a TDZ when wxml-language-service.mjs
+// is the entry point.
+
 // Kind labels shown after the em-dash in hover titles. Keyspace mixes two
 // conventions:
 //   - `data` / `setData` / `injector` / `property` mirror producer-side
