@@ -1451,6 +1451,115 @@ function assertHoverOnWxForMemberChainReturnsNull(graph) {
   assert(hover === null, `W-6: expected null on member chain, got ${JSON.stringify(hover)}`);
 }
 
+function assertHoverOnExplicitWxForItem(graph) {
+  // W-2: <view wx:for="{{products}}" wx:for-item="prod" ...>{{prod.title}}</view>
+  // Cursor on `prod` in {{prod.title}}.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{prod.title}}"));
+  assert(lineIdx >= 0, "W-2 setup: line with {{prod.title}}");
+  const charIdx = lines[lineIdx].indexOf("{{prod.title}}") + 2;  // on `p` of prod
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-2: expected Hover for explicit wx:for-item 'prod'");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**prod** — `wx:for-item`"), `W-2: bad title: ${value}`);
+}
+
+function assertHoverOnExplicitWxForIndex(graph) {
+  // W-3: same line — cursor on `idx` in #{{idx}}.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("#{{idx}}"));
+  assert(lineIdx >= 0, "W-3 setup: line with #{{idx}}");
+  const charIdx = lines[lineIdx].indexOf("#{{idx}}") + 3;  // on `i` of idx
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-3: expected Hover for explicit wx:for-index 'idx'");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**idx** — `wx:for-index`"), `W-3: bad title: ${value}`);
+}
+
+function assertHoverNestedShadowing(graph) {
+  // W-4: nested loops. The fixture has:
+  //   <view wx:for="{{groups}}" wx:for-item="outer">
+  //     <view wx:for="{{outer.entries}}" wx:for-item="inner">
+  //       {{outer.label}} :: {{inner.value}}
+  //     </view>
+  //   </view>
+  // Inside the inner subtree, hover `outer` → outer scope (inner only
+  // shadows `inner`); hover `inner` → inner scope.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{outer.label}} :: {{inner.value}}"));
+  assert(lineIdx >= 0, "W-4 setup: line with `{{outer.label}} :: {{inner.value}}`");
+  const text = lines[lineIdx];
+
+  // Cursor on `outer` in {{outer.label}} (inside inner subtree).
+  const outerChar = text.indexOf("{{outer.label}}") + 2;
+  const hoverOuter = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: outerChar + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hoverOuter, "W-4: expected Hover for `outer` inside inner subtree");
+  const outerValue = hoverContents(hoverOuter);
+  assert(outerValue.startsWith("**outer** — `wx:for-item`"),
+    `W-4: outer hover should be wx:for-item; got ${outerValue}`);
+
+  // Cursor on `inner` in {{inner.value}} (inside inner subtree).
+  const innerChar = text.indexOf("{{inner.value}}") + 2;
+  const hoverInner = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: innerChar + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hoverInner, "W-4: expected Hover for `inner`");
+  const innerValue = hoverContents(hoverInner);
+  assert(innerValue.startsWith("**inner** — `wx:for-item`"),
+    `W-4: inner hover should be wx:for-item; got ${innerValue}`);
+}
+
+function assertHoverIterableExclusion(graph) {
+  // W-9: <view wx:for="{{item}}" wx:for-item="item" ...>
+  // The fixture has this exact pattern. Cursor on `item` INSIDE the
+  // wx:for="{{item}}" attribute value MUST resolve to outer scope
+  // (data.item from loops.js), NOT to this loop's own itemName.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) =>
+    l.includes(`wx:for="{{item}}"`)
+    && l.includes(`wx:for-item="item"`)
+    && !l.trimStart().startsWith("<!--"));
+  assert(lineIdx >= 0, "W-9 setup: line with `wx:for=\"{{item}}\" wx:for-item=\"item\"`");
+  const charIdx = lines[lineIdx].indexOf(`wx:for="{{item}}"`) + `wx:for="{{`.length;  // on `i` of `item` inside {{
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-9: expected Hover for iterable-side `item` (resolves to data)");
+  const value = hoverContents(hover);
+  assert(!value.includes("wx:for-item"),
+    `W-9: iterable-side hover MUST NOT bind to the loop's own wx:for-item; got ${value}`);
+  assert(value.includes("`data`"),
+    `W-9: expected data kind label (loops.js declares data.item); got ${value}`);
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -3148,3 +3257,7 @@ assertEventHandlerCompletionSkipsComponentLifecycle(graph);
 assertHoverOnWxForDefaultItem(graph);
 assertHoverOnReferenceOutsideLoopReturnsNull(graph);
 assertHoverOnWxForMemberChainReturnsNull(graph);
+assertHoverOnExplicitWxForItem(graph);
+assertHoverOnExplicitWxForIndex(graph);
+assertHoverNestedShadowing(graph);
+assertHoverIterableExclusion(graph);

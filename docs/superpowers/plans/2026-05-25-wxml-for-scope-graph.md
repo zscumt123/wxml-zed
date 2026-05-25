@@ -982,7 +982,13 @@ function assertHoverIterableExclusion(graph) {
   // (data.item from loops.js), NOT to this loop's own itemName.
   const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
   const lines = fileText.split("\n");
-  const lineIdx = lines.findIndex((l) => l.includes(`wx:for="{{item}}"`) && l.includes(`wx:for-item="item"`));
+  // Skip the comment line in the fixture (the `<!-- Iterable name
+  // collision: ... -->` comment quotes both substrings verbatim, so a
+  // naive `includes` predicate matches it before the real element).
+  const lineIdx = lines.findIndex((l) =>
+    l.includes(`wx:for="{{item}}"`)
+    && l.includes(`wx:for-item="item"`)
+    && !l.trimStart().startsWith("<!--"));
   assert(lineIdx >= 0, "W-9 setup: line with `wx:for=\"{{item}}\" wx:for-item=\"item\"`");
   const charIdx = lines[lineIdx].indexOf(`wx:for="{{item}}"`) + `wx:for="{{`.length;  // on `i` of `item` inside {{
 
