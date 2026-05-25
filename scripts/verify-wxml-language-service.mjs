@@ -773,6 +773,88 @@ function assertHoverOnInlineWxsExpressionRef(graph) {
   }
 }
 
+function assertHoverOnPageMethod(graph) {
+  // home.wxml line 12 (row 11): `    bind:select="handleSelect"`
+  // 'handleSelect' starts inside the quotes. Cursor mid-name at col 22.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 11, character: 22 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-5: expected Hover for page method handleSelect");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**handleSelect** — `page method`"), `H-5: bad title: ${value}`);
+  assert(value.includes("Defined in `pages/home/home.js:"), `H-5: bad source: ${value}`);
+}
+
+function assertHoverOnComponentMethod(graph) {
+  // H-6: user-card.wxml has no bind*/catch* in the fixture, but user-card.js
+  // declares method `onCardTap` and user-card.json sets `"component": true`.
+  // Synthesize an eventHandler entry on the user-card file model whose handler
+  // name matches the real method, then hover at the synthetic nameRange.
+  const userCardGraphPath = path.posix.relative(ROOT, USER_CARD_WXML).split(path.sep).join("/");
+  const userCardFile = graph.wxml.find((f) => f.path === userCardGraphPath);
+  assert(userCardFile, "H-6 setup: user-card file model");
+  const userCardConfig = graph.configs.find((c) => c.owner === userCardGraphPath);
+  assert(userCardConfig && userCardConfig.kind === "component",
+    `H-6 setup: user-card config must be kind=component; got ${JSON.stringify(userCardConfig?.kind)}`);
+  assert(userCardConfig.script.methods.some((m) => m.name === "onCardTap"),
+    `H-6 setup: user-card.js must declare onCardTap; got ${JSON.stringify(userCardConfig.script.methods.map((m) => m.name))}`);
+  const original = userCardFile.eventHandlers;
+  const synthetic = {
+    event: "tap",
+    handler: "onCardTap",
+    binding: "bind:",
+    dynamic: false,
+    range: { start: { row: 120, column: 0 }, end: { row: 120, column: 25 } },
+    nameRange: { start: { row: 120, column: 10 }, end: { row: 120, column: 19 } },
+  };
+  userCardFile.eventHandlers = [...original, synthetic];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: USER_CARD_WXML,
+      position: { line: 120, character: 15 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "H-6: expected Hover for component method");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**onCardTap** — `component method`"),
+      `H-6: bad title: ${value}`);
+    assert(value.includes("Defined in `components/user-card/user-card.js:"),
+      `H-6: bad source: ${value}`);
+  } finally {
+    userCardFile.eventHandlers = original;
+  }
+}
+
+function assertHoverOnDynamicHandlerReturnsNull(graph) {
+  // H-17: synthesize a dynamic event handler; hover must return null.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.eventHandlers;
+  const synthetic = {
+    event: "tap",
+    handler: "{{maybeHandler}}",
+    binding: "bind:",
+    dynamic: true,
+    range: { start: { row: 110, column: 0 }, end: { row: 110, column: 25 } },
+    nameRange: { start: { row: 110, column: 5 }, end: { row: 110, column: 20 } },
+  };
+  homeFile.eventHandlers = [...original, synthetic];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 110, character: 10 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null, `H-17: expected null on dynamic handler, got ${JSON.stringify(hover)}`);
+  } finally {
+    homeFile.eventHandlers = original;
+  }
+}
+
 function assertHoverOnMemberChainReturnsNull(graph) {
   // H-11: cursor on `name` in `{{user.name}}`. topLevelIdentifiers skips
   // identifiers preceded by ".", so no expressionRef is produced for `name`.
@@ -2473,6 +2555,9 @@ assertHoverOnMemberChainReturnsNull(graph);
 assertHoverInTemplateDefinitionReturnsNull(graph);
 assertHoverOnWxsExpressionRef(graph);
 assertHoverOnInlineWxsExpressionRef(graph);
+assertHoverOnPageMethod(graph);
+assertHoverOnComponentMethod(graph);
+assertHoverOnDynamicHandlerReturnsNull(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);

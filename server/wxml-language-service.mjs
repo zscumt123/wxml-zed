@@ -1032,7 +1032,26 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) return null;
 
-  // 1. Event handler match — TODO Task 5.
+  const eventHandlerMatch = (fileModel.eventHandlers ?? [])
+    .find((entry) => containsPosition(entry.nameRange, position));
+  if (eventHandlerMatch) {
+    if (eventHandlerMatch.dynamic) return null;
+    const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
+    if (!ownerConfig) return null;
+    const method = ownerConfig.script.methods.find((m) => m.name === eventHandlerMatch.handler);
+    if (!method) return null;
+    const kindLabel = ownerConfig.kind === "component"
+      ? HOVER_KIND_LABELS.componentMethod
+      : HOVER_KIND_LABELS.pageMethod;
+    return hoverFromGraphPathLocation({
+      name: method.name,
+      kindLabel,
+      scriptPath: ownerConfig.script.path,
+      nameRange: method.nameRange,
+      graphRoot: graph.root,
+      refRange: eventHandlerMatch.nameRange,
+    });
+  }
 
   // 2. Expression ref match — AUTHORITATIVE.
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
