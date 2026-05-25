@@ -345,7 +345,7 @@ export function collectFile(tree, inputAbs) {
             indexName: indexExplicit ? indexRaw : "index",
             indexNameRange: indexExplicit && indexValueNode ? innerValueRange(indexValueNode) : null,
             indexSource: indexExplicit ? "explicit" : "implicit",
-            ownerTag: name ?? null,
+            ownerTag: name ?? null,  // null on grammar error-recovery (missing tag_name)
           });
         } else {
           // Loose wx:for-item / wx:for-index (no wx:for on this element).

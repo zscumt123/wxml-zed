@@ -190,6 +190,17 @@ function testInterpolatedItemNameFallsBackToImplicit() {
 // for every file in every baseline. The snapshot is the literal
 // wxForBindings that the legacy extractor produced before this change.
 // Captured pre-Task-2; inlined here as a closed reference set.
+// To regenerate this snapshot map after adding/removing a fixture:
+//   for f in fixtures/wasm-spike/*-symbols-baseline.json; do
+//     node -e "
+//       const data = JSON.parse(require('fs').readFileSync('$f', 'utf8'));
+//       for (const file of (data.files || data)) {
+//         console.log(JSON.stringify({ path: file.path, wxForBindings: file.wxForBindings }));
+//       }
+//     "
+//   done
+// Then paste each line's contents into the map below, keyed by
+// `<basename of baseline>::<file.path>`.
 const W7_FROZEN_WX_FOR_BINDINGS = {
   "edge-recovery-symbols-baseline.json::fixtures/real-world/edge-recovery.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "home-symbols-baseline.json::fixtures/miniprogram/pages/home/home.wxml": {"items":[],"indexes":[],"hasAnyWxFor":true},
