@@ -960,6 +960,12 @@ export function getDiagnostics({ graph, documentPath, extensionRoot, fileModelOv
 
 // ---- Hover (Phase 3 Stage C) ---------------------------------------------
 
+// Kind labels shown after the em-dash in hover titles. Keyspace mixes two
+// conventions:
+//   - `data` / `setData` / `injector` / `property` mirror producer-side
+//     `dataKey.source` / `propertyKey.source` strings (lookup is direct).
+//   - `pageMethod` / `componentMethod` / `customComponent` / `wxsModule` are
+//     hover-internal kinds chosen at the matcher site (Tasks 5/6/7).
 const HOVER_KIND_LABELS = {
   data: "data",
   setData: "setData",
@@ -978,6 +984,17 @@ function relativeToGraphRoot(graphPath, graphRoot) {
   return rel === "" ? graphPath : rel;
 }
 
+/**
+ * Build the two-line hover markdown body.
+ *
+ * Exactly one of `inlineNote` | `arrow` | `sourceLine` must be set (priority is
+ * inlineNote > arrow > sourceLine). Used by:
+ *   - dataKeys / propertyKeys / methods → `sourceLine` form ("Defined in `path:line`")
+ *   - external wxs / custom components   → `arrow` form ("→ `path`")
+ *   - inline wxs                         → `inlineNote` form ("inline wxs module in this file")
+ *
+ * Always returns exactly two text blocks separated by a blank line.
+ */
 function formatHoverMarkdown({ name, kindLabel, sourcePath, sourceLine, arrow, inlineNote }) {
   const title = `**${name}** — \`${kindLabel}\``;
   let source;
@@ -1028,6 +1045,10 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     // 2a. dataKeys lookup → kind label per dataKey.source
     const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
     if (dataKey) {
+      // `?? HOVER_KIND_LABELS.data` is a forward-source guard: today dataKey.source ∈
+      // {"data","setData","injector"} which are all in HOVER_KIND_LABELS, but a future
+      // source added to shared/js-method-extractor.mjs without updating the label table
+      // would otherwise render `undefined`. Keep until those two locations are unified.
       const kindLabel = HOVER_KIND_LABELS[dataKey.source] ?? HOVER_KIND_LABELS.data;
       return hoverFromGraphPathLocation({
         name: dataKey.name,

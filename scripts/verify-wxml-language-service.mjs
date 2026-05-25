@@ -668,6 +668,7 @@ function assertHoverOnDataRef(graph) {
   assert(hover, "H-1: expected Hover, got null");
   const value = hoverContents(hover);
   assert(value.startsWith("**theme** — `data`"), `H-1: bad title: ${value}`);
+  // Line number deliberately unpinned: a refactor of home.js shouldn't force a hover test edit.
   assert(value.includes("Defined in `pages/home/home.js:"), `H-1: bad source line: ${value}`);
   assert(hover.contents.kind === "markdown", `H-1: kind ${hover.contents.kind}`);
   assert(hover.range, "H-1: expected range");
