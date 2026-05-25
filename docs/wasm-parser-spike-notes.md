@@ -901,6 +901,65 @@ via the existing `**/*.json` watcher.
 
 ---
 
+### Follow-up: hover v1 chelaile dogfood (2026-05-25)
+
+Hover v1 ships from commit `e524b90`. Task 9 of the plan calls for an
+end-to-end dogfood against `mp-wx-chelaile/wx` covering all eight
+kind labels plus the `wx:for-item` no-hover regression. Plan:
+`docs/superpowers/plans/2026-05-23-wxml-lsp-hover-v1.md`. Spec:
+`docs/superpowers/specs/2026-05-23-wxml-lsp-hover-v1-design.md`.
+
+Executed programmatically (no Zed harness available in the CLI loop):
+a throwaway `dogfood-hover-chelaile.mjs` (kept under `$TMPDIR`, not
+committed) reused the LSP client helpers from
+`scripts/verify-lsp-diagnostics.mjs`, ran `withClient({ rootPath:
+chelaile })`, opened five real WXML files, then issued one
+`textDocument/hover` per case. For the injector case the chelaile
+project lacks a `wxml-zed.config.json`; a temporary one declaring
+`LoadStates` → `{applyTo: ["${name}_state", "${name}_states"]}` was
+dropped at the chelaile root for the run and removed before commit.
+
+Per-kind outcomes:
+
+| Kind              | Position                                                              | Actual hover title                       |
+| ----------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| data              | `pages/transit-strategies/index.wxml:1:29` (`{{startPoi}}`)           | `**startPoi** — \`data\``                |
+| property          | `pages/components/states-view/index.wxml:1:19` (`{{states}}`)         | `**states** — \`property\``              |
+| setData           | `pages/transit-strategies/index.wxml:21:55` (`{{tips}}`)              | `**tips** — \`setData\``                 |
+| injector          | `pages/my-fav/index.wxml:1:50` (`{{load_state}}`)                     | `**load_state** — \`injector\``          |
+| page method       | `pages/transit-strategies/index.wxml:1:76` (`"onTapPickStart"`)       | `**onTapPickStart** — \`page method\``   |
+| component method  | `pages/change-city/components/city-cell/index.wxml:1:31` (`"onTap"`)  | `**onTap** — \`component method\``       |
+| custom component  | `pages/transit-strategies/index.wxml:1:4` (`<search-form>`)           | `**search-form** — \`custom component\`` |
+| wxs module        | `pages/components/drag-view/index.wxml:1:15` (`module="drag"`)        | `**drag** — \`wxs module\``              |
+| wx:for-item regr. | `pages/transit-strategies/index.wxml:15:107` (`{{plan}}` inside `wx:for-item="plan"`) | `null` (no hover, as designed)           |
+
+Outcome: PASS for all 8 kind labels plus the regression check.
+`wx:for-item`-bound idents continue to return null (deferred to v2 per
+spec). No regressions surfaced in adjacent features during the sweep:
+the LSP only logged the expected stderr line for the missing
+`wxml-zed.config.json` (before we dropped one in) and the routine
+graph-build/parse stderr from extractors. Diagnostics publication
+under the touched files was unchanged from prior dogfood runs.
+
+One incidental finding worth recording for future dogfood pickers:
+`pages/components/city-indicator/index.wxml` looked like an obvious
+component-method candidate (it has a `methods: { onTapSwitchCity }`
+block), but the file is not registered as a child of any Page via
+`usingComponents`, so it never enters the project graph and the LSP
+returns `null` for any hover there. `findOwnerConfigWithScript` is
+graph-based, not file-system-based — components must be reachable
+from a Page to be queryable. Picked `pages/change-city/components/
+city-cell/index.wxml` instead (referenced from `change-city/
+index.wxml` and therefore in the graph).
+
+Dogfood script was discarded after the run: it's a one-shot driver
+with no future value beyond the existing `scripts/verify-lsp-
+diagnostics.mjs` LSP-level scenarios (which already cover the LSP
+hover contract on fixtures). Anyone reproducing this should write a
+new short driver — the fixtures-based suite is the regression net.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
