@@ -855,6 +855,68 @@ function assertHoverOnDynamicHandlerReturnsNull(graph) {
   }
 }
 
+function assertHoverOnCustomComponent(graph) {
+  // home.wxml line 8 (row 7): `  <user-card`
+  // tag name starts at col 3; cursor mid-name at col 5.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 7, character: 5 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-7: expected Hover for <user-card>");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**user-card** — `custom component`"), `H-7: bad title: ${value}`);
+  assert(value.includes("→ `components/user-card/user-card.wxml`"), `H-7: bad source: ${value}`);
+}
+
+function assertHoverInsideComponentChildrenReturnsNull(graph) {
+  // H-18: cursor at col 4 of line 9 — inside <user-card>'s attribute area,
+  // past tag_name. tagNameRange should NOT contain this position.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 8, character: 4 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `H-18: expected null inside user-card start-tag attributes, got ${JSON.stringify(hover)}`);
+}
+
+function assertHoverOnClosingTagReturnsNull(graph) {
+  // H-19: cursor at line 7 col 20 — past the end of "user-card" tagNameRange
+  // on the start-tag row. Should NOT trigger component hover.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 7, character: 20 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `H-19: expected null past tagNameRange end, got ${JSON.stringify(hover)}`);
+}
+
+function assertHoverComponentLegacyGraphDegradesGracefully(graph) {
+  // S-C3: legacy graph without tagNameRange — hover must return null instead
+  // of falling back to the wide element range.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.components;
+  homeFile.components = original.map((c) => {
+    const { tagNameRange: _tnr, ...rest } = c;
+    return rest;
+  });
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 7, character: 5 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null,
+      `S-C3: legacy graph (no tagNameRange) must not trigger component hover; got ${JSON.stringify(hover)}`);
+  } finally {
+    homeFile.components = original;
+  }
+}
+
 function assertHoverOnMemberChainReturnsNull(graph) {
   // H-11: cursor on `name` in `{{user.name}}`. topLevelIdentifiers skips
   // identifiers preceded by ".", so no expressionRef is produced for `name`.
@@ -2558,6 +2620,10 @@ assertHoverOnInlineWxsExpressionRef(graph);
 assertHoverOnPageMethod(graph);
 assertHoverOnComponentMethod(graph);
 assertHoverOnDynamicHandlerReturnsNull(graph);
+assertHoverOnCustomComponent(graph);
+assertHoverInsideComponentChildrenReturnsNull(graph);
+assertHoverOnClosingTagReturnsNull(graph);
+assertHoverComponentLegacyGraphDegradesGracefully(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);

@@ -1132,7 +1132,33 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     return null;
   }
 
-  // 3. Component tag match — TODO Task 6.
+  // 3. Component tag match — resolve via graph.usingComponents.
+  const componentMatch = (fileModel.components ?? [])
+    .find((entry) => entry.tagNameRange && containsPosition(entry.tagNameRange, position));
+  if (componentMatch) {
+    const usingComponent = graph.usingComponents.find((entry) => (
+      entry.owner === documentGraphPath &&
+      entry.tag === componentMatch.tag &&
+      entry.resolved === true &&
+      entry.target
+    ));
+    if (!usingComponent) return null;
+    const rel = relativeToGraphRoot(usingComponent.target, graph.root);
+    if (!rel) return null;
+    return {
+      contents: {
+        kind: "markdown",
+        value: formatHoverMarkdown({
+          name: componentMatch.tag,
+          kindLabel: HOVER_KIND_LABELS.customComponent,
+          sourcePath: rel,
+          arrow: true,
+        }),
+      },
+      range: rangeFromSymbolRange(componentMatch.tagNameRange),
+    };
+  }
+
   // 4. Wxs module declaration match — TODO Task 7.
 
   return null;
