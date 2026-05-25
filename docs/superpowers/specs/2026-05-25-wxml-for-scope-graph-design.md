@@ -246,7 +246,7 @@ All tests run via existing node sub-verifiers; the umbrella shell `bash scripts/
   - hover `{{outer}}` → still resolves to outer scope (inner only shadows `inner`).
   - hover `{{inner}}` → resolves to inner scope.
   - hover `{{outer}}` outside the inner subtree (still inside outer) → outer scope.
-- **W-5**: `{{item}}` written entirely outside any `wx:for` → hover null.
+- **W-5**: `{{item}}` written entirely outside any `wx:for` → step 2a must NOT fire (no `wx:for-item` kind label). The cursor may still resolve via 2b/2c/2d if a `data` / `property` / `wxs` source of the same name exists — that is correct fall-through behavior. The invariant is "scope-out must not be mislabeled as wx:for-item", not "must return null." Test asserts the returned hover (if any) does NOT carry the `wx:for-item` kind label.
 - **W-6**: member-chain `{{item.name}}`, hover on `name` → null (sub-step path filter; covered already by H-11 in hover v1).
 - **W-7 (compat invariant)**: before any implementation work begins, capture the current `wxForBindings` shape (a small JSON object per fixture) by running the existing extractor on each baseline fixture and saving the literal `wxForBindings` value. Inline those captured literals in a new assertion in `verify-wxml-narrow-ranges.mjs` (or a focused new verifier). Post-implementation, run the extractor again and assert each fixture's emitted `wxForBindings` deep-equals the frozen literal. This is decoupled from the regenerated baseline files (which now also contain `wxForScopes`) and proves the shim is a true byte-for-byte view of the legacy field.
 - **W-8 (priority: wx:for wins)**: synthesize a `data: { item: ... }` on the home config; in a wx:for subtree, hover `{{item}}` → `wx:for-item` kind label (NOT `data`). Outside the subtree, the same `{{item}}` → `data` kind. Confirms 2a runs before 2b.
@@ -261,14 +261,14 @@ All tests run via existing node sub-verifiers; the umbrella shell `bash scripts/
 
 - Existing 25 hover scenarios continue to pass (the 2a addition is opportunistic; non-wx:for cursors are unaffected).
 - All 7 baselines pass after regeneration (additive `wxForScopes` + unchanged derived `wxForBindings`).
-- All prior graph-smoke scenarios pass (19 today + L-W1 added below = 20 total).
+- All prior graph-smoke scenarios pass (20 today after Hover v1's L-H4 + L-W1 added below = 21 total).
 
 ## Acceptance Criteria
 
 1. `node scripts/verify-wxml-narrow-ranges.mjs` passes (5 prior + 5 new = 10).
 2. `node scripts/verify-wasm-symbol-baselines.mjs` passes (7).
 3. `node scripts/verify-wxml-language-service.mjs` passes (existing + W-1 through W-10).
-4. `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke` passes (19 prior + L-W1 = 20 scenarios).
+4. `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke` passes (20 prior including Hover v1's L-H4 + L-W1 = 21 scenarios).
 5. The W-7 compat invariant holds: derived `wxForBindings` byte-equals pre-change output across every fixture. Completion and diagnostics tests show **zero** behavior changes.
 6. `graph.version` unchanged (still 1).
 7. Chelaile dogfood: hover on a real wx:for-item / wx:for-index renders the expected card; nested-loop hover picks the innermost binding; outside-loop hover returns nothing.
