@@ -70,7 +70,7 @@ function extract(file) {
 // produces a wxs symbol with nameRange covering the `format` characters only.
 function testExternalWxsNameRange() {
   const result = extract("fixtures/miniprogram/pages/home/home.wxml");
-  const file = result[0];
+  const file = result.files[0];
   const wxs = file.symbols.find((s) => s.kind === "wxs" && s.name === "format");
   assert(wxs, `S-W1: expected wxs symbol named 'format'; got ${JSON.stringify(file.symbols)}`);
   assert(wxs.nameRange, `S-W1: expected nameRange on wxs symbol; got ${JSON.stringify(wxs)}`);
@@ -85,7 +85,7 @@ function testExternalWxsNameRange() {
 // S-W2: inline <wxs module="inline">...</wxs> in fixtures/test.wxml line 93 (row 92)
 function testInlineWxsNameRange() {
   const result = extract("fixtures/test.wxml");
-  const file = result[0];
+  const file = result.files[0];
   const wxs = file.symbols.find((s) => s.kind === "wxs" && s.name === "inline");
   assert(wxs, `S-W2: expected wxs symbol named 'inline'; got ${JSON.stringify(file.symbols)}`);
   assert(wxs.nameRange, `S-W2: expected nameRange on inline wxs symbol; got ${JSON.stringify(wxs)}`);
@@ -102,7 +102,7 @@ function testInlineWxsNameRange() {
 function testMalformedWxsProducesNoSymbol() {
   // wxs-injection.wxml line 12: `<wxs src="./fallback-only.wxs">` — no module attr.
   const result = extract("fixtures/wxs-injection.wxml");
-  const file = result[0];
+  const file = result.files[0];
   const noNameWxs = file.symbols.filter((s) => s.kind === "wxs" && !s.name);
   assert(noNameWxs.length === 0,
     `S-W3: expected no nameless wxs symbol; got ${JSON.stringify(noNameWxs)}`);
@@ -300,7 +300,7 @@ Edit `scripts/verify-wxml-narrow-ranges.mjs`. Add these test functions before th
 // with tagNameRange covering only "user-card" chars.
 function testComponentTagNameRange() {
   const result = extract("fixtures/miniprogram/pages/home/home.wxml");
-  const file = result[0];
+  const file = result.files[0];
   const comp = file.components.find((c) => c.tag === "user-card");
   assert(comp, `S-C1: expected component 'user-card'; got ${JSON.stringify(file.components)}`);
   assert(comp.tagNameRange, `S-C1: expected tagNameRange; got ${JSON.stringify(comp)}`);
@@ -316,7 +316,7 @@ function testComponentTagNameRange() {
 // also produces tagNameRange (self_closing_tag path).
 function testSelfClosingComponentTagNameRange() {
   const result = extract("fixtures/miniprogram/pages/home/home.wxml");
-  const file = result[0];
+  const file = result.files[0];
   const comp = file.components.find((c) => c.tag === "global-badge");
   assert(comp, `S-C2: expected component 'global-badge'; got ${JSON.stringify(file.components)}`);
   assert(comp.tagNameRange, `S-C2: expected tagNameRange on self-closing; got ${JSON.stringify(comp)}`);
