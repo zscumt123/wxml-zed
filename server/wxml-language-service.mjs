@@ -1008,23 +1008,56 @@ function formatHoverMarkdown({ name, kindLabel, sourcePath, sourceLine, arrow, i
   return `${title}\n\n${source}`;
 }
 
-function hoverFromGraphPathLocation({ name, kindLabel, scriptPath, nameRange, graphRoot, refRange }) {
-  const rel = relativeToGraphRoot(scriptPath, graphRoot);
-  if (!rel) return null;
+/**
+ * Build an LSP Hover envelope. All call sites in getHover share the same
+ * shape: markdown contents + a range pointing at the cursor-target token.
+ * `formatArgs` is forwarded to `formatHoverMarkdown` (which enforces
+ * exactly-one of inlineNote | arrow | sourceLine).
+ */
+function makeMarkdownHover(refRange, formatArgs) {
   return {
     contents: {
       kind: "markdown",
-      value: formatHoverMarkdown({
-        name,
-        kindLabel,
-        sourcePath: rel,
-        sourceLine: nameRange.start.row + 1,
-      }),
+      value: formatHoverMarkdown(formatArgs),
     },
     range: rangeFromSymbolRange(refRange),
   };
 }
 
+function hoverFromGraphPathLocation({ name, kindLabel, scriptPath, nameRange, graphRoot, refRange }) {
+  const rel = relativeToGraphRoot(scriptPath, graphRoot);
+  if (!rel) return null;
+  return makeMarkdownHover(refRange, {
+    name,
+    kindLabel,
+    sourcePath: rel,
+    sourceLine: nameRange.start.row + 1,
+  });
+}
+
+/**
+ * Resolve hover content for a cursor position inside a .wxml file.
+ *
+ * Pipeline (executed in order; first matching branch returns):
+ *   1. Event handler         — AUTHORITATIVE (page/component method).
+ *   2. Expression ref        — AUTHORITATIVE (data / setData / injector / property / wxs xref).
+ *   3. Component tag         — FALL-THROUGH (custom component path).
+ *   4. Wxs module declaration— FALL-THROUGH (external path / inline note).
+ *
+ * AUTHORITATIVE means: when the cursor IS inside the matcher's narrow range
+ * but resolution fails (dynamic handler, missing key, etc.), the branch
+ * returns null and does NOT fall through to later branches. This prevents
+ * a cursor on a known handler from showing a component-card just because
+ * the handler name is unresolved.
+ *
+ * FALL-THROUGH means: when the cursor is not inside the matcher's narrow
+ * range, control flows down to the next branch. When the cursor IS inside
+ * and resolution fails, the branch still returns null but the fall-through
+ * couldn't reach later branches anyway (no other matcher would fire on the
+ * same position).
+ *
+ * Returns LSP Hover { contents: { kind: "markdown", value }, range } or null.
+ */
 export function getHover({ graph, documentPath, position, extensionRoot }) {
   if (!position || typeof position.line !== "number" || typeof position.character !== "number") {
     return null;
@@ -1102,31 +1135,19 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
       if (wxsDep) {
         const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
         if (!rel) return null;
-        return {
-          contents: {
-            kind: "markdown",
-            value: formatHoverMarkdown({
-              name: expressionRefMatch.name,
-              kindLabel: HOVER_KIND_LABELS.wxsModule,
-              sourcePath: rel,
-              arrow: true,
-            }),
-          },
-          range: rangeFromSymbolRange(expressionRefMatch.range),
-        };
+        return makeMarkdownHover(expressionRefMatch.range, {
+          name: expressionRefMatch.name,
+          kindLabel: HOVER_KIND_LABELS.wxsModule,
+          sourcePath: rel,
+          arrow: true,
+        });
       }
       // Inline wxs (no dependency entry): no file path to point at.
-      return {
-        contents: {
-          kind: "markdown",
-          value: formatHoverMarkdown({
-            name: expressionRefMatch.name,
-            kindLabel: HOVER_KIND_LABELS.wxsModule,
-            inlineNote: "inline wxs module in this file",
-          }),
-        },
-        range: rangeFromSymbolRange(expressionRefMatch.range),
-      };
+      return makeMarkdownHover(expressionRefMatch.range, {
+        name: expressionRefMatch.name,
+        kindLabel: HOVER_KIND_LABELS.wxsModule,
+        inlineNote: "inline wxs module in this file",
+      });
     }
 
     return null;
@@ -1145,18 +1166,12 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     if (!usingComponent) return null;
     const rel = relativeToGraphRoot(usingComponent.target, graph.root);
     if (!rel) return null;
-    return {
-      contents: {
-        kind: "markdown",
-        value: formatHoverMarkdown({
-          name: componentMatch.tag,
-          kindLabel: HOVER_KIND_LABELS.customComponent,
-          sourcePath: rel,
-          arrow: true,
-        }),
-      },
-      range: rangeFromSymbolRange(componentMatch.tagNameRange),
-    };
+    return makeMarkdownHover(componentMatch.tagNameRange, {
+      name: componentMatch.tag,
+      kindLabel: HOVER_KIND_LABELS.customComponent,
+      sourcePath: rel,
+      arrow: true,
+    });
   }
 
   // 4. Wxs module declaration match.
@@ -1168,30 +1183,18 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     if (wxsDep) {
       const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
       if (!rel) return null;
-      return {
-        contents: {
-          kind: "markdown",
-          value: formatHoverMarkdown({
-            name: wxsDeclMatch.name,
-            kindLabel: HOVER_KIND_LABELS.wxsModule,
-            sourcePath: rel,
-            arrow: true,
-          }),
-        },
-        range: rangeFromSymbolRange(wxsDeclMatch.nameRange),
-      };
+      return makeMarkdownHover(wxsDeclMatch.nameRange, {
+        name: wxsDeclMatch.name,
+        kindLabel: HOVER_KIND_LABELS.wxsModule,
+        sourcePath: rel,
+        arrow: true,
+      });
     }
-    return {
-      contents: {
-        kind: "markdown",
-        value: formatHoverMarkdown({
-          name: wxsDeclMatch.name,
-          kindLabel: HOVER_KIND_LABELS.wxsModule,
-          inlineNote: "inline wxs module in this file",
-        }),
-      },
-      range: rangeFromSymbolRange(wxsDeclMatch.nameRange),
-    };
+    return makeMarkdownHover(wxsDeclMatch.nameRange, {
+      name: wxsDeclMatch.name,
+      kindLabel: HOVER_KIND_LABELS.wxsModule,
+      inlineNote: "inline wxs module in this file",
+    });
   }
 
   return null;
