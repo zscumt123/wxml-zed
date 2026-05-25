@@ -76,6 +76,8 @@ function testSelfClosingComponentTagNameRange() {
   const comp = file.components.find((c) => c.tag === "global-badge");
   assert(comp, `S-C2: expected component 'global-badge'; got ${JSON.stringify(file.components)}`);
   assert(comp.tagNameRange, `S-C2: expected tagNameRange on self-closing; got ${JSON.stringify(comp)}`);
+  assert(comp.tagNameRange.start.row === 15, `S-C2: start row ${comp.tagNameRange.start.row}`);
+  assert(comp.tagNameRange.start.column === 3, `S-C2: start col ${comp.tagNameRange.start.column}`);
   assert(comp.tagNameRange.end.column - comp.tagNameRange.start.column === "global-badge".length,
     `S-C2: width ${comp.tagNameRange.end.column - comp.tagNameRange.start.column}`);
 }
