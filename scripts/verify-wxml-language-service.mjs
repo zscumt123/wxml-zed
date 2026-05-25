@@ -950,9 +950,13 @@ function assertHoverInsideComponentChildrenReturnsNull(graph) {
   assert(hover === null, `H-18: expected null inside user-card start-tag attributes, got ${JSON.stringify(hover)}`);
 }
 
-function assertHoverOnClosingTagReturnsNull(graph) {
-  // H-19: cursor at line 7 col 20 — past the end of "user-card" tagNameRange
-  // on the start-tag row. Should NOT trigger component hover.
+function assertHoverPastTagNameRangeReturnsNull(graph) {
+  // H-19: cursor on the start-tag row but past tagNameRange.end.
+  // home.wxml's <user-card .../> is self-closing (no </user-card> exists),
+  // so we use the start-tag row with a column known to be past
+  // tagNameRange.end (col 12 in this fixture). Test fidelity: this verifies
+  // tagNameRange properly excludes positions past its end-column, NOT closing
+  // tag behavior.
   const hover = getHover({
     graph,
     documentPath: HOME_WXML,
@@ -2751,7 +2755,7 @@ assertHoverOnComponentMethod(graph);
 assertHoverOnDynamicHandlerReturnsNull(graph);
 assertHoverOnCustomComponent(graph);
 assertHoverInsideComponentChildrenReturnsNull(graph);
-assertHoverOnClosingTagReturnsNull(graph);
+assertHoverPastTagNameRangeReturnsNull(graph);
 assertHoverComponentLegacyGraphDegradesGracefully(graph);
 assertHoverInWhitespaceReturnsNull(graph);
 assertHoverInsideImportReturnsNull(graph);

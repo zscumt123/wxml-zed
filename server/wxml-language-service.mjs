@@ -1065,6 +1065,8 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   const { documentGraphPath, fileModel } = findWxmlFileModel(graph, documentPath, extensionRoot);
   if (!fileModel) return null;
 
+  // eventHandlers[i].nameRange is always populated by shared/wxml-symbol-extractor.mjs:220
+  // (no truthy guard needed, unlike branches 3/4).
   const eventHandlerMatch = (fileModel.eventHandlers ?? [])
     .find((entry) => containsPosition(entry.nameRange, position));
   if (eventHandlerMatch) {
@@ -1087,6 +1089,8 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   }
 
   // 2. Expression ref match — AUTHORITATIVE.
+  // expressionRefs[i].range is always populated by shared/wxml-symbol-extractor.mjs:193
+  // (no truthy guard needed, unlike branches 3/4).
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
