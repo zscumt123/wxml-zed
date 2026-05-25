@@ -17,6 +17,7 @@ const FORMAT_WXS = path.join(MINIPROGRAM_ROOT, "utils/format.wxs");
 const SHOP_LIST_WXML = path.join(MINIPROGRAM_ROOT, "packages/shop/pages/list/list.wxml");
 const GLOBAL_BADGE_WXML = path.join(MINIPROGRAM_ROOT, "components/global-badge/global-badge.wxml");
 const CROSS_BINDING_WXML = path.join(MINIPROGRAM_ROOT, "pages/cross-binding/cross-binding.wxml");
+const LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/loops/loops.wxml");
 // Some coalescing scenarios intentionally wait for two serial graph extractor
 // runs; local Tree-sitter extraction can take multiple minutes per run.
 const TIMEOUT_MS = 600_000;
@@ -729,6 +730,32 @@ async function testHoverArrowForCustomComponent() {
     assert(
       typeof value === "string" && value.includes("→ `components/user-card/user-card.wxml`"),
       `hover custom component: expected arrow-form path; got ${JSON.stringify(value)}`,
+    );
+  });
+}
+
+async function testHoverWxForBinding() {
+  // L-W1: open loops.wxml, hover the default-loop `item` in {{item.name}},
+  // assert the wire-level markdown payload.
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(LOOPS_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 0, "loops diagnostics before hover wx:for");
+    // loops.wxml line 4 (row 3): `    {{item.name}} ({{index}})` — cursor on `item`.
+    // We hardcode the position; if the fixture changes, this test will fail loudly.
+    const result = await client.hover(LOOPS_WXML, { line: 3, character: 7 });
+    assert(result, "L-W1: expected Hover, got null");
+    assert(
+      result.contents?.kind === "markdown",
+      `L-W1: expected markdown contents, got ${JSON.stringify(result.contents)}`,
+    );
+    const value = result.contents?.value;
+    assert(
+      typeof value === "string" && value.startsWith("**item** — `wx:for-item`"),
+      `L-W1: bad title ${JSON.stringify(value)}`,
+    );
+    assert(
+      typeof value === "string" && value.includes("Declared on `<view>` at line "),
+      `L-W1: bad source line ${JSON.stringify(value)}`,
     );
   });
 }
@@ -1745,6 +1772,7 @@ const scenarios = [
   ["hover returns markdown for data ref", testHoverMarkdownForDataRef],
   ["hover returns null for member chain", testHoverNullForMemberChain],
   ["hover returns arrow form for custom component", testHoverArrowForCustomComponent],
+  ["hover wx:for binding", testHoverWxForBinding],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1814,6 +1842,7 @@ const SCENARIO_SUITES = {
     "hover returns markdown for data ref",
     "hover returns null for member chain",
     "hover returns arrow form for custom component",
+    "hover wx:for binding",
     "completion immediately after open",
     "event handler completion",
     "data ref completion",
