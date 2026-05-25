@@ -258,7 +258,13 @@ export function collectFile(tree, inputAbs) {
         dependencies.push(entry);
       }
       if (moduleValue !== undefined) {
-        symbols.push({ kind: "wxs", name: moduleValue, range: rangeOf(node) });
+        const entry = { kind: "wxs", name: moduleValue, range: rangeOf(node) };
+        const moduleValueNode = moduleAttr
+          ? (firstChildOfType(moduleAttr, "quoted_attribute_value")
+             ?? firstChildOfType(moduleAttr, "attribute_value"))
+          : null;
+        if (moduleValueNode) entry.nameRange = innerValueRange(moduleValueNode);
+        symbols.push(entry);
       }
     } else if (node.type === "wxs_inline") {
       const startTag = firstChildOfType(node, "wxs_inline_start_tag");
@@ -267,7 +273,13 @@ export function collectFile(tree, inputAbs) {
         : null;
       const moduleValue = moduleAttr ? attributeRawValue(moduleAttr) : undefined;
       if (moduleValue !== undefined) {
-        symbols.push({ kind: "wxs", name: moduleValue, range: rangeOf(node) });
+        const entry = { kind: "wxs", name: moduleValue, range: rangeOf(node) };
+        const moduleValueNode = moduleAttr
+          ? (firstChildOfType(moduleAttr, "quoted_attribute_value")
+             ?? firstChildOfType(moduleAttr, "attribute_value"))
+          : null;
+        if (moduleValueNode) entry.nameRange = innerValueRange(moduleValueNode);
+        symbols.push(entry);
       }
     } else if (node.type === "template_definition") {
       const startTag = firstChildOfType(node, "template_definition_start_tag");

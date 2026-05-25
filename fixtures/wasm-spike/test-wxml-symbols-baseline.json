@@ -78,6 +78,16 @@
               "row": 89,
               "column": 48
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 89,
+              "column": 13
+            },
+            "end": {
+              "row": 89,
+              "column": 18
+            }
           }
         },
         {
@@ -91,6 +101,16 @@
             "end": {
               "row": 97,
               "column": 6
+            }
+          },
+          "nameRange": {
+            "start": {
+              "row": 92,
+              "column": 13
+            },
+            "end": {
+              "row": 92,
+              "column": 19
             }
           }
         }

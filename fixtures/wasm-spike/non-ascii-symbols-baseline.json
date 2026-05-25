@@ -64,6 +64,16 @@
               "row": 3,
               "column": 39
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 3,
+              "column": 13
+            },
+            "end": {
+              "row": 3,
+              "column": 16
+            }
           }
         }
       ],

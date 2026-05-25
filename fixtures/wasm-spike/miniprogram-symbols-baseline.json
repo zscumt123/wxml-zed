@@ -1174,6 +1174,16 @@
               "row": 2,
               "column": 52
             }
+          },
+          "nameRange": {
+            "start": {
+              "row": 2,
+              "column": 13
+            },
+            "end": {
+              "row": 2,
+              "column": 19
+            }
           }
         }
       ],
