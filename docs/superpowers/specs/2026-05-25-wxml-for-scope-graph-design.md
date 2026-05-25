@@ -221,7 +221,7 @@ The `range` field on the returned Hover is `expressionRefMatch.range` (narrow id
 
 3. `scripts/verify-wxml-language-service.mjs`: add W-1 through W-10 hover scenarios (see Test Plan).
 
-4. `scripts/verify-wxml-narrow-ranges.mjs` (or a new sibling verifier): add 3 narrow-range cases for `wxForScopes` field-shape (S-F1/S-F2/S-F3).
+4. `scripts/verify-wxml-narrow-ranges.mjs` (or a new sibling verifier): add 7 narrow-range cases for `wxForScopes` field-shape (S-F1 through S-F7) plus the W-7 compat invariant.
 
 5. `fixtures/wasm-spike/*-symbols-baseline.json`: regenerate. Diff must be additive (new `wxForScopes` key on every fileModel) AND the derived `wxForBindings` must be byte-equal to the pre-change shape.
 
@@ -236,6 +236,8 @@ All tests run via existing node sub-verifiers; the umbrella shell `bash scripts/
 - **S-F3**: nested loops produce two scope entries with overlapping `scopeRange`s; the inner scope's range is strictly smaller.
 - **S-F4**: `<view wx:for="{{xs}}" wx:for-item="" wx:for-index="">` (empty explicit values) extracts as implicit: `itemName === "item"`, `itemSource === "implicit"`, `itemNameRange === null` (same for index). Confirms the legacy `v.length > 0` gate is preserved in the new schema.
 - **S-F5** (loose-attrs compat): a fixture containing `<view wx:for-item="loose">{{loose}}</view>` (no `wx:for` — malformed but legacy-tolerated) produces ZERO entries in `wxForScopes`, but the derived `wxForBindings.items` still contains `"loose"` and `hasAnyWxFor === false`. Locks the loose-attrs preservation contract in the compat shim. (Use a real fixture file or synthesize via the extractor unit test scaffold — pick whichever is simpler.)
+- **S-F6** (bare wx:for): `<view wx:for>{{item}}</view>` (`wx:for` attribute present with no value at all) produces exactly one scope with implicit defaults; `wxForBindings.hasAnyWxFor === true`. Locks legacy parity — the old extractor sets `hasAnyWxFor` on the attribute-name check alone, irrespective of value, and the new schema must mirror this by gating scope creation on `wx:for` attribute presence (not on its value).
+- **S-F7** (dynamic item/index names): `<view wx:for="{{xs}}" wx:for-item="{{dyn}}">{{item}}</view>` — the `wx:for-item` value contains an interpolation. The legacy `quotedAttrTextValue` helper returns `null` for any value containing an `interpolation` child, so the new code MUST use the same helper (not `attributeRawValue`) to read item/index names. Expected: the scope falls back to implicit `itemName === "item"`, and `wxForBindings.items` does NOT contain the literal string `"{{dyn}}"`. Same applies to loose `wx:for-item="{{dyn}}"` without `wx:for`: must not leak into `wxForBindings.items`.
 
 ### Hover scenarios (`verify-wxml-language-service.mjs`)
 
@@ -261,14 +263,14 @@ All tests run via existing node sub-verifiers; the umbrella shell `bash scripts/
 
 - Existing 25 hover scenarios continue to pass (the 2a addition is opportunistic; non-wx:for cursors are unaffected).
 - All 7 baselines pass after regeneration (additive `wxForScopes` + unchanged derived `wxForBindings`).
-- All prior graph-smoke scenarios pass (20 today after Hover v1's L-H4 + L-W1 added below = 21 total).
+- All prior graph-smoke scenarios pass (19 today including Hover v1's L-H4 + L-W1 added below = 20 total).
 
 ## Acceptance Criteria
 
-1. `node scripts/verify-wxml-narrow-ranges.mjs` passes (5 prior + 5 new = 10).
+1. `node scripts/verify-wxml-narrow-ranges.mjs` passes (5 prior + 7 new = 12, plus W-7 invariant = 13).
 2. `node scripts/verify-wasm-symbol-baselines.mjs` passes (7).
 3. `node scripts/verify-wxml-language-service.mjs` passes (existing + W-1 through W-10).
-4. `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke` passes (20 prior including Hover v1's L-H4 + L-W1 = 21 scenarios).
+4. `node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke` passes (19 prior including Hover v1's L-H4 + L-W1 = 20 scenarios).
 5. The W-7 compat invariant holds: derived `wxForBindings` byte-equals pre-change output across every fixture. Completion and diagnostics tests show **zero** behavior changes.
 6. `graph.version` unchanged (still 1).
 7. Chelaile dogfood: hover on a real wx:for-item / wx:for-index renders the expected card; nested-loop hover picks the innermost binding; outside-loop hover returns nothing.
