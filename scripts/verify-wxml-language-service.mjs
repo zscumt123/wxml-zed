@@ -649,6 +649,107 @@ function assertDataRefDefinitionMissingKeyReturnsNull(graph) {
   }
 }
 
+function assertDefinitionOnWxsExpressionRefExternal(graph) {
+  // home.wxml line 19 (row 18): `    {{format.price(total)}}` — `format`
+  // is a wxs module. Cursor mid-name at col 8 should jump to the .wxs file.
+  const location = getDefinition({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 18, character: 8 },
+    extensionRoot: ROOT,
+  });
+  assert(location, "definition wxs xref external: expected Location, got null");
+  assert(location.uri.endsWith("/fixtures/miniprogram/utils/format.wxs"),
+    `definition wxs xref external: uri ${location.uri}`);
+}
+
+function assertDefinitionOnWxsExpressionRefInline(graph) {
+  // Synthesize an inline wxs symbol + matching expressionRef on home file.
+  // Definition should jump to the synthetic wxs symbol's nameRange in the
+  // SAME file (no dependency entry exists for it).
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalSymbols = homeFile.symbols;
+  const originalRefs = homeFile.expressionRefs;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__def_inline_fmt__",
+    range: { start: { row: 500, column: 0 }, end: { row: 502, column: 6 } },
+    nameRange: { start: { row: 500, column: 13 }, end: { row: 500, column: 31 } },
+  };
+  const syntheticRef = {
+    name: "__def_inline_fmt__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 505, column: 0 }, end: { row: 505, column: 18 } },
+    expressionRange: { start: { row: 505, column: 0 }, end: { row: 505, column: 18 } },
+  };
+  homeFile.symbols = [...originalSymbols, syntheticSymbol];
+  homeFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const location = getDefinition({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 505, character: 8 },
+      extensionRoot: ROOT,
+    });
+    assert(location, "definition wxs xref inline: expected Location, got null");
+    assert(location.uri.endsWith("/fixtures/miniprogram/pages/home/home.wxml"),
+      `definition wxs xref inline: uri must be the same WXML file; got ${location.uri}`);
+    assert(location.range.start.line === 500 && location.range.start.character === 13,
+      `definition wxs xref inline: expected jump to synthetic nameRange (row 500, col 13); got ${JSON.stringify(location.range)}`);
+  } finally {
+    homeFile.symbols = originalSymbols;
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
+function assertDefinitionOnWxsExpressionRefInTemplateOnlyFile(graph) {
+  // Bug #1 regression for getDefinition: templates/common.wxml has no JS
+  // sibling so findOwnerConfigWithScript returns null. Pre-fix, the
+  // expression-ref branch would early-return null even for a wxs xref.
+  // Synthesize on common.wxml; assert definition jumps to the (inline)
+  // synthetic wxs decl.
+  const COMMON_GRAPH_PATH = "fixtures/miniprogram/templates/common.wxml";
+  const commonFile = graph.wxml.find((f) => f.path === COMMON_GRAPH_PATH);
+  assert(commonFile, "definition template-only-wxs setup: common.wxml file model");
+  const ownerConfig = graph.configs.find((c) => c.owner === COMMON_GRAPH_PATH && c.script);
+  assert(!ownerConfig, "definition template-only-wxs setup: common.wxml must have NO script-bearing owner config");
+
+  const originalSymbols = commonFile.symbols;
+  const originalRefs = commonFile.expressionRefs;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__def_template_only_fmt__",
+    range: { start: { row: 600, column: 0 }, end: { row: 602, column: 6 } },
+    nameRange: { start: { row: 600, column: 13 }, end: { row: 600, column: 38 } },
+  };
+  const syntheticRef = {
+    name: "__def_template_only_fmt__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 605, column: 0 }, end: { row: 605, column: 25 } },
+    expressionRange: { start: { row: 605, column: 0 }, end: { row: 605, column: 25 } },
+  };
+  commonFile.symbols = [...originalSymbols, syntheticSymbol];
+  commonFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const location = getDefinition({
+      graph,
+      documentPath: COMMON_WXML,
+      position: { line: 605, character: 10 },
+      extensionRoot: ROOT,
+    });
+    assert(location, "definition template-only-wxs: expected Location, got null (Bug #1 mirror regression)");
+    assert(location.uri.endsWith("/fixtures/miniprogram/templates/common.wxml"),
+      `definition template-only-wxs: uri must stay in same file; got ${location.uri}`);
+    assert(location.range.start.line === 600 && location.range.start.character === 13,
+      `definition template-only-wxs: expected jump to synthetic nameRange; got ${JSON.stringify(location.range)}`);
+  } finally {
+    commonFile.symbols = originalSymbols;
+    commonFile.expressionRefs = originalRefs;
+  }
+}
+
 // Phase 3 Stage C — Hover v1 ------------------------------------------------
 
 function hoverContents(hover) {
@@ -2870,6 +2971,9 @@ assertDataRefDefinitionToData(graph);
 assertDataRefDefinitionToProperty(graph);
 assertDataRefDefinitionInTemplateReturnsNull(graph);
 assertDataRefDefinitionMissingKeyReturnsNull(graph);
+assertDefinitionOnWxsExpressionRefExternal(graph);
+assertDefinitionOnWxsExpressionRefInline(graph);
+assertDefinitionOnWxsExpressionRefInTemplateOnlyFile(graph);
 // Phase 3 Stage C — Hover v1
 assertHoverOnDataRef(graph);
 assertHoverOnPropertyRef(graph);

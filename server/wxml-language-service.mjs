@@ -1243,22 +1243,47 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
 
   // Expression reference: cursor inside a `{{theme}}` interpolation ref name.
   // AUTHORITATIVE — narrow nameRange dominates the broader component-element
-  // range that follows. If the ref resolves through dataKeys/propertyKeys,
-  // jump to the .js source position; otherwise return null (the
-  // missing-expression-ref diagnostic will already warn separately).
+  // range that follows. Resolution chain (parallel to getHover step 2):
+  //   2a. dataKeys (requires ownerConfig)
+  //   2b. propertyKeys (requires ownerConfig)
+  //   2c. in-file wxs symbol (works without ownerConfig — template-only files)
+  // None of these matches → return null (missing-expression-ref diagnostic
+  // will warn separately).
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
     if (expressionRefMatch.inTemplateDefinition) return null;
+    // ownerConfig is needed by 2a/2b only — 2c reads from fileModel and works
+    // even for template-only WXML files (no JS sibling).
     const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
-    if (!ownerConfig) return null;
-    const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
-    if (dataKey) {
-      return locationForGraphPathWithRange(ownerConfig.script.path, dataKey.nameRange, extensionRoot);
+    if (ownerConfig) {
+      const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+      if (dataKey) {
+        return locationForGraphPathWithRange(ownerConfig.script.path, dataKey.nameRange, extensionRoot);
+      }
+      const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+      if (propKey) {
+        return locationForGraphPathWithRange(ownerConfig.script.path, propKey.nameRange, extensionRoot);
+      }
     }
-    const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
-    if (propKey) {
-      return locationForGraphPathWithRange(ownerConfig.script.path, propKey.nameRange, extensionRoot);
+    // 2c. In-file wxs symbol — external jumps to the resolved .wxs file,
+    // inline jumps to the <wxs module="X"> element's nameRange in this file.
+    // Mirrors getHover step 2c (external-vs-inline discrimination by presence
+    // of dep entry; dep without `normalized` ⇒ unresolved external ⇒ null).
+    const wxsSymbol = (fileModel.symbols ?? [])
+      .find((s) => s.kind === "wxs" && s.name === expressionRefMatch.name);
+    if (wxsSymbol) {
+      const wxsDep = (fileModel.dependencies ?? [])
+        .find((d) => d.kind === "wxs" && d.module === expressionRefMatch.name);
+      if (wxsDep) {
+        if (!wxsDep.normalized) return null;
+        return locationForGraphPath(wxsDep.normalized, extensionRoot);
+      }
+      // Inline: jump to the declaration's nameRange in this file (Task 1's field).
+      if (wxsSymbol.nameRange) {
+        return locationForGraphPathWithRange(documentGraphPath, wxsSymbol.nameRange, extensionRoot);
+      }
+      return null;
     }
     return null;
   }
