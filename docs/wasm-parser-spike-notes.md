@@ -960,6 +960,80 @@ new short driver — the fixtures-based suite is the regression net.
 
 ---
 
+### Follow-up: wx:for scope graph hover v1 chelaile dogfood (2026-05-25)
+
+The wx:for per-element scope graph plan ships its step-2a hover
+extension at commit `fecbcbf` (W-1 through W-10 + L-W1 green
+locally). Task 7 of
+`docs/superpowers/plans/2026-05-25-wxml-for-scope-graph.md` calls for
+a programmatic dogfood against `mp-wx-chelaile/wx` covering the four
+wx:for hover cases plus an outside-loop regression check.
+
+Same pattern as the hover v1 dogfood: a throwaway
+`dogfood-wx-for-hover-chelaile.mjs` (kept under `$TMPDIR`, not
+committed) replicated the LSP-client helpers from
+`scripts/verify-lsp-diagnostics.mjs`, drove `withClient({ rootPath:
+chelaile })`, opened four real WXML files, then issued one
+`textDocument/hover` per case. No `wxml-zed.config.json` was needed
+at the chelaile root (wx:for scope hover doesn't depend on injector
+config); none was created.
+
+Per-case outcomes:
+
+| Kind                       | Position                                                                                       | Actual hover title              | Source line                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------ |
+| default wx:for-item        | `pages/metro-line/components/stations/index.wxml:5:95` (`{{item.orderNum}}` in `id="s-..."`)   | `**item** — \`wx:for-item\``    | `Declared on \`<view>\` at line 5`         |
+| default wx:for-index       | `pages/my-fav/index.wxml:10:95` (`lineIdx="{{index}}"`)                                        | `**index** — \`wx:for-index\``  | `Declared on \`<station-line>\` at line 10`|
+| explicit wx:for-item       | `pages/components/tab-bar/index.wxml:5:25` (`{{tab.badge}}`, declared by parent on line 2)     | `**tab** — \`wx:for-item\``     | `Declared on \`<view>\` at line 2`         |
+| outside-loop regression    | `pages/my-fav/index.wxml:3:30` (`{{currentCity}}` on `<fav-empty>` outside any wx:for)         | `**currentCity** — \`data\``    | `Defined in \`pages/my-fav/index.js:17\``  |
+
+All four required cases pass. The outside-loop check confirms a
+data-bound identifier is correctly resolved to `data` (not
+mislabeled as `wx:for-item`); explicit-vs-default and item-vs-index
+labelling are correct; the explicit case correctly reports the
+DECLARING element (`<view>` line 2) even though the cursor is on a
+child element (line 5), matching the spec's "innermost-containing
+scope wins" semantics.
+
+Nested-loops bonus probe (also throwaway): targeted
+`pages/transit-strategy/components/bus-popup/index.wxml`, which has
+`<block wx:for="{{buslines}}">` wrapping `<view wx:for="{{item.
+buses}}" wx:for-item="busline" wx:for-index="idx">`. Inner-scope
+hovers worked as designed: `{{busline}}` -> `**busline** —
+\`wx:for-item\`` (declared on `<view>` line 11), `{{idx < 1}}` ->
+`**idx** — \`wx:for-index\`` (declared on `<view>` line 11).
+However, cursor on outer `item` inside any `{{item.buses}}`
+interpolation returned `null` for hover. Project graph extraction
+on the same file shows only ONE entry in `wxForScopes` — the inner
+`<view wx:for>` — confirming that `<block>` elements with `wx:for`
+are not parsed as `element` by the current symbol extractor (most
+likely they surface under a different tree-sitter node type via the
+grammar's control-flow handling). This is a pre-existing gap, not a
+regression introduced by the wx:for-scope-graph plan; the four
+required Task 7 cases pass on plain element `<view wx:for>` /
+`<station-line wx:for>` / etc. Worth filing as a follow-up: extend
+`wxml-symbol-extractor.mjs` wx:for scope handling to cover whichever
+node type `<block wx:for>` lands under in the grammar.
+
+The outer `index` reference from inside the inner element (e.g.
+`{{activeIndex === index}}` on line 11) also returned `null`. The
+inner element declares `wx:for-index="idx"`, which under the spec
+shadows the outer default `index` — returning `null` here is correct
+behavior (the name has no in-scope binding under that shadowing
+rule).
+
+Outcome: PASS for all four required cases plus the regression
+check. No regressions surfaced in adjacent hover features during the
+dogfood — LSP stderr was clean apart from the routine graph-build
+chatter and the expected "no `wxml-zed.config.json`" notice. No
+exceptions, no crashes.
+
+Dogfood script was discarded after the run, same rationale as the
+hover v1 dogfood: one-shot driver, fixtures-based regression net
+(W-1..W-10 + L-W1) is the canonical guard.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
