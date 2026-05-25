@@ -1022,7 +1022,7 @@ names do not shadow each other," so `wx:for-index="idx"` does not
 shadow the outer default `index`. Actual cause: the outer loop was
 a `<block wx:for>`, and the extractor's element-branch only matched
 `node.type === "element"`, missing `block_element` entirely, so the
-outer scope was never created. Fix landed in commit `<this commit>`
+outer scope was never created. Fix landed in commit `ebd5ffa`
 (extractor element-branch extended to `element || block_element`,
 plus `block_start_tag` added to the tag lookup). Task #118 closed
 by the same fix.
