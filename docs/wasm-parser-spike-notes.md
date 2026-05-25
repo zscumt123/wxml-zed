@@ -1006,14 +1006,15 @@ However, cursor on outer `item` inside any `{{item.buses}}`
 interpolation returned `null` for hover. Project graph extraction
 on the same file shows only ONE entry in `wxForScopes` — the inner
 `<view wx:for>` — confirming that `<block>` elements with `wx:for`
-are not parsed as `element` by the current symbol extractor (most
-likely they surface under a different tree-sitter node type via the
-grammar's control-flow handling). This is a pre-existing gap, not a
-regression introduced by the wx:for-scope-graph plan; the four
-required Task 7 cases pass on plain element `<view wx:for>` /
-`<station-line wx:for>` / etc. Worth filing as a follow-up: extend
-`wxml-symbol-extractor.mjs` wx:for scope handling to cover whichever
-node type `<block wx:for>` lands under in the grammar.
+are not parsed as `element` by the current symbol extractor (grammar
+parses them as `block_element`). Initially treated as a follow-up
+gap; later verified as a **compat regression** introduced by the
+wx:for-scope-graph plan — legacy attribute-level extraction set
+`wxForBindings.hasAnyWxFor = true` for any `wx:for` attribute
+regardless of element type, so the new element-only extraction
+silently dropped it to `false` for files using `<block wx:for>`,
+breaking completion and diagnostics on those files. Fix landed in
+commit `ebd5ffa` (see follow-up paragraph below).
 
 The outer `index` reference from inside the inner element (e.g.
 `{{activeIndex === index}}` on line 11) also returned `null`. This
