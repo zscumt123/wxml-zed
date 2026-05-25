@@ -1095,48 +1095,55 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
     if (expressionRefMatch.inTemplateDefinition) return null;
+    // ownerConfig is needed by 2a/2b only — 2c (in-file wxs symbol lookup) reads
+    // from fileModel and works even for template-only WXML files (no JS sibling).
     const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
-    if (!ownerConfig) return null;
 
-    // 2a. dataKeys lookup → kind label per dataKey.source
-    const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
-    if (dataKey) {
-      // `?? HOVER_KIND_LABELS.data` is a forward-source guard: today dataKey.source ∈
-      // {"data","setData","injector"} which are all in HOVER_KIND_LABELS, but a future
-      // source added to shared/js-method-extractor.mjs without updating the label table
-      // would otherwise render `undefined`. Keep until those two locations are unified.
-      const kindLabel = HOVER_KIND_LABELS[dataKey.source] ?? HOVER_KIND_LABELS.data;
-      return hoverFromGraphPathLocation({
-        name: dataKey.name,
-        kindLabel,
-        scriptPath: ownerConfig.script.path,
-        nameRange: dataKey.nameRange,
-        graphRoot: graph.root,
-        refRange: expressionRefMatch.range,
-      });
+    // 2a. dataKeys lookup → kind label per dataKey.source (requires ownerConfig)
+    if (ownerConfig) {
+      const dataKey = (ownerConfig.script.dataKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+      if (dataKey) {
+        // `?? HOVER_KIND_LABELS.data` is a forward-source guard: today dataKey.source ∈
+        // {"data","setData","injector"} which are all in HOVER_KIND_LABELS, but a future
+        // source added to shared/js-method-extractor.mjs without updating the label table
+        // would otherwise render `undefined`. Keep until those two locations are unified.
+        const kindLabel = HOVER_KIND_LABELS[dataKey.source] ?? HOVER_KIND_LABELS.data;
+        return hoverFromGraphPathLocation({
+          name: dataKey.name,
+          kindLabel,
+          scriptPath: ownerConfig.script.path,
+          nameRange: dataKey.nameRange,
+          graphRoot: graph.root,
+          refRange: expressionRefMatch.range,
+        });
+      }
+
+      // 2b. propertyKeys lookup → kind label "property" (requires ownerConfig)
+      const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
+      if (propKey) {
+        return hoverFromGraphPathLocation({
+          name: propKey.name,
+          kindLabel: HOVER_KIND_LABELS.property,
+          scriptPath: ownerConfig.script.path,
+          nameRange: propKey.nameRange,
+          graphRoot: graph.root,
+          refRange: expressionRefMatch.range,
+        });
+      }
     }
 
-    // 2b. propertyKeys lookup → kind label "property"
-    const propKey = (ownerConfig.script.propertyKeys ?? []).find((k) => k.name === expressionRefMatch.name);
-    if (propKey) {
-      return hoverFromGraphPathLocation({
-        name: propKey.name,
-        kindLabel: HOVER_KIND_LABELS.property,
-        scriptPath: ownerConfig.script.path,
-        nameRange: propKey.nameRange,
-        graphRoot: graph.root,
-        refRange: expressionRefMatch.range,
-      });
-    }
-
-    // 2c. In-file wxs symbol names → kind label "wxs module"
+    // 2c. In-file wxs symbol names → kind label "wxs module" (works without ownerConfig).
     const wxsSymbol = (fileModel.symbols ?? [])
       .find((s) => s.kind === "wxs" && s.name === expressionRefMatch.name);
     if (wxsSymbol) {
-      // External wxs has a matching dependency entry whose `normalized` is the file path.
+      // Distinguish external vs inline by *presence* of a matching dep, NOT by whether
+      // it normalizes. A dep with kind+module but no `normalized` is an external wxs
+      // we couldn't resolve (e.g. absolute path) — render no hover rather than
+      // mislabeling it as inline.
       const wxsDep = (fileModel.dependencies ?? [])
-        .find((d) => d.kind === "wxs" && d.module === expressionRefMatch.name && d.normalized);
+        .find((d) => d.kind === "wxs" && d.module === expressionRefMatch.name);
       if (wxsDep) {
+        if (!wxsDep.normalized) return null;
         const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
         if (!rel) return null;
         return makeMarkdownHover(expressionRefMatch.range, {
@@ -1146,7 +1153,7 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
           arrow: true,
         });
       }
-      // Inline wxs (no dependency entry): no file path to point at.
+      // Truly inline wxs: no dependency entry exists for this module name.
       return makeMarkdownHover(expressionRefMatch.range, {
         name: expressionRefMatch.name,
         kindLabel: HOVER_KIND_LABELS.wxsModule,
@@ -1182,9 +1189,12 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   const wxsDeclMatch = (fileModel.symbols ?? [])
     .find((s) => s.kind === "wxs" && s.nameRange && containsPosition(s.nameRange, position));
   if (wxsDeclMatch) {
+    // Same external-vs-inline discrimination as step 2c: presence of dep ⇒ external;
+    // dep without normalized ⇒ unresolvable external ⇒ no hover (don't mislabel inline).
     const wxsDep = (fileModel.dependencies ?? [])
-      .find((d) => d.kind === "wxs" && d.module === wxsDeclMatch.name && d.normalized);
+      .find((d) => d.kind === "wxs" && d.module === wxsDeclMatch.name);
     if (wxsDep) {
+      if (!wxsDep.normalized) return null;
       const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
       if (!rel) return null;
       return makeMarkdownHover(wxsDeclMatch.nameRange, {

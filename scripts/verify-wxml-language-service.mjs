@@ -1149,6 +1149,139 @@ function assertHoverWxsLegacyGraphDegradesGracefully(graph) {
   }
 }
 
+function assertHoverOnWxsExpressionRefInTemplateOnlyFile(graph) {
+  // Bug-fix #1 regression: `templates/common.wxml` has no JS sibling, so
+  // findOwnerConfigWithScript returns null. Pre-fix this caused getHover to
+  // early-return null for ALL expression-refs in template files, including
+  // wxs xrefs. We synthesize an in-file wxs symbol + matching expressionRef
+  // on common.wxml and assert hover still resolves through step 2c.
+  const COMMON_GRAPH_PATH = "fixtures/miniprogram/templates/common.wxml";
+  const commonFile = graph.wxml.find((f) => f.path === COMMON_GRAPH_PATH);
+  assert(commonFile, "template-only-wxs setup: common.wxml file model");
+  // Confirm the precondition: no owner config with script (would invalidate the test).
+  const ownerConfig = graph.configs.find((c) => c.owner === COMMON_GRAPH_PATH && c.script);
+  assert(!ownerConfig, "template-only-wxs setup: common.wxml must have NO script-bearing owner config");
+
+  const originalSymbols = commonFile.symbols;
+  const originalRefs = commonFile.expressionRefs;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_template_only_fmt__",
+    range: { start: { row: 400, column: 0 }, end: { row: 402, column: 6 } },
+    nameRange: { start: { row: 400, column: 13 }, end: { row: 400, column: 38 } },
+  };
+  const syntheticRef = {
+    name: "__hover_template_only_fmt__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 405, column: 0 }, end: { row: 405, column: 25 } },
+    expressionRange: { start: { row: 405, column: 0 }, end: { row: 405, column: 25 } },
+  };
+  commonFile.symbols = [...originalSymbols, syntheticSymbol];
+  commonFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: COMMON_WXML,
+      position: { line: 405, character: 10 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "template-only-wxs: expected Hover, got null (Bug #1 regression)");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**__hover_template_only_fmt__** — `wxs module`"),
+      `template-only-wxs: bad title: ${value}`);
+    assert(value.includes("inline wxs module in this file"),
+      `template-only-wxs: expected inline note (no matching dep); got ${value}`);
+  } finally {
+    commonFile.symbols = originalSymbols;
+    commonFile.expressionRefs = originalRefs;
+  }
+}
+
+function assertHoverOnUnresolvedExternalWxsDeclReturnsNull(graph) {
+  // Bug-fix #2 regression: an external <wxs module="abs" src="/utils/abs.wxs"/>
+  // produces a wxs symbol AND a dependency entry, but the dep has no `normalized`
+  // (absolute paths don't normalize). Pre-fix, the find with `&& d.normalized`
+  // missed the dep and fell into the inline arm, mislabeling as inline. The
+  // fix should return null for unresolved external instead.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalSymbols = homeFile.symbols;
+  const originalDeps = homeFile.dependencies;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_unresolved_abs__",
+    range: { start: { row: 410, column: 0 }, end: { row: 410, column: 50 } },
+    nameRange: { start: { row: 410, column: 13 }, end: { row: 410, column: 35 } },
+  };
+  // dep entry exists (so this IS external) but no `normalized` (unresolvable).
+  const syntheticDep = {
+    kind: "wxs",
+    value: "/utils/abs.wxs",
+    range: { start: { row: 410, column: 0 }, end: { row: 410, column: 50 } },
+    module: "__hover_unresolved_abs__",
+  };
+  homeFile.symbols = [...originalSymbols, syntheticSymbol];
+  homeFile.dependencies = [...originalDeps, syntheticDep];
+  try {
+    // Cursor on the synthetic wxs decl's nameRange.
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 410, character: 20 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null,
+      `unresolved-external-wxs-decl: expected null, got ${JSON.stringify(hover)} (Bug #2 regression — would have mislabeled as inline pre-fix)`);
+  } finally {
+    homeFile.symbols = originalSymbols;
+    homeFile.dependencies = originalDeps;
+  }
+}
+
+function assertHoverOnUnresolvedExternalWxsExprRefReturnsNull(graph) {
+  // Bug-fix #2 regression — interpolation-side counterpart of the previous test.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const originalSymbols = homeFile.symbols;
+  const originalDeps = homeFile.dependencies;
+  const originalRefs = homeFile.expressionRefs;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_unresolved_abs_ref__",
+    range: { start: { row: 420, column: 0 }, end: { row: 420, column: 50 } },
+    nameRange: { start: { row: 420, column: 13 }, end: { row: 420, column: 40 } },
+  };
+  const syntheticDep = {
+    kind: "wxs",
+    value: "/utils/abs.wxs",
+    range: { start: { row: 420, column: 0 }, end: { row: 420, column: 50 } },
+    module: "__hover_unresolved_abs_ref__",
+  };
+  const syntheticRef = {
+    name: "__hover_unresolved_abs_ref__",
+    source: "interpolation",
+    inTemplateDefinition: false,
+    range: { start: { row: 425, column: 0 }, end: { row: 425, column: 27 } },
+    expressionRange: { start: { row: 425, column: 0 }, end: { row: 425, column: 27 } },
+  };
+  homeFile.symbols = [...originalSymbols, syntheticSymbol];
+  homeFile.dependencies = [...originalDeps, syntheticDep];
+  homeFile.expressionRefs = [...originalRefs, syntheticRef];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 425, character: 10 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null,
+      `unresolved-external-wxs-expr-ref: expected null, got ${JSON.stringify(hover)} (Bug #2 regression — would have mislabeled as inline pre-fix)`);
+  } finally {
+    homeFile.symbols = originalSymbols;
+    homeFile.dependencies = originalDeps;
+    homeFile.expressionRefs = originalRefs;
+  }
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -2760,6 +2893,9 @@ assertHoverComponentLegacyGraphDegradesGracefully(graph);
 assertHoverInWhitespaceReturnsNull(graph);
 assertHoverInsideImportReturnsNull(graph);
 assertHoverWxsLegacyGraphDegradesGracefully(graph);
+assertHoverOnWxsExpressionRefInTemplateOnlyFile(graph);
+assertHoverOnUnresolvedExternalWxsDeclReturnsNull(graph);
+assertHoverOnUnresolvedExternalWxsExprRefReturnsNull(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);
