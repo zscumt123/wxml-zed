@@ -25,4 +25,11 @@
 
   <!-- A reference OUTSIDE any wx:for body — should NOT have item in scope. -->
   <view class="outside-loop">{{item}}</view>
+
+  <!-- block wx:for: control-flow wrapper (grammar parses as block_element).
+       Pre-fix this element produced NO wxForScopes entry and dropped
+       hasAnyWxFor to false; regression caught by chelaile dogfood. -->
+  <block wx:for="{{groups}}" wx:for-item="grp">
+    <view class="grp">{{grp.label}}</view>
+  </block>
 </view>

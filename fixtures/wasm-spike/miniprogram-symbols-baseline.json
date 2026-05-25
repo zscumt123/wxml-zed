@@ -2020,6 +2020,60 @@
           },
           "containingTag": "view",
           "containingAttribute": null
+        },
+        {
+          "name": "groups",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 31,
+              "column": 19
+            },
+            "end": {
+              "row": 31,
+              "column": 25
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 31,
+              "column": 19
+            },
+            "end": {
+              "row": 31,
+              "column": 25
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "grp",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 32,
+              "column": 24
+            },
+            "end": {
+              "row": 32,
+              "column": 27
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 32,
+              "column": 24
+            },
+            "end": {
+              "row": 32,
+              "column": 33
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
         }
       ],
       "wxForScopes": [
@@ -2212,10 +2266,49 @@
           "indexNameRange": null,
           "indexSource": "implicit",
           "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 31,
+              "column": 2
+            },
+            "end": {
+              "row": 33,
+              "column": 10
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 31,
+              "column": 9
+            },
+            "end": {
+              "row": 31,
+              "column": 28
+            }
+          },
+          "itemName": "grp",
+          "itemNameRange": {
+            "start": {
+              "row": 31,
+              "column": 42
+            },
+            "end": {
+              "row": 31,
+              "column": 45
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "block"
         }
       ],
       "wxForBindings": {
         "items": [
+          "grp",
           "inner",
           "item",
           "outer",

@@ -186,6 +186,29 @@ function testInterpolatedItemNameFallsBackToImplicit() {
     `S-F7: wxForBindings.items must NOT contain "dyn" either; got ${JSON.stringify(bindings.items)}`);
 }
 
+// S-F8: <block wx:for> must create a scope just like <view wx:for>.
+// Pre-fix the extractor only matched node.type === "element", missing
+// block_element entirely. Legacy attribute-level extraction set
+// hasAnyWxFor = true for any wx:for attribute regardless of parent
+// element type; that compat must be preserved.
+function testBlockElementCreatesScope() {
+  const result = extract("fixtures/wasm-spike/wx-for-block.wxml");
+  const file = result.files[0];
+  const scopes = file.wxForScopes ?? [];
+  assert(scopes.length === 1, `S-F8: <block wx:for> must create one scope; got ${scopes.length}`);
+  const s = scopes[0];
+  assert(s.itemName === "row" && s.itemSource === "explicit",
+    `S-F8: explicit wx:for-item="row" should be captured; got ${JSON.stringify(s)}`);
+  assert(s.ownerTag === "block",
+    `S-F8: ownerTag should be "block"; got ${JSON.stringify(s.ownerTag)}`);
+  assert(s.wxForRange, `S-F8: wxForRange must exist on the block-element scope`);
+  const bindings = file.wxForBindings;
+  assert(bindings.hasAnyWxFor === true,
+    `S-F8: derived hasAnyWxFor must be true for <block wx:for>; got ${bindings.hasAnyWxFor}`);
+  assert(bindings.items.includes("row"),
+    `S-F8: wxForBindings.items must include "row" (compat with legacy attribute-level extraction); got ${JSON.stringify(bindings.items)}`);
+}
+
 // W-7: derived wxForBindings must byte-equal the pre-change snapshot
 // for every file in every baseline. The snapshot is the literal
 // wxForBindings that the legacy extractor produced before this change.
@@ -216,7 +239,7 @@ const W7_FROZEN_WX_FOR_BINDINGS = {
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/detail/detail.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/dyn-page/dyn-page.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/home/home.wxml": {"items":[],"indexes":[],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/loops/loops.wxml": {"items":["inner","item","outer","prod"],"indexes":["idx"],"hasAnyWxFor":true},
+  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/loops/loops.wxml": {"items":["grp","inner","item","outer","prod"],"indexes":["idx"],"hasAnyWxFor":true},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/shared/header.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/common.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/secondary.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
@@ -227,6 +250,7 @@ const W7_FROZEN_WX_FOR_BINDINGS = {
   "real-world-symbols-baseline.json::fixtures/real-world/templates.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "test-wxml-symbols-baseline.json::fixtures/test.wxml": {"items":["row"],"indexes":["idx"],"hasAnyWxFor":true},
   "wx-for-unquoted-symbols-baseline.json::fixtures/wasm-spike/wx-for-unquoted.wxml": {"items":["user"],"indexes":["i"],"hasAnyWxFor":true},
+  "wx-for-block-symbols-baseline.json::fixtures/wasm-spike/wx-for-block.wxml": {"items":["row"],"indexes":[],"hasAnyWxFor":true},
 };
 
 function testCompatShimByteEqual() {
@@ -273,6 +297,7 @@ const CASES = [
   ["S-F5: loose attrs without wx:for preserve legacy compat", testLooseAttrCompat],
   ["S-F6: bare wx:for preserves legacy hasAnyWxFor", testBareWxForCreatesScope],
   ["S-F7: dynamic wx:for-item interpolation does not leak into items", testInterpolatedItemNameFallsBackToImplicit],
+  ["S-F8: <block wx:for> creates a scope (legacy compat)", testBlockElementCreatesScope],
   ["W-7: wxForBindings compat shim is byte-equal across all baselines", testCompatShimByteEqual],
 ];
 

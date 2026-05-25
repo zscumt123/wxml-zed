@@ -1606,6 +1606,29 @@ function assertHoverDataOutsideLoopBody(graph) {
     `W-10: outside-loop hover MUST be data, not wx:for-item; got ${value}`);
 }
 
+function assertHoverOnBlockWxForItem(graph) {
+  // W-11: hover on `grp` inside <block wx:for="{{groups}}" wx:for-item="grp">.
+  // Pre-fix this returned null because block_element scopes weren't extracted.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{grp.label}}"));
+  assert(lineIdx >= 0, "W-11 setup: line with {{grp.label}}");
+  const charIdx = lines[lineIdx].indexOf("{{grp.label}}") + 2;  // on `g` of grp
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-11: expected Hover for `grp` inside <block wx:for> body");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**grp** — `wx:for-item`"),
+    `W-11: bad title; got ${value}`);
+  assert(value.includes("Declared on `<block>` at line "),
+    `W-11: expected source line to mention <block> as ownerTag; got ${value}`);
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -3309,3 +3332,4 @@ assertHoverNestedShadowing(graph);
 assertHoverIterableExclusion(graph);
 assertHoverWxForShadowsData(graph);
 assertHoverDataOutsideLoopBody(graph);
+assertHoverOnBlockWxForItem(graph);

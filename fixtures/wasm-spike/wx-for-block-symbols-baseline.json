@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "fixtures/wasm-spike/wx-for-block.wxml",
+      "dependencies": [],
+      "symbols": [],
+      "references": [],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "xs",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 0,
+              "column": 17
+            },
+            "end": {
+              "row": 0,
+              "column": 19
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 0,
+              "column": 17
+            },
+            "end": {
+              "row": 0,
+              "column": 19
+            }
+          },
+          "containingTag": null,
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "row",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 1,
+              "column": 4
+            },
+            "end": {
+              "row": 1,
+              "column": 7
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 1,
+              "column": 4
+            },
+            "end": {
+              "row": 1,
+              "column": 7
+            }
+          },
+          "containingTag": null,
+          "containingAttribute": null
+        }
+      ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 0,
+              "column": 0
+            },
+            "end": {
+              "row": 2,
+              "column": 8
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 0,
+              "column": 7
+            },
+            "end": {
+              "row": 0,
+              "column": 22
+            }
+          },
+          "itemName": "row",
+          "itemNameRange": {
+            "start": {
+              "row": 0,
+              "column": 36
+            },
+            "end": {
+              "row": 0,
+              "column": 39
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "block"
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "row"
+        ],
+        "indexes": [],
+        "hasAnyWxFor": true
+      }
+    }
+  ]
+}

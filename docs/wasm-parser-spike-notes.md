@@ -1016,11 +1016,16 @@ required Task 7 cases pass on plain element `<view wx:for>` /
 node type `<block wx:for>` lands under in the grammar.
 
 The outer `index` reference from inside the inner element (e.g.
-`{{activeIndex === index}}` on line 11) also returned `null`. The
-inner element declares `wx:for-index="idx"`, which under the spec
-shadows the outer default `index` — returning `null` here is correct
-behavior (the name has no in-scope binding under that shadowing
-rule).
+`{{activeIndex === index}}` on line 11) also returned `null`. This
+was **misdiagnosed** as shadowing — the spec rule is "different
+names do not shadow each other," so `wx:for-index="idx"` does not
+shadow the outer default `index`. Actual cause: the outer loop was
+a `<block wx:for>`, and the extractor's element-branch only matched
+`node.type === "element"`, missing `block_element` entirely, so the
+outer scope was never created. Fix landed in commit `<this commit>`
+(extractor element-branch extended to `element || block_element`,
+plus `block_start_tag` added to the tag lookup). Task #118 closed
+by the same fix.
 
 Outcome: PASS for all four required cases plus the regression
 check. No regressions surfaced in adjacent hover features during the

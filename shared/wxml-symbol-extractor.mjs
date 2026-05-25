@@ -299,8 +299,10 @@ export function collectFile(tree, inputAbs) {
         if (!dynamic) entry.name = raw;
         references.push(entry);
       }
-    } else if (node.type === "element") {
-      const tag = firstChildOfType(node, "start_tag") ?? firstChildOfType(node, "self_closing_tag");
+    } else if (node.type === "element" || node.type === "block_element") {
+      const tag = firstChildOfType(node, "start_tag")
+        ?? firstChildOfType(node, "self_closing_tag")
+        ?? firstChildOfType(node, "block_start_tag");
       if (tag) {
         const tagNameNode = firstChildOfType(tag, "tag_name");
         const name = tagNameNode?.text;

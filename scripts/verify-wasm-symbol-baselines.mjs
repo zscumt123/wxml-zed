@@ -57,6 +57,12 @@ const CASES = [
     baseline: "wx-for-unquoted-symbols-baseline.json",
     expectExit: 0,
   },
+  {
+    name: "wx-for-block.wxml (block_element wx:for variant)",
+    files: ["fixtures/wasm-spike/wx-for-block.wxml"],
+    baseline: "wx-for-block-symbols-baseline.json",
+    expectExit: 0,
+  },
 ];
 
 async function collectGlobFiles(dir) {
