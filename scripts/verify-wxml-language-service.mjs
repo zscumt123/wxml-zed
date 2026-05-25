@@ -714,6 +714,21 @@ function assertHoverInTemplateDefinitionReturnsNull(graph) {
   }
 }
 
+function assertHoverOnWxsExpressionRef(graph) {
+  // H-10: home.wxml line 19 (row 18): `    {{format.price(total)}}`
+  // 'format' starts at col 6; cursor mid-name at col 8.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 18, character: 8 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-10: expected Hover for {{format.x}}");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**format** — `wxs module`"), `H-10: bad title: ${value}`);
+  assert(value.includes("→ `utils/format.wxs`"), `H-10: bad source line: ${value}`);
+}
+
 function assertHoverOnMemberChainReturnsNull(graph) {
   // H-11: cursor on `name` in `{{user.name}}`. topLevelIdentifiers skips
   // identifiers preceded by ".", so no expressionRef is produced for `name`.
@@ -2412,6 +2427,7 @@ assertHoverSourceLabelsInjectorKind(graph);
 assertHoverOnMissingDataReturnsNull(graph);
 assertHoverOnMemberChainReturnsNull(graph);
 assertHoverInTemplateDefinitionReturnsNull(graph);
+assertHoverOnWxsExpressionRef(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);

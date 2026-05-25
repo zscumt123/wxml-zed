@@ -1073,7 +1073,42 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
       });
     }
 
-    // 2c. wxs symbol fallback — TODO Task 4.
+    // 2c. In-file wxs symbol names → kind label "wxs module"
+    const wxsSymbol = (fileModel.symbols ?? [])
+      .find((s) => s.kind === "wxs" && s.name === expressionRefMatch.name);
+    if (wxsSymbol) {
+      // External wxs has a matching dependency entry whose `normalized` is the file path.
+      const wxsDep = (fileModel.dependencies ?? [])
+        .find((d) => d.kind === "wxs" && d.module === expressionRefMatch.name && d.normalized);
+      if (wxsDep) {
+        const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
+        if (!rel) return null;
+        return {
+          contents: {
+            kind: "markdown",
+            value: formatHoverMarkdown({
+              name: expressionRefMatch.name,
+              kindLabel: HOVER_KIND_LABELS.wxsModule,
+              sourcePath: rel,
+              arrow: true,
+            }),
+          },
+          range: rangeFromSymbolRange(expressionRefMatch.range),
+        };
+      }
+      // Inline wxs (no dependency entry): no file path to point at.
+      return {
+        contents: {
+          kind: "markdown",
+          value: formatHoverMarkdown({
+            name: expressionRefMatch.name,
+            kindLabel: HOVER_KIND_LABELS.wxsModule,
+            inlineNote: "inline wxs module in this file",
+          }),
+        },
+        range: rangeFromSymbolRange(expressionRefMatch.range),
+      };
+    }
 
     return null;
   }
