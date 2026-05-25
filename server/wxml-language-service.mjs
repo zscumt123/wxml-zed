@@ -1159,7 +1159,40 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     };
   }
 
-  // 4. Wxs module declaration match — TODO Task 7.
+  // 4. Wxs module declaration match.
+  const wxsDeclMatch = (fileModel.symbols ?? [])
+    .find((s) => s.kind === "wxs" && s.nameRange && containsPosition(s.nameRange, position));
+  if (wxsDeclMatch) {
+    const wxsDep = (fileModel.dependencies ?? [])
+      .find((d) => d.kind === "wxs" && d.module === wxsDeclMatch.name && d.normalized);
+    if (wxsDep) {
+      const rel = relativeToGraphRoot(wxsDep.normalized, graph.root);
+      if (!rel) return null;
+      return {
+        contents: {
+          kind: "markdown",
+          value: formatHoverMarkdown({
+            name: wxsDeclMatch.name,
+            kindLabel: HOVER_KIND_LABELS.wxsModule,
+            sourcePath: rel,
+            arrow: true,
+          }),
+        },
+        range: rangeFromSymbolRange(wxsDeclMatch.nameRange),
+      };
+    }
+    return {
+      contents: {
+        kind: "markdown",
+        value: formatHoverMarkdown({
+          name: wxsDeclMatch.name,
+          kindLabel: HOVER_KIND_LABELS.wxsModule,
+          inlineNote: "inline wxs module in this file",
+        }),
+      },
+      range: rangeFromSymbolRange(wxsDeclMatch.nameRange),
+    };
+  }
 
   return null;
 }

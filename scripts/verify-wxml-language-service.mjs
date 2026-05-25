@@ -773,6 +773,74 @@ function assertHoverOnInlineWxsExpressionRef(graph) {
   }
 }
 
+function assertHoverOnExternalWxsDeclaration(graph) {
+  // H-8: home.wxml line 3 (row 2): `<wxs module="format" src="../../utils/format.wxs" />`
+  // 'format' starts at col 13. Cursor mid-name at col 15.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 2, character: 15 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "H-8: expected Hover for external <wxs module=\"format\">");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**format** — `wxs module`"), `H-8: bad title: ${value}`);
+  assert(value.includes("→ `utils/format.wxs`"), `H-8: bad source: ${value}`);
+}
+
+function assertHoverOnInlineWxsDeclaration(graph) {
+  // H-9: synthesize an inline wxs symbol (no matching dependency entry)
+  // on the home file model and verify the inline-arm hover form.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.symbols;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_inline_wxs__",
+    range: { start: { row: 300, column: 0 }, end: { row: 302, column: 6 } },
+    nameRange: { start: { row: 300, column: 13 }, end: { row: 300, column: 32 } },
+  };
+  homeFile.symbols = [...original, syntheticSymbol];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 300, character: 20 },
+      extensionRoot: ROOT,
+    });
+    assert(hover, "H-9: expected Hover for inline wxs");
+    const value = hoverContents(hover);
+    assert(value.startsWith("**__hover_inline_wxs__** — `wxs module`"), `H-9: bad title: ${value}`);
+    assert(value.includes("inline wxs module in this file"), `H-9: bad source: ${value}`);
+  } finally {
+    homeFile.symbols = original;
+  }
+}
+
+function assertHoverInsideWxsBodyReturnsNull(graph) {
+  // H-16: cursor inside <wxs>...</wxs> body, NOT in module value range.
+  // Synthesize a wide-range wxs symbol with narrow nameRange; cursor in the gap.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.symbols;
+  const syntheticSymbol = {
+    kind: "wxs",
+    name: "__hover_body_wxs__",
+    range: { start: { row: 310, column: 0 }, end: { row: 315, column: 6 } },
+    nameRange: { start: { row: 310, column: 13 }, end: { row: 310, column: 30 } },
+  };
+  homeFile.symbols = [...original, syntheticSymbol];
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 312, character: 4 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null, `H-16: expected null inside wxs body, got ${JSON.stringify(hover)}`);
+  } finally {
+    homeFile.symbols = original;
+  }
+}
+
 function assertHoverOnPageMethod(graph) {
   // home.wxml line 12 (row 11): `    bind:select="handleSelect"`
   // 'handleSelect' starts inside the quotes. Cursor mid-name at col 22.
@@ -1016,6 +1084,64 @@ function assertHoverSourceLabelsInjectorKind(graph) {
   } finally {
     homeConfig.script.dataKeys = originalKeys;
     homeFile.expressionRefs = originalRefs;
+  }
+}
+
+// H-13 (object-literal interpolation returns null) is intentionally NOT
+// asserted in this verifier. The mechanism is `topLevelIdentifiers()`
+// short-circuiting via `looksLikeObjectLiteralExpression()`, which is already
+// covered by:
+//   - scripts/verify-wxml-expression-helpers.mjs: "object literal shape"
+//     and the looksLikeObjectLiteralExpression direct assertions.
+// A hover-side test would either duplicate that coverage with a tautological
+// position assertion, or require a new WXML fixture containing `{{ {a: 1} }}`.
+// Hover's contract for "no expressionRef at position -> null" is covered by
+// H-14 (whitespace) and H-15 (inside <import>). Keeping H-13 here would risk
+// going green even if the helper regressed, so it is deliberately omitted.
+
+function assertHoverInWhitespaceReturnsNull(graph) {
+  // H-14: blank line 4 (row 3) in home.wxml.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 3, character: 0 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `H-14: expected null in whitespace, got ${JSON.stringify(hover)}`);
+}
+
+function assertHoverInsideImportReturnsNull(graph) {
+  // H-15: cursor inside <import src="..."> — dependency hover is out of scope.
+  const hover = getHover({
+    graph,
+    documentPath: HOME_WXML,
+    position: { line: 0, character: 10 },
+    extensionRoot: ROOT,
+  });
+  assert(hover === null, `H-15: expected null inside <import>, got ${JSON.stringify(hover)}`);
+}
+
+function assertHoverWxsLegacyGraphDegradesGracefully(graph) {
+  // S-W4: legacy graph without nameRange on wxs symbols — hover must return
+  // null instead of falling back to the wide element range.
+  const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
+  const original = homeFile.symbols;
+  homeFile.symbols = original.map((s) => {
+    if (s.kind !== "wxs") return s;
+    const { nameRange: _nr, ...rest } = s;
+    return rest;
+  });
+  try {
+    const hover = getHover({
+      graph,
+      documentPath: HOME_WXML,
+      position: { line: 2, character: 15 },
+      extensionRoot: ROOT,
+    });
+    assert(hover === null,
+      `S-W4: legacy graph (no wxs nameRange) must not trigger wxs hover; got ${JSON.stringify(hover)}`);
+  } finally {
+    homeFile.symbols = original;
   }
 }
 
@@ -2617,6 +2743,9 @@ assertHoverOnMemberChainReturnsNull(graph);
 assertHoverInTemplateDefinitionReturnsNull(graph);
 assertHoverOnWxsExpressionRef(graph);
 assertHoverOnInlineWxsExpressionRef(graph);
+assertHoverOnExternalWxsDeclaration(graph);
+assertHoverOnInlineWxsDeclaration(graph);
+assertHoverInsideWxsBodyReturnsNull(graph);
 assertHoverOnPageMethod(graph);
 assertHoverOnComponentMethod(graph);
 assertHoverOnDynamicHandlerReturnsNull(graph);
@@ -2624,6 +2753,9 @@ assertHoverOnCustomComponent(graph);
 assertHoverInsideComponentChildrenReturnsNull(graph);
 assertHoverOnClosingTagReturnsNull(graph);
 assertHoverComponentLegacyGraphDegradesGracefully(graph);
+assertHoverInWhitespaceReturnsNull(graph);
+assertHoverInsideImportReturnsNull(graph);
+assertHoverWxsLegacyGraphDegradesGracefully(graph);
 // Phase 3 Stage B — Data ref completion
 assertDataRefCompletionMatchesData(graph);
 assertDataRefCompletionMatchesProperty(graph);
