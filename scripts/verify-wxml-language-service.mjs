@@ -1560,6 +1560,52 @@ function assertHoverIterableExclusion(graph) {
     `W-9: expected data kind label (loops.js declares data.item); got ${value}`);
 }
 
+function assertHoverWxForShadowsData(graph) {
+  // W-8: loops.js has data.item. The fourth loop in loops.wxml is
+  // <view wx:for="{{item}}" wx:for-item="item">{{item.label}}</view>.
+  // Cursor on `item` inside {{item.label}} (loop body) MUST resolve to
+  // wx:for-item, NOT data.item.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("{{item.label}}"));
+  assert(lineIdx >= 0, "W-8 setup: line with {{item.label}} (collision-loop body)");
+  const charIdx = lines[lineIdx].indexOf("{{item.label}}") + 2;  // on `i` of item
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-8: expected Hover for item inside collision loop body");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**item** — `wx:for-item`"),
+    `W-8: loop body hover MUST be wx:for-item (shadows data.item); got ${value}`);
+}
+
+function assertHoverDataOutsideLoopBody(graph) {
+  // W-10: explicit positive arm — outside the collision loop body,
+  // {{item}} resolves to data.item. (Already covered by W-5; kept
+  // separately to lock the contract symmetrically with W-8.)
+  // Reuses W-5's outside-loop position; the assertion is identical.
+  const fileText = fs.readFileSync(LOOPS_WXML, "utf8");
+  const lines = fileText.split("\n");
+  const lineIdx = lines.findIndex((l) => l.includes("outside-loop") && l.includes("{{item}}"));
+  assert(lineIdx >= 0, "W-10 setup: line with outside-loop {{item}}");
+  const charIdx = lines[lineIdx].indexOf("{{item}}") + 2;
+
+  const hover = getHover({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character: charIdx + 1 },
+    extensionRoot: ROOT,
+  });
+  assert(hover, "W-10: expected Hover");
+  const value = hoverContents(hover);
+  assert(value.includes("`data`"),
+    `W-10: outside-loop hover MUST be data, not wx:for-item; got ${value}`);
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -3261,3 +3307,5 @@ assertHoverOnExplicitWxForItem(graph);
 assertHoverOnExplicitWxForIndex(graph);
 assertHoverNestedShadowing(graph);
 assertHoverIterableExclusion(graph);
+assertHoverWxForShadowsData(graph);
+assertHoverDataOutsideLoopBody(graph);
