@@ -108,10 +108,35 @@ for f in home-symbols-baseline miniprogram-symbols-baseline test-wxml-symbols-ba
 done
 ```
 
-- [ ] **Step 6: Verify the baseline diff is ADDITIVE only**
+- [ ] **Step 6: Verify the baseline change is ADDITIVE only (structured)**
 
-Run: `git diff fixtures/wasm-spike/ | grep -E '^[+-]' | grep -v wxForKeywordRange | grep -vE '^(\+\+\+|---)'`
-Expected: **no output** (every changed line is a `wxForKeywordRange` addition). If anything else changed, stop — the extractor edit had an unintended side effect.
+A line-grep is unreliable here — the new `wxForKeywordRange` object adds nested
+`start`/`end`/`row`/`column` lines that don't contain the word
+`wxForKeywordRange`. Instead, structurally compare the committed baselines
+(`git show HEAD:<f>`, still pre-change at this point) against the working-tree
+versions: strip every `wxForKeywordRange` key from the new JSON and assert deep
+equality with the old. Equality proves the ONLY change was adding that field.
+
+```bash
+node -e '
+const fs = require("fs"), cp = require("child_process");
+const strip = (o) => Array.isArray(o) ? o.map(strip)
+  : (o && typeof o === "object")
+    ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== "wxForKeywordRange").map(([k, v]) => [k, strip(v)]))
+    : o;
+const files = cp.execSync("git diff --name-only -- fixtures/wasm-spike/", { encoding: "utf8" }).split("\n").filter(Boolean);
+let bad = 0;
+for (const f of files) {
+  const oldJson = JSON.stringify(strip(JSON.parse(cp.execSync("git show HEAD:" + f, { encoding: "utf8" }))));
+  const newJson = JSON.stringify(strip(JSON.parse(fs.readFileSync(f, "utf8"))));
+  if (oldJson !== newJson) { console.error("NON-ADDITIVE change in " + f); bad++; }
+  else { console.log("additive-only OK: " + f); }
+}
+process.exit(bad ? 1 : 0);
+'
+```
+Expected: `additive-only OK:` for all 8 changed baselines, exit 0. If any file
+reports NON-ADDITIVE, stop — the extractor edit had an unintended side effect.
 
 Then confirm the verifier is green:
 Run: `node scripts/verify-wasm-symbol-baselines.mjs`
@@ -302,7 +327,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests (D-1..D-9)**
 
-In `scripts/verify-wxml-language-service.mjs`, add a small local helper and the nine assert functions just before the runner block (the area where `assertHoverOnBlockWxForItem` is defined). Note: `getDefinition` returns ranges in LSP form (`{ start: { line, character } }`).
+In `scripts/verify-wxml-language-service.mjs`, add a small local helper and the ten assert functions (D-1..D-10) just before the runner block (the area where `assertHoverOnBlockWxForItem` is defined). Note: `getDefinition` returns ranges in LSP form (`{ start: { line, character } }`).
 
 ```js
 // Returns the single-line text covered by an LSP range, for asserting a
@@ -436,9 +461,37 @@ function assertDefinitionWxForLegacyGraphDegrades(graph) {
   }
   assert(loc === null, `D-9: degraded implicit-index definition must be null; got ${JSON.stringify(loc)}`);
 }
+
+function assertDefinitionWxForExplicitLegacyDegrades(graph) {
+  // Source-based selection guard: an EXPLICIT binding whose nameRange is missing
+  // on a legacy graph must NOT fall back to wxForKeywordRange (would jump to the
+  // wx:for token, wrong per spec). It must degrade — here `prod` has no data
+  // fallback, so the result is a clean null without throwing.
+  const cloned = JSON.parse(JSON.stringify(graph));
+  const loopsFile = cloned.wxml.find((f) => f.path === LOOPS_WXML_GRAPH_PATH);
+  assert(loopsFile, "D-10 setup: loops file in cloned graph");
+  const prodScope = (loopsFile.wxForScopes ?? []).find((s) => s.itemName === "prod");
+  assert(prodScope && prodScope.itemSource === "explicit", "D-10 setup: expected explicit prod scope");
+  delete prodScope.itemNameRange; // simulate pre-field legacy graph
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{prod.title}}"));
+  const ch = lines[i].indexOf("{{prod.title}}") + 2;
+  let loc;
+  try {
+    loc = getDefinition({
+      graph: cloned,
+      documentPath: LOOPS_WXML,
+      position: { line: i, character: ch + 1 },
+      extensionRoot: ROOT,
+    });
+  } catch (err) {
+    throw new Error(`D-10: getDefinition threw on explicit scope missing itemNameRange: ${err.message}`);
+  }
+  assert(loc === null, `D-10: explicit binding missing nameRange must degrade to null (not jump to wx:for); got ${JSON.stringify(loc)}`);
+}
 ```
 
-Register all nine in the runner block (append after the `assertHoverOnBlockWxForItem(graph);` line):
+Register all ten in the runner block (append after the `assertHoverOnBlockWxForItem(graph);` line):
 
 ```js
 assertDefinitionExplicitWxForItem(graph);
@@ -450,6 +503,7 @@ assertDefinitionWxForShadowsData(graph);
 assertDefinitionOutsideLoopFallsThroughToData(graph);
 assertDefinitionBlockWxForItem(graph);
 assertDefinitionWxForLegacyGraphDegrades(graph);
+assertDefinitionWxForExplicitLegacyDegrades(graph);
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -480,16 +534,20 @@ Then, inside `getDefinition`, in the `if (expressionRefMatch) {` block, immediat
     );
     if (wxForBinding) {
       const { scope, kind } = wxForBinding;
-      const explicitRange = kind === "item" ? scope.itemNameRange : scope.indexNameRange;
-      // explicit → nameRange; implicit → wxForKeywordRange. Legacy-graph degrade:
-      // a graph built before wxForKeywordRange existed (no version bump) lacks it
-      // for implicit bindings; when the target range is absent, fall through to
-      // the data/property/wxs lookup below rather than crashing in
-      // rangeFromSymbolRange. (For explicit bindings the nameRange is present.)
-      const targetRange = explicitRange ?? scope.wxForKeywordRange;
+      // Select the target range by SOURCE, not by presence (matches the spec
+      // table): explicit → its name range; implicit → the wx:for token. Keying
+      // on source means an explicit binding whose nameRange is missing on a
+      // legacy graph does NOT wrongly fall back to wxForKeywordRange — it yields
+      // undefined and degrades to fall-through, exactly like a missing implicit
+      // wxForKeywordRange. Both degrade paths avoid passing undefined into
+      // rangeFromSymbolRange (which dereferences range.start.row and would throw).
+      const targetRange = kind === "item"
+        ? (scope.itemSource === "explicit" ? scope.itemNameRange : scope.wxForKeywordRange)
+        : (scope.indexSource === "explicit" ? scope.indexNameRange : scope.wxForKeywordRange);
       if (targetRange) {
         return locationForGraphPathWithRange(documentGraphPath, targetRange, extensionRoot);
       }
+      // targetRange absent (legacy graph) → fall through to data/property/wxs.
     }
 ```
 
@@ -509,8 +567,9 @@ git commit -m "feat(definition): wx:for binding parity (getDefinition step 2a)
 cmd-click on {{item}} / {{foo}} now returns a same-file Location: explicit
 names jump to their wx:for-item/index value, default item/index jump to the
 wx:for attribute-name token. Shadowing/nesting/iterable-exclusion inherited
-from the shared resolver. Legacy graphs lacking wxForKeywordRange degrade by
-falling through (no crash). Cases D-1..D-9.
+from the shared resolver. Target range selected by source (explicit -> name
+range, implicit -> wx:for token); legacy graphs missing either range degrade by
+falling through (no crash, no wrong jump). Cases D-1..D-10.
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ```
@@ -640,6 +699,14 @@ async function testDefinitionWxForBinding() {
       loc && typeof loc.uri === "string" && loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"),
       `L-W2: expected same-file loops.wxml Location; got ${JSON.stringify(result)}`,
     );
+    // Also assert the wire-level range points at the `wx:for` token (default
+    // item → wxForKeywordRange), so the integration path can't pass with a
+    // same-file-but-wrong range.
+    const r = loc.range;
+    assert(r && r.start.line === r.end.line, `L-W2: expected single-line range; got ${JSON.stringify(r)}`);
+    const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+    const slice = lines[r.start.line].slice(r.start.character, r.end.character);
+    assert(slice === "wx:for", `L-W2: wire range must cover the wx:for token; got '${slice}'`);
   });
 }
 ```
