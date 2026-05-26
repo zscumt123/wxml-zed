@@ -100,21 +100,29 @@ This is the position→active-bindings primitive v2-C will reuse for diagnostics
 - Add a `position` parameter (last); thread it from the `getCompletions` call site
   (`:739`) — `dataRefCompletionItems(graph, documentGraphPath, fileModel,
   interpolationContext.range, position)`.
-- Replace the flat `wxForBindings` block above with:
+- **Move** the wx:for block to the **top** of the function — pushed **before**
+  data/property and before wxs — and replace the flat `wxForBindings` block with:
 
 ```js
+// Active wx:for bindings FIRST so an in-scope loop variable shadows a
+// same-named data/property/wxs symbol, matching hover/definition (wx:for is
+// step 2a, ahead of 2b/2c/2d — server/wxml-language-service.mjs:987). seen
+// first-wins then gives the loop binding the candidate.
 for (const { name, kind } of activeWxForBindingsAt(fileModel.wxForScopes, position)) {
   pushName(name, kind === "item" ? "wx:for item" : "wx:for index");
 }
+// ...then the existing data/property push, then the wxs push (unchanged).
 ```
 
 `hasAnyWxFor`-driven `item`/`index` injection is gone: a default loop's
 `itemName`/`indexName` literally **are** `"item"`/`"index"`, so they're offered
-exactly (and only) inside a default loop's active scope. `pushName`'s existing
-`seen` dedup + the existing label sort are unchanged. Because data/property keys
-are pushed **before** the loop block (unchanged order), a name that is both a data
-key and an in-scope loop binding (e.g. `data.item` plus a default loop) keeps the
-`data` detail — a pre-existing, acceptable labelling quirk, not changed here.
+exactly (and only) inside a default loop's active scope. `pushName`'s `seen` dedup
++ the final label sort are unchanged; only the **push order** moves so that
+shadowing is consistent with hover/definition. Concretely: with `data.item`
+present plus a default loop, the cursor inside that loop offers `item` as
+**`wx:for item`** (loop pushed first → wins dedup); the cursor outside any loop
+offers `item` as `data` (the loop block pushes nothing there). This removes the
+prior completion-vs-hover/definition labelling mismatch rather than preserving it.
 
 ### Template body, object-literal, etc. — unchanged
 
@@ -159,13 +167,16 @@ i.label)` and, where detail matters, the matching item's `detail`.
 
 Cases on `fixtures/miniprogram/pages/loops/loops.wxml`:
 - **B-1 outside loop:** cursor at root of `{{item}}` on the `outside-loop` line →
-  NO item labelled `wx:for item` and NO `wx:for index` candidate; explicit loop
-  names (`prod`, `idx`, `outer`, `inner`, `grp`) absent. (`item` may still appear
-  as a `data` candidate — assert on the absence of `wx:for`-detailed bindings and
-  of explicit names, not on `item` itself.)
-- **B-2 default loop body:** cursor at root of `{{item.name}}` (inside
-  `wx:for="{{users}}"`) → an `index` candidate with detail `wx:for index` is
-  present; explicit names (`prod`/`idx`/`outer`/`inner`/`grp`) absent.
+  the `item` candidate's detail is **`data`** (not `wx:for item`) — the complement
+  of B-2, proving the loop block contributes nothing outside a loop. No `wx:for
+  index` candidate; explicit loop names (`prod`, `idx`, `outer`, `inner`, `grp`)
+  absent.
+- **B-2 default loop body (shadows data):** cursor at root of `{{item.name}}`
+  (inside `wx:for="{{users}}"`) → the `item` candidate's detail is **`wx:for
+  item`**, NOT `data` — even though `loops.js` declares `data: { item: {...} }`.
+  This is the load-bearing shadowing lock (loop pushed before data → wins dedup,
+  matching hover/definition). Also: an `index` candidate with detail `wx:for
+  index` is present; explicit names (`prod`/`idx`/`outer`/`inner`/`grp`) absent.
 - **B-3 explicit loop body:** cursor at root of `{{prod.title}}` (inside
   `wx:for-item="prod" wx:for-index="idx"`) → `prod` and `idx` present; `index`
   absent (not in scope, not a data key); other loops' names (`outer`/`inner`/
@@ -196,9 +207,11 @@ Template-body suppression lock on `fixtures/miniprogram/pages/tpl-loops/tpl-loop
 ## Acceptance Criteria
 
 1. Inside a loop body, the loop's `item`/`index` (or explicit names) are offered
-   as `wx:for` completion candidates. (B-2, B-3, B-6)
+   as `wx:for` completion candidates, and an in-scope loop binding **shadows** a
+   same-named data/property/wxs symbol (detail `wx:for item`/`wx:for index`, not
+   `data`) — consistent with hover/definition. (B-2, B-3, B-6)
 2. Outside any loop, no default `item`/`index` and no explicit loop name is
-   offered as a `wx:for` binding. (B-1)
+   offered as a `wx:for` binding; a same-named data field is offered as `data`. (B-1)
 3. Nested loops offer the union of all enclosing loops' bindings; an explicit
    name from a sibling/unrelated loop is not offered. (B-3, B-4)
 4. A same-name binding shadowed across nesting appears once, with the innermost
