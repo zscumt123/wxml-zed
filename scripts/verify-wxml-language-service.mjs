@@ -1629,6 +1629,179 @@ function assertHoverOnBlockWxForItem(graph) {
     `W-11: expected source line to mention <block> as ownerTag; got ${value}`);
 }
 
+// Phase 3 Stage E — wx:for binding definition (D-1..D-10) ----------------
+
+// Returns the single-line text covered by an LSP range, for asserting a
+// definition Location points at the expected declaration token.
+// Returns null for cross-line ranges; callers assert string equality, so null safely fails the assertion.
+function lspRangeText(lines, range) {
+  if (range.start.line !== range.end.line) return null;
+  return lines[range.start.line].slice(range.start.character, range.end.character);
+}
+
+function loopsLines() {
+  return fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+}
+
+function defAt(graph, lineIdx, character) {
+  return getDefinition({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character },
+    extensionRoot: ROOT,
+  });
+}
+
+function assertDefinitionExplicitWxForItem(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{prod.title}}"));
+  assert(i >= 0, "D-1 setup: line with {{prod.title}}");
+  const ch = lines[i].indexOf("{{prod.title}}") + 2; // on `p` of prod
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-1: expected Location for explicit wx:for-item `prod`");
+  assert(loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"), `D-1: same-file uri; got ${loc.uri}`);
+  assert(lspRangeText(lines, loc.range) === "prod", `D-1: range must cover 'prod'; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionExplicitWxForIndex(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("#{{idx}}"));
+  assert(i >= 0, "D-2 setup: line with #{{idx}}");
+  const ch = lines[i].indexOf("#{{idx}}") + 3; // on `i` of idx (skip `#{{`)
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-2: expected Location for explicit wx:for-index `idx`");
+  assert(lspRangeText(lines, loc.range) === "idx", `D-2: range must cover 'idx'; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionDefaultWxForItem(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{item.name}}"));
+  assert(i >= 0, "D-3 setup: line with {{item.name}}");
+  const ch = lines[i].indexOf("{{item.name}}") + 2; // on `i` of item
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-3: expected Location for default item");
+  assert(loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"), `D-3: same-file uri; got ${loc.uri}`);
+  assert(lspRangeText(lines, loc.range) === "wx:for", `D-3: default item must jump to the wx:for token; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionDefaultWxForIndex(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("({{index}})"));
+  assert(i >= 0, "D-4 setup: line with ({{index}})");
+  const ch = lines[i].indexOf("({{index}})") + 3; // on `i` of index (skip `({{`)
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-4: expected Location for default index");
+  assert(lspRangeText(lines, loc.range) === "wx:for", `D-4: default index must jump to the wx:for token; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionNestedShadowing(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{outer.label}} :: {{inner.value}}"));
+  assert(i >= 0, "D-5 setup: line with {{outer.label}} :: {{inner.value}}");
+  const innerCh = lines[i].indexOf("{{inner.value}}") + 2;
+  const innerLoc = defAt(graph, i, innerCh + 1);
+  assert(innerLoc, "D-5: expected Location for inner ref");
+  assert(lspRangeText(lines, innerLoc.range) === "inner", `D-5: inner ref must jump to wx:for-item="inner"; got '${lspRangeText(lines, innerLoc.range)}'`);
+  const outerCh = lines[i].indexOf("{{outer.label}}") + 2;
+  const outerLoc = defAt(graph, i, outerCh + 1);
+  assert(outerLoc, "D-5: expected Location for outer ref");
+  assert(lspRangeText(lines, outerLoc.range) === "outer", `D-5: outer ref must jump to wx:for-item="outer"; got '${lspRangeText(lines, outerLoc.range)}'`);
+}
+
+function assertDefinitionWxForShadowsData(graph) {
+  // Collision loop body: {{item.label}} resolves to wx:for-item="item" (in-file),
+  // NOT data.item in loops.js.
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{item.label}}"));
+  assert(i >= 0, "D-6 setup: line with {{item.label}}");
+  const ch = lines[i].indexOf("{{item.label}}") + 2;
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-6: expected Location for shadowing item");
+  assert(loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"), `D-6: wx:for must win over data (stay in-file); got ${loc.uri}`);
+  assert(lspRangeText(lines, loc.range) === "item", `D-6: must jump to wx:for-item="item"; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionOutsideLoopFallsThroughToData(graph) {
+  // Outside any loop, {{item}} is NOT a binding; the wx:for branch finds no
+  // scope and control falls through to the data lookup → loops.js.
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("outside-loop") && l.includes("{{item}}"));
+  assert(i >= 0, "D-7 setup: line with outside-loop marker and {{item}}");
+  const ch = lines[i].indexOf("{{item}}") + 2;
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-7: expected fall-through Location to data.item");
+  assert(loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.js"), `D-7: outside loop must fall through to data (loops.js); got ${loc.uri}`);
+}
+
+function assertDefinitionBlockWxForItem(graph) {
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{grp.label}}"));
+  assert(i >= 0, "D-8 setup: line with {{grp.label}}");
+  const ch = lines[i].indexOf("{{grp.label}}") + 2;
+  const loc = defAt(graph, i, ch + 1);
+  assert(loc, "D-8: expected Location for <block wx:for> item `grp`");
+  assert(loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"), `D-8: same-file uri; got ${loc.uri}`);
+  assert(lspRangeText(lines, loc.range) === "grp", `D-8: must jump to wx:for-item="grp"; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertDefinitionWxForLegacyGraphDegrades(graph) {
+  // Simulate a graph built before wxForKeywordRange existed (no version bump):
+  // strip the field, then request definition on the default index, which has no
+  // data fallback. The wx:for branch must degrade to a clean null WITHOUT
+  // throwing in rangeFromSymbolRange.
+  const cloned = JSON.parse(JSON.stringify(graph));
+  const loopsFile = cloned.wxml.find((f) => f.path === LOOPS_WXML_GRAPH_PATH);
+  assert(loopsFile, "D-9 setup: loops file in cloned graph");
+  let stripped = 0;
+  for (const s of loopsFile.wxForScopes ?? []) {
+    if ("wxForKeywordRange" in s) { delete s.wxForKeywordRange; stripped += 1; }
+  }
+  assert(stripped > 0, "D-9 setup: expected at least one wxForKeywordRange to strip");
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("({{index}})"));
+  const ch = lines[i].indexOf("({{index}})") + 3;
+  let loc;
+  try {
+    loc = getDefinition({
+      graph: cloned,
+      documentPath: LOOPS_WXML,
+      position: { line: i, character: ch + 1 },
+      extensionRoot: ROOT,
+    });
+  } catch (err) {
+    throw new Error(`D-9: getDefinition threw on a graph missing wxForKeywordRange: ${err.message}`);
+  }
+  assert(loc === null, `D-9: degraded implicit-index definition must be null; got ${JSON.stringify(loc)}`);
+}
+
+function assertDefinitionWxForExplicitLegacyDegrades(graph) {
+  // Source-based selection guard: an EXPLICIT binding whose nameRange is missing
+  // on a legacy graph must NOT fall back to wxForKeywordRange (would jump to the
+  // wx:for token, wrong per spec). It must degrade — here `prod` has no data
+  // fallback, so the result is a clean null without throwing.
+  const cloned = JSON.parse(JSON.stringify(graph));
+  const loopsFile = cloned.wxml.find((f) => f.path === LOOPS_WXML_GRAPH_PATH);
+  assert(loopsFile, "D-10 setup: loops file in cloned graph");
+  const prodScope = (loopsFile.wxForScopes ?? []).find((s) => s.itemName === "prod");
+  assert(prodScope && prodScope.itemSource === "explicit", "D-10 setup: expected explicit prod scope");
+  delete prodScope.itemNameRange; // simulate pre-field legacy graph
+  const lines = loopsLines();
+  const i = lines.findIndex((l) => l.includes("{{prod.title}}"));
+  const ch = lines[i].indexOf("{{prod.title}}") + 2;
+  let loc;
+  try {
+    loc = getDefinition({
+      graph: cloned,
+      documentPath: LOOPS_WXML,
+      position: { line: i, character: ch + 1 },
+      extensionRoot: ROOT,
+    });
+  } catch (err) {
+    throw new Error(`D-10: getDefinition threw on explicit scope missing itemNameRange: ${err.message}`);
+  }
+  assert(loc === null, `D-10: explicit binding missing nameRange must degrade to null (not jump to wx:for); got ${JSON.stringify(loc)}`);
+}
+
 function assertExpressionRefDiagnosticClean(graph) {
   const diagnostics = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT });
   const exprDiags = diagnostics.filter((d) => d.code === "missing-expression-ref");
@@ -3333,3 +3506,15 @@ assertHoverIterableExclusion(graph);
 assertHoverWxForShadowsData(graph);
 assertHoverDataOutsideLoopBody(graph);
 assertHoverOnBlockWxForItem(graph);
+
+// Phase 3 Stage E — wx:for binding definition
+assertDefinitionExplicitWxForItem(graph);
+assertDefinitionExplicitWxForIndex(graph);
+assertDefinitionDefaultWxForItem(graph);
+assertDefinitionDefaultWxForIndex(graph);
+assertDefinitionNestedShadowing(graph);
+assertDefinitionWxForShadowsData(graph);
+assertDefinitionOutsideLoopFallsThroughToData(graph);
+assertDefinitionBlockWxForItem(graph);
+assertDefinitionWxForLegacyGraphDegrades(graph);
+assertDefinitionWxForExplicitLegacyDegrades(graph);

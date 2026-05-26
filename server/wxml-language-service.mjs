@@ -13,7 +13,7 @@ import {
 // containsPosition moved to the pure leaf module. Import for local use (5 call
 // sites here) AND re-export to preserve the @internal surface this module
 // previously provided to siblings.
-import { containsPosition } from "./wxml-for-scope.mjs";
+import { containsPosition, findMatchingWxForBinding } from "./wxml-for-scope.mjs";
 export { containsPosition };
 
 const WARNING = 2;
@@ -973,16 +973,45 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
   // Expression reference: cursor inside a `{{theme}}` interpolation ref name.
   // AUTHORITATIVE — narrow nameRange dominates the broader component-element
   // range that follows. Resolution chain (parallel to getHover step 2):
-  //   2a. dataKeys (requires ownerConfig)
-  //   2b. propertyKeys (requires ownerConfig)
-  //   2c. in-file wxs symbol (works without ownerConfig — template-only files)
+  //   2a. wx:for binding (uses fileModel.wxForScopes; shadows data/property)
+  //   2b. dataKeys (requires ownerConfig)
+  //   2c. propertyKeys (requires ownerConfig)
+  //   2d. in-file wxs symbol (works without ownerConfig — template-only files)
   // None of these matches → return null (missing-expression-ref diagnostic
   // will warn separately).
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
     if (expressionRefMatch.inTemplateDefinition) return null;
-    // ownerConfig is needed by 2a/2b only — 2c reads from fileModel and works
+
+    // 2a. wx:for binding — mirrors getHover step 2a. A loop binding shadows
+    // data/property/wxs of the same name inside the loop body (parity with W-8).
+    // Resolves to a same-file Location: explicit name → its narrow nameRange;
+    // implicit default item/index → the `wx:for` attribute-name token.
+    const wxForBinding = findMatchingWxForBinding(
+      fileModel.wxForScopes,
+      position,
+      expressionRefMatch.name,
+    );
+    if (wxForBinding) {
+      const { scope, kind } = wxForBinding;
+      // Select the target range by SOURCE, not by presence (matches the spec
+      // table): explicit → its name range; implicit → the wx:for token. Keying
+      // on source means an explicit binding whose nameRange is missing on a
+      // legacy graph does NOT wrongly fall back to wxForKeywordRange — it yields
+      // undefined and degrades to fall-through, exactly like a missing implicit
+      // wxForKeywordRange. Both degrade paths avoid passing undefined into
+      // rangeFromSymbolRange (which dereferences range.start.row and would throw).
+      const targetRange = kind === "item"
+        ? (scope.itemSource === "explicit" ? scope.itemNameRange : scope.wxForKeywordRange)
+        : (scope.indexSource === "explicit" ? scope.indexNameRange : scope.wxForKeywordRange);
+      if (targetRange) {
+        return locationForGraphPathWithRange(documentGraphPath, targetRange, extensionRoot);
+      }
+      // targetRange absent (legacy graph) → fall through to data/property/wxs.
+    }
+
+    // ownerConfig is needed by 2b/2c only — 2c reads from fileModel and works
     // even for template-only WXML files (no JS sibling).
     const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
     if (ownerConfig) {
