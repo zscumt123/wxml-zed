@@ -258,9 +258,11 @@ Suppression / no-leak controls:
   `item`; this is the boundary discriminator — same `item` name resolves in
   `tpl-implicit` (T-5) but not in `tpl-inner`).
 - **T-12 (Case 2 no-leak, hover):** hover on `{{item}}` inside `tpl-inner` → `null`.
-- **T-13 (declaration-side unaffected):** hover on the `wx:for-item="row"` value
-  inside `tpl-row` → title `**row** — \`wx:for-item\`` (confirms D still works
-  inside templates; guards against accidentally gating it).
+- **T-13 (declaration-side item unaffected):** hover on the `wx:for-item="row"`
+  value inside `tpl-row` → title `**row** — \`wx:for-item\`` (confirms D still
+  works inside templates; guards against accidentally gating it).
+- **T-14 (declaration-side index unaffected):** hover on the `wx:for-index="idx"`
+  value inside `tpl-row` → title `**idx** — \`wx:for-index\``.
 
 ### Regression / invariant guards
 
@@ -268,7 +270,8 @@ Suppression / no-leak controls:
   D-1..D-10, HD-1..HD-3) must stay green — the change only alters the
   `inTemplateDefinition === true` branch.
 - **Pure-helper unit coverage** in `scripts/verify-wxml-narrow-ranges.mjs` is
-  optional; the behavior is fully exercised by T-1..T-7. (If added, assert
+  optional; the behavior is fully exercised by the language-service T-series
+  cases (T-1..T-14). (If added, assert
   `scopesDeclaredWithin` excludes an outer-declared scope and
   `findEnclosingTemplateRange` returns the innermost range.)
 - **Baselines:** the new fixture appears in the miniprogram glob, so
@@ -301,8 +304,8 @@ Suppression / no-leak controls:
 4. A reference inside a template body whose name matches an **outer** loop that
    merely encloses the template definition returns null — no scope leak — even
    though the same name resolves inside a template that declares it. (T-11, T-12)
-5. Declaration-side hover on a `wx:for-item`/`-index` value inside a template
-   still works. (T-13)
+5. Declaration-side hover on a `wx:for-item` **and** `wx:for-index` value inside
+   a template still works. (T-13, T-14)
 6. All non-template wx:for definition/hover behavior is unchanged (W-1..W-11,
    D-1..D-10, HD-1..HD-3 green).
 7. Completion and diagnostics behavior unchanged; `graph.version` unchanged; all
