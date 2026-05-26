@@ -1040,6 +1040,51 @@ hover v1 dogfood: one-shot driver, fixtures-based regression net
 
 ---
 
+### Follow-up: v1 real-Zed-UI dogfood (2026-05-26)
+
+The two prior dogfood rounds (hover v1, wx:for scope graph) were both
+**programmatic** — a `withClient` LSP-client driver issuing
+`textDocument/*` requests directly, bypassing the Zed extension host.
+They proved the protocol-layer logic, but never exercised the host
+path: extension install, server spawn, language registration. This
+round closed that gap with a manual dogfood inside the real Zed UI.
+
+Setup: opened `/Users/zs/Desktop/study/wxml-zed` in Zed, cleared
+Restricted Mode (so the LSP could start), ran `zed: reload
+extensions`. The Zed log showed `wxml-lsp.mjs` starting normally with
+no wxml-lsp-related error.
+
+Per-feature outcomes (all PASS):
+
+| Feature | Action | Observed |
+| ------- | ------ | -------- |
+| language detection | open `pages/loops/loops.wxml` | bottom-right shows WXML, highlighting correct |
+| wx:for-item hover | hover `{{item.name}}` | `item — wx:for-item`, `Declared on <view> at line 3` |
+| `<block wx:for>` hover | hover `{{grp.label}}` in the block | `grp — wx:for-item`, `Declared on <block> at line 32` |
+| diagnostics | open `pages/home/home.wxml` | 1 warning (the fixture's missing-card) |
+| go to definition | `editor: go to definition` on `<user-card>` | jumps to `components/user-card/user-card.wxml` |
+| completion | trigger in `bind:select="handleSelect"` | `handleSelect method` candidate appears |
+| live diagnostics | edit handler to `handleXSelect` | warning count 1→2, status bar `Event handler "handleXSelect" is not defined...`; undo restores |
+
+The `<block wx:for>` hover is the most load-bearing case: it confirms
+the `ebd5ffa` block_element regression fix works through the real host
+path, not just at the extractor unit level. The live-diagnostics edit
+confirms the `didChange` → overlay refresh chain (the fix that
+un-froze save-frozen diagnostics, recorded above) holds under real
+keystroke editing.
+
+Working tree was clean (`git status --short --branch`) before and
+after — a read-only dogfood, no fixture or source mutation. This is
+the first UI-level validation; the offline verifier suite plus the two
+programmatic dogfoods remain the canonical automated guard.
+
+Outcome: **v1 complete.** Core features usable in real Zed, no
+blockers. v2 backlog (getDefinition step 2a parity, completion /
+diagnostics cursor-scope tightening, declaration-side hover) deferred
+pending real-usage feedback.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
