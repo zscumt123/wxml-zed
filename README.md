@@ -58,12 +58,14 @@ the highlight, outline, text object, injection, and bracket queries, checks the
 focused WXS, tag-editing, and real-world compatibility fixtures, and asserts
 baseline snippet keys plus the pre-LSP dependency, symbol, and project graph
 models. It also verifies the pure WXML language-service mapping layer, runs the
-automated WASM symbol baseline verifier (6 fixture cases covering legacy-
-equivalent, parse-error recovery, and UTF-16 column semantics), and starts
-the prototype WXML language server over stdio with the smoke protocol suite.
-That smoke suite verifies watcher registration and unsupported-request behavior
-without running cold graph scenarios. Use `graph-smoke` when you explicitly want
-a narrow graph-backed LSP sanity check.
+automated WASM symbol baseline verifier (8 fixture cases covering legacy-
+equivalent output, parse-error recovery, UTF-16 column semantics, and `wx:for`
+scope extraction including unquoted attribute values and `<block wx:for>`), and
+starts the prototype WXML language server over stdio with the `graph-smoke`
+protocol suite. That suite exercises graph-backed diagnostics, definition,
+hover, completion, and unsaved-buffer overlay scenarios end-to-end over stdio.
+Use `--suite smoke` for the lighter watcher-registration and
+unsupported-request checks that skip cold graph scenarios.
 
 For targeted or exhaustive LSP protocol checks:
 
@@ -76,8 +78,10 @@ node scripts/verify-lsp-diagnostics.mjs --suite graph-smoke completion
 ```
 
 The no-argument LSP harness still runs the full suite for backward
-compatibility. `graph-smoke` covers one graph-backed component definition flow
-and one graph-backed completion flow, but can still take minutes when local
+compatibility. `graph-smoke` covers a broad set of graph-backed flows —
+diagnostics (including the real-time overlay and dead-component-binding cases),
+go-to-definition for components and `wx:for` bindings, hover, and event-handler
+and data-reference completion — but can still take minutes when local
 Tree-sitter extraction is slow. The full suite covers diagnostics,
 go-to-definition for resolved local components, WXML import/include
 dependencies, external WXS dependencies, static template definitions, flat
@@ -283,7 +287,7 @@ clean-room equivalents.
 - `server/wxml-lsp.mjs`: prototype stdio language server.
 - `server/wxml-language-service.mjs`: pure graph-to-LSP feature mapping for the Node LSP prototype.
 - `scripts/verify-wxml-language-service.mjs`: direct verification for the WXML language-service boundary.
-- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, document symbols, completion, and named fast/smoke/graph-smoke/full suites.
+- `scripts/verify-lsp-diagnostics.mjs`: protocol-level LSP harness for diagnostics, definition, hover, document symbols, completion, and named fast/smoke/graph-smoke/full suites.
 - `scripts/verify-tree-sitter.sh`: local verification wrapper.
 - `docs/`: baseline design, plan, and local loading notes.
 
