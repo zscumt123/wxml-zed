@@ -19,7 +19,7 @@
 - **Modify** `server/wxml-hover.mjs` — import resolvers from the leaf module; drop the local `findMatchingWxForBinding`; add the declaration-side hover branch (Tasks 2, 4).
 - **Modify** `server/wxml-language-service.mjs` — import `containsPosition` from the leaf module (drop the local defs); add the `getDefinition` wx:for branch (Tasks 2, 3).
 - **Modify** `scripts/verify-wxml-narrow-ranges.mjs` — S-F9 (`wxForKeywordRange` narrow) (Task 1).
-- **Modify** `scripts/verify-wxml-language-service.mjs` — definition cases D-1..D-9, declaration-hover cases HD-1..HD-3 (Tasks 3, 4).
+- **Modify** `scripts/verify-wxml-language-service.mjs` — definition cases D-1..D-10, declaration-hover cases HD-1..HD-3 (Tasks 3, 4).
 - **Modify** `scripts/verify-lsp-diagnostics.mjs` — host-wire definition test L-W2 + scenario registration (Task 5).
 - **Regenerate** `fixtures/wasm-spike/*-symbols-baseline.json` (8 files) — additive `wxForKeywordRange` (Task 1).
 
@@ -323,9 +323,9 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `server/wxml-language-service.mjs` (`getDefinition`, expression-ref block)
-- Test: `scripts/verify-wxml-language-service.mjs` (D-1..D-9)
+- Test: `scripts/verify-wxml-language-service.mjs` (D-1..D-10)
 
-- [ ] **Step 1: Write the failing tests (D-1..D-9)**
+- [ ] **Step 1: Write the failing tests (D-1..D-10)**
 
 In `scripts/verify-wxml-language-service.mjs`, add a small local helper and the ten assert functions (D-1..D-10) just before the runner block (the area where `assertHoverOnBlockWxForItem` is defined). Note: `getDefinition` returns ranges in LSP form (`{ start: { line, character } }`).
 
@@ -556,7 +556,7 @@ Note the control flow: when `wxForBinding` matches and `targetRange` is present,
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `node scripts/verify-wxml-language-service.mjs`
-Expected: all assertions pass, including D-1..D-9. Process exits 0.
+Expected: all assertions pass, including D-1..D-10. Process exits 0.
 
 - [ ] **Step 5: Commit**
 
@@ -620,7 +620,7 @@ function assertHoverOnIterableValueResolvesData(graph) {
 }
 ```
 
-Register in the runner block (after the D-1..D-9 lines):
+Register in the runner block (after the D-1..D-10 lines):
 
 ```js
 assertHoverOnWxForItemDeclaration(graph);
