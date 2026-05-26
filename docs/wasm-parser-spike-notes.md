@@ -1085,6 +1085,66 @@ pending real-usage feedback.
 
 ---
 
+### Follow-up: v2-A/D — wx:for definition parity + declaration-side hover (2026-05-26)
+
+Picked the two **additive** items off the v1 backlog (the ones worth doing
+without waiting for usage feedback, since they round out an existing model
+rather than change diagnostics/completion semantics):
+
+- **A — getDefinition step 2a parity.** cmd-click on `{{item}}` / `{{foo}}`
+  in a wx:for body now returns a same-file `Location`. Explicit names jump to
+  their `wx:for-item="foo"` / `wx:for-index="idx"` value range; default
+  item/index jump to the `wx:for` attribute-name token. Closes the asymmetry
+  where hover could *resolve and explain* a loop binding but definition
+  produced no `Location` for that same resolution.
+- **D — declaration-side hover.** Hovering an explicit `wx:for-item` /
+  `wx:for-index` attribute value renders the same loop card as the use-site.
+  The iterable `wx:for="{{users}}"` value still resolves `users` as data
+  (the branch only fires inside explicit name ranges).
+
+Spec `docs/superpowers/specs/2026-05-26-wxml-for-definition-parity-design.md`,
+plan `docs/superpowers/plans/2026-05-26-wxml-for-definition-parity.md`. Shipped
+across 5 commits (`5db6af9` extractor `wxForKeywordRange` → `2d34690` leaf
+module → `ac1aaee` definition → `977904f` declaration hover → `20e82f7`
+host-wire L-W2).
+
+Two design decisions worth recording:
+
+1. **Module architecture.** The wx:for resolver lived in `wxml-hover.mjs`, but
+   `getDefinition` (in `wxml-language-service.mjs`) needed it too — and those
+   two modules are already a circular pair (hover imports language-service
+   helpers; language-service re-exports `getHover`). Rather than add a reverse
+   import and deepen the cycle, the pure position→scope resolvers
+   (`containsPosition`, `findMatchingWxForBinding`, plus the new
+   `findWxForDeclarationAtPosition`) were extracted into a new dependency-free
+   leaf module `server/wxml-for-scope.mjs`. This *removed* a hover→language-service
+   edge instead of adding one. `findMatchingWxForBinding` moved verbatim
+   (W-1..W-11 + L-W1 stay green, proving the move was behavior-preserving).
+
+2. **Target-range selection is source-keyed, not presence-keyed.** The
+   definition target is chosen by `itemSource`/`indexSource === "explicit"`
+   (→ name range) vs implicit (→ `wxForKeywordRange`), **not** by
+   `nameRange ?? wxForKeywordRange`. Because `wxForKeywordRange` is a new
+   additive field with no `graph.version` bump, a legacy/hand-written graph
+   may lack it; the source-keyed form means an explicit binding missing its
+   nameRange degrades to fall-through (then a clean null) rather than wrongly
+   jumping to the `wx:for` token. Locked by D-9 (implicit degrade) and D-10
+   (explicit degrade) — both assert null without throwing.
+
+**Zero-behavior-change invariant held:** completion (`getCompletions`) and
+diagnostics (`expressionRefDiagnostics`) still read the flat `wxForBindings`
+compat shim, untouched. W-7 byte-equal stays green; no new wx:for completion
+or diagnostic case was added. v2-B (completion cursor-scope) and v2-C
+(diagnostics cursor-scope, dogfood-gated) remain deferred.
+
+Verification: narrow-ranges 15/15 (incl S-F9 + W-7), wasm baselines 8/8 (8
+files now carry `wxForKeywordRange` additively), language-service all green
+(W-1..W-11 + D-1..D-10 + HD-1..HD-3), lsp-diagnostics graph-smoke 21/21 (incl
+new L-W2), full `verify-tree-sitter.sh` umbrella green. A final holistic review
+returned SHIP with no Critical/Important findings.
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
