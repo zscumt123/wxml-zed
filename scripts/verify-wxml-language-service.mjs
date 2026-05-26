@@ -3598,6 +3598,114 @@ function assertTplTemplateBodyDegradesGracefully(graph) {
   assert(hovB === null, `T-15b: expected null hover; got ${JSON.stringify(hovB)}`);
 }
 
+// Phase 3 v2-B — cursor-scoped wx:for completion ----------------------------
+
+function loopsCompletion(graph, lineIdx, character) {
+  return getCompletions({
+    graph,
+    documentPath: LOOPS_WXML,
+    position: { line: lineIdx, character },
+    sourceText: fs.readFileSync(LOOPS_WXML, "utf8"),
+    extensionRoot: ROOT,
+  });
+}
+
+function rootCharOf(lines, lineIdx, needle) {
+  const idx = lines[lineIdx].indexOf(needle);
+  assert(idx >= 0, `completion setup: ${JSON.stringify(needle)} not found on line ${lineIdx + 1}`);
+  return idx + 2; // first char after `{{`
+}
+
+function assertCompletionOutsideLoop(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes("outside-loop") && l.includes("{{item}}"));
+  assert(i >= 0, "B-1 setup: outside-loop {{item}} line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{item}}"));
+  const labels = items.map((x) => x.label);
+  const item = items.find((x) => x.label === "item");
+  assert(item && item.detail === "data", `B-1: item must be 'data' outside any loop; got ${item && item.detail}`);
+  assert(!items.some((x) => x.detail === "wx:for index"), `B-1: no wx:for index outside loop; got ${JSON.stringify(labels)}`);
+  for (const n of ["prod", "idx", "outer", "inner", "grp"]) {
+    assert(!labels.includes(n), `B-1: explicit loop name '${n}' must be absent outside loops; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionDefaultLoopShadowsData(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes("{{item.name}}"));
+  assert(i >= 0, "B-2 setup: {{item.name}} line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{item.name}}"));
+  const item = items.find((x) => x.label === "item");
+  assert(item && item.detail === "wx:for item", `B-2: in-scope item must shadow data.item (wx:for item); got ${item && item.detail}`);
+  const index = items.find((x) => x.label === "index");
+  assert(index && index.detail === "wx:for index", `B-2: index present as wx:for index; got ${index && index.detail}`);
+  const labels = items.map((x) => x.label);
+  for (const n of ["prod", "idx", "outer", "inner", "grp"]) {
+    assert(!labels.includes(n), `B-2: '${n}' absent in default loop; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionExplicitLoop(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes("{{prod.title}}"));
+  assert(i >= 0, "B-3 setup: {{prod.title}} line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{prod.title}}"));
+  const labels = items.map((x) => x.label);
+  const prod = items.find((x) => x.label === "prod");
+  const idx = items.find((x) => x.label === "idx");
+  assert(prod && prod.detail === "wx:for item", `B-3: prod as wx:for item; got ${prod && prod.detail}`);
+  assert(idx && idx.detail === "wx:for index", `B-3: idx as wx:for index; got ${idx && idx.detail}`);
+  assert(!labels.includes("index"), `B-3: default 'index' not in explicit loop; got ${JSON.stringify(labels)}`);
+  for (const n of ["outer", "inner", "grp"]) {
+    assert(!labels.includes(n), `B-3: other loop name '${n}' absent; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionNestedUnion(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes("{{outer.label}} :: {{inner.value}}"));
+  assert(i >= 0, "B-4 setup: nested loop body line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{inner.value}}"));
+  const labels = items.map((x) => x.label);
+  assert(labels.includes("outer") && labels.includes("inner"), `B-4: nested scope offers both outer+inner; got ${JSON.stringify(labels)}`);
+  for (const n of ["prod", "idx", "grp"]) {
+    assert(!labels.includes(n), `B-4: unrelated loop name '${n}' absent; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionIterableExclusion(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes('wx:for="{{outer.entries}}"'));
+  assert(i >= 0, "B-5 setup: inner loop iterable line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{outer.entries}}"));
+  const labels = items.map((x) => x.label);
+  assert(labels.includes("outer"), `B-5: enclosing 'outer' still offered inside inner iterable; got ${JSON.stringify(labels)}`);
+  assert(!labels.includes("inner"), `B-5: 'inner' excluded inside its own iterable; got ${JSON.stringify(labels)}`);
+}
+
+function assertCompletionBlockLoop(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes("{{grp.label}}"));
+  assert(i >= 0, "B-6 setup: {{grp.label}} line");
+  const items = loopsCompletion(graph, i, rootCharOf(lines, i, "{{grp.label}}"));
+  const labels = items.map((x) => x.label);
+  const grp = items.find((x) => x.label === "grp");
+  assert(grp && grp.detail === "wx:for item", `B-6: grp as wx:for item in <block wx:for>; got ${grp && grp.detail}`);
+  for (const n of ["prod", "idx", "outer", "inner"]) {
+    assert(!labels.includes(n), `B-6: other loop name '${n}' absent; got ${JSON.stringify(labels)}`);
+  }
+}
+
+function assertCompletionTemplateBodySuppressed(graph) {
+  const source = fs.readFileSync(TPL_LOOPS_WXML, "utf8");
+  const lines = source.split("\n");
+  const i = lines.findIndex((l) => l.includes("{{row.label}}"));
+  assert(i >= 0, "B-7 setup: tpl-loops {{row.label}} line");
+  const ch = lines[i].indexOf("{{row.label}}") + 2;
+  const items = getCompletions({ graph, documentPath: TPL_LOOPS_WXML, position: { line: i, character: ch }, sourceText: source, extensionRoot: ROOT });
+  assert(items.length === 0, `B-7: completion inside <template name> body must stay suppressed; got ${items.length} items`);
+}
+
 const graph = loadGraph();
 assertHomeConfigScript(graph);
 assertEventHandlerDefinition(graph);
@@ -3772,3 +3880,12 @@ assertTplHoverCase2NoLeak(graph);
 assertTplHoverDeclItem(graph);
 assertTplHoverDeclIndex(graph);
 assertTplTemplateBodyDegradesGracefully(graph);
+
+// Phase 3 v2-B — cursor-scoped wx:for completion
+assertCompletionOutsideLoop(graph);
+assertCompletionDefaultLoopShadowsData(graph);
+assertCompletionExplicitLoop(graph);
+assertCompletionNestedUnion(graph);
+assertCompletionIterableExclusion(graph);
+assertCompletionBlockLoop(graph);
+assertCompletionTemplateBodySuppressed(graph);

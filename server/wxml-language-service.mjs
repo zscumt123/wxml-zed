@@ -13,7 +13,13 @@ import {
 // containsPosition moved to the pure leaf module. Import for local use (5 call
 // sites here) AND re-export to preserve the @internal surface this module
 // previously provided to siblings.
-import { containsPosition, findMatchingWxForBinding, findEnclosingTemplateRange, scopesDeclaredWithin } from "./wxml-for-scope.mjs";
+import {
+  activeWxForBindingsAt,
+  containsPosition,
+  findMatchingWxForBinding,
+  findEnclosingTemplateRange,
+  scopesDeclaredWithin,
+} from "./wxml-for-scope.mjs";
 export { containsPosition };
 
 const WARNING = 2;
@@ -642,7 +648,7 @@ export function findOwnerConfigWithScript(graph, documentGraphPath) {
   )) ?? null;
 }
 
-function dataRefCompletionItems(graph, documentGraphPath, fileModel, range) {
+function dataRefCompletionItems(graph, documentGraphPath, fileModel, range, position) {
   const ownerConfig = findOwnerConfigWithScript(graph, documentGraphPath);
   const seen = new Set();
   const items = [];
@@ -654,6 +660,13 @@ function dataRefCompletionItems(graph, documentGraphPath, fileModel, range) {
     items.push(completionItem(name, COMPLETION_ITEM_KIND_PROPERTY, detail, range));
   };
 
+  // Active wx:for bindings FIRST so an in-scope loop variable shadows a
+  // same-named data/property/wxs symbol, matching hover/definition. The seen
+  // set is first-wins, so this gives the loop binding the candidate.
+  for (const { name, kind } of activeWxForBindingsAt(fileModel.wxForScopes, position)) {
+    pushName(name, kind === "item" ? "wx:for item" : "wx:for index");
+  }
+
   if (ownerConfig && !ownerConfig.script.hasDynamicData) {
     for (const key of ownerConfig.script.dataKeys ?? []) pushName(key.name, "data");
     for (const key of ownerConfig.script.propertyKeys ?? []) pushName(key.name, "property");
@@ -661,16 +674,6 @@ function dataRefCompletionItems(graph, documentGraphPath, fileModel, range) {
 
   for (const sym of fileModel.symbols ?? []) {
     if (sym.kind === "wxs") pushName(sym.name, "wxs module");
-  }
-
-  const bindings = fileModel.wxForBindings;
-  if (bindings) {
-    if (bindings.hasAnyWxFor) {
-      pushName("item", "wx:for item");
-      pushName("index", "wx:for index");
-    }
-    for (const name of bindings.items ?? []) pushName(name, "wx:for item");
-    for (const name of bindings.indexes ?? []) pushName(name, "wx:for index");
   }
 
   items.sort((a, b) => a.label.localeCompare(b.label));
@@ -736,7 +739,7 @@ export function getCompletions({ graph, documentPath, position, sourceText, exte
   const interpolationContext = interpolationCompletionContext(sourceText, position);
   if (interpolationContext) {
     if (interpolationContext.suppress) return [];
-    return dataRefCompletionItems(graph, documentGraphPath, fileModel, interpolationContext.range);
+    return dataRefCompletionItems(graph, documentGraphPath, fileModel, interpolationContext.range, position);
   }
 
   const handlerValueContext = eventHandlerValueContext(sourceText, position);
