@@ -3553,6 +3553,51 @@ function assertTplHoverDeclIndex(graph) {
   assert(hoverContents(hov).startsWith("**idx** — `wx:for-index`"), `T-14: bad title; got ${hoverContents(hov)}`);
 }
 
+// T-15: defensive degrade — a template symbol missing its `range`, or a scope
+// missing `wxForRange` (legacy / hand-built graph), must degrade to null in the
+// template-body branch WITHOUT throwing, matching how the sibling step-2a block
+// guards name-ranges. Probe the explicit-item ref under both mutations.
+function assertTplTemplateBodyDegradesGracefully(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{row.label}}", "T-15");
+  const ch = lines[i].indexOf("{{row.label}}") + 2;
+  const pos = { line: i, character: ch + 1 };
+  const findTpl = (g) => g.wxml.find((f) => f.path.endsWith("pages/tpl-loops/tpl-loops.wxml"));
+
+  // (a) template symbols with no range → no enclosing boundary → null, no throw.
+  const a = JSON.parse(JSON.stringify(graph));
+  const fileA = findTpl(a);
+  assert(fileA, "T-15 setup: tpl-loops file in graph");
+  let strippedT = 0;
+  for (const s of fileA.symbols ?? []) { if (s.kind === "template") { delete s.range; strippedT += 1; } }
+  assert(strippedT > 0, "T-15 setup: expected template symbols to strip");
+  let locA, hovA;
+  try {
+    locA = getDefinition({ graph: a, documentPath: TPL_LOOPS_WXML, position: pos, extensionRoot: ROOT });
+    hovA = getHover({ graph: a, documentPath: TPL_LOOPS_WXML, position: pos, extensionRoot: ROOT });
+  } catch (err) {
+    throw new Error(`T-15a: threw on template symbol missing range: ${err.message}`);
+  }
+  assert(locA === null, `T-15a: expected null definition; got ${JSON.stringify(locA)}`);
+  assert(hovA === null, `T-15a: expected null hover; got ${JSON.stringify(hovA)}`);
+
+  // (b) scopes with no wxForRange → filtered out → null, no throw.
+  const b = JSON.parse(JSON.stringify(graph));
+  const fileB = findTpl(b);
+  let strippedS = 0;
+  for (const sc of fileB.wxForScopes ?? []) { if ("wxForRange" in sc) { delete sc.wxForRange; strippedS += 1; } }
+  assert(strippedS > 0, "T-15 setup: expected scopes to strip");
+  let locB, hovB;
+  try {
+    locB = getDefinition({ graph: b, documentPath: TPL_LOOPS_WXML, position: pos, extensionRoot: ROOT });
+    hovB = getHover({ graph: b, documentPath: TPL_LOOPS_WXML, position: pos, extensionRoot: ROOT });
+  } catch (err) {
+    throw new Error(`T-15b: threw on scope missing wxForRange: ${err.message}`);
+  }
+  assert(locB === null, `T-15b: expected null definition; got ${JSON.stringify(locB)}`);
+  assert(hovB === null, `T-15b: expected null hover; got ${JSON.stringify(hovB)}`);
+}
+
 const graph = loadGraph();
 assertHomeConfigScript(graph);
 assertEventHandlerDefinition(graph);
@@ -3726,3 +3771,4 @@ assertTplHoverDataRefSuppressed(graph);
 assertTplHoverCase2NoLeak(graph);
 assertTplHoverDeclItem(graph);
 assertTplHoverDeclIndex(graph);
+assertTplTemplateBodyDegradesGracefully(graph);

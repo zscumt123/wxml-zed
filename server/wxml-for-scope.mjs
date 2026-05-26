@@ -65,12 +65,13 @@ function startsAfter(a, b) {
  * templateRanges: symbol-extractor ranges ({ start:{row,column}, end:{row,column} }).
  * Template definitions never partially overlap, so the innermost containing one
  * is simply the range whose start point is latest (and two templates can't share
- * a start point).
+ * a start point). Entries with a missing range are skipped defensively (legacy /
+ * hand-built graphs), mirroring the range-presence guards elsewhere.
  */
 export function findEnclosingTemplateRange(templateRanges, position) {
   let best = null;
   for (const range of templateRanges ?? []) {
-    if (!containsPosition(range, position)) continue;
+    if (!range || !containsPosition(range, position)) continue;
     if (best === null || startsAfter(range.start, best.start)) best = range;
   }
   return best;
@@ -79,10 +80,11 @@ export function findEnclosingTemplateRange(templateRanges, position) {
 /**
  * Scopes whose wx:for DECLARATION (wxForRange start) falls within boundaryRange.
  * Keeps only loops declared inside the enclosing template, so an outer loop that
- * merely encloses the template definition (Case 2) is excluded.
+ * merely encloses the template definition (Case 2) is excluded. Scopes missing
+ * wxForRange are skipped defensively (legacy / hand-built graphs).
  */
 export function scopesDeclaredWithin(scopes, boundaryRange) {
-  return (scopes ?? []).filter((scope) => containsPosition(boundaryRange, {
+  return (scopes ?? []).filter((scope) => scope.wxForRange && containsPosition(boundaryRange, {
     line: scope.wxForRange.start.row,
     character: scope.wxForRange.start.column,
   }));
