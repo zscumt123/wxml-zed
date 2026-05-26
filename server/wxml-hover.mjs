@@ -1,21 +1,25 @@
 import path from "node:path";
 
 import {
-  containsPosition,
   findOwnerConfigWithScript,
   findWxmlFileModel,
   isInsideGraphRoot,
   rangeFromSymbolRange,
 } from "./wxml-language-service.mjs";
 
+import {
+  containsPosition,
+  findMatchingWxForBinding,
+  findWxForDeclarationAtPosition, // findWxForDeclarationAtPosition: wired into the declaration-side hover branch in Task 4
+} from "./wxml-for-scope.mjs";
+
 // NOTE: wxml-hover.mjs ↔ wxml-language-service.mjs is a circular module
 // graph (the language-service re-exports getHover from here). It's safe
 // today because no imported helper is invoked at module top level — all
 // usage is inside getHover's body, which only runs at request time. Do NOT
-// invoke imported helpers (containsPosition, findOwnerConfigWithScript,
-// findWxmlFileModel, isInsideGraphRoot, rangeFromSymbolRange) at module
-// top level; doing so would trigger a TDZ when wxml-language-service.mjs
-// is the entry point.
+// invoke imported helpers (findOwnerConfigWithScript, findWxmlFileModel,
+// isInsideGraphRoot, rangeFromSymbolRange) at module top level; doing so
+// would trigger a TDZ when wxml-language-service.mjs is the entry point.
 
 // Kind labels shown after the em-dash in hover titles. Keyspace mixes two
 // conventions:
@@ -92,27 +96,6 @@ function hoverFromGraphPathLocation({ name, kindLabel, scriptPath, nameRange, gr
     sourcePath: rel,
     sourceLine: nameRange.start.row + 1,
   });
-}
-
-/**
- * Scan wxForScopes in reverse extraction order (innermost-first AND
- * later-source-first for ties) and return the first scope whose itemName
- * or indexName matches the requested name at this cursor position.
- *
- * A scope is "active" when the cursor is inside its scopeRange AND NOT
- * inside its own wxForRange (the iterable-exclusion rule: in
- * <view wx:for="{{item}}" wx:for-item="item">, cursor inside the wx:for
- * value evaluates in the outer scope).
- */
-function findMatchingWxForBinding(scopes, position, name) {
-  for (let i = (scopes ?? []).length - 1; i >= 0; i--) {
-    const scope = scopes[i];
-    if (!containsPosition(scope.scopeRange, position)) continue;
-    if (containsPosition(scope.wxForRange, position)) continue;
-    if (name === scope.itemName) return { scope, kind: "item" };
-    if (name === scope.indexName) return { scope, kind: "index" };
-  }
-  return null;
 }
 
 /**

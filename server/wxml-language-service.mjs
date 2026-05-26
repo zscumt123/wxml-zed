@@ -10,6 +10,12 @@ import {
   stripStringLiterals,
 } from "../shared/wxml-expression-helpers.mjs";
 
+// containsPosition moved to the pure leaf module. Import for local use (5 call
+// sites here) AND re-export to preserve the @internal surface this module
+// previously provided to siblings.
+import { containsPosition } from "./wxml-for-scope.mjs";
+export { containsPosition };
+
 const WARNING = 2;
 const INFORMATION = 3;
 
@@ -102,33 +108,6 @@ export function rangeFromSymbolRange(range) {
       character: range.end.column,
     },
   };
-}
-
-function isPositionBefore(position, boundary) {
-  return (
-    position.line < boundary.line ||
-    (position.line === boundary.line && position.character < boundary.character)
-  );
-}
-
-function isPositionAtOrAfter(position, boundary) {
-  return (
-    position.line > boundary.line ||
-    (position.line === boundary.line && position.character >= boundary.character)
-  );
-}
-
-function symbolPointToLsp(point) {
-  return {
-    line: point.row,
-    character: point.column,
-  };
-}
-
-export function containsPosition(range, position) {
-  const start = symbolPointToLsp(range.start);
-  const end = symbolPointToLsp(range.end);
-  return isPositionAtOrAfter(position, start) && isPositionBefore(position, end);
 }
 
 function rangeKey(range) {
