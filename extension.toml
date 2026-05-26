@@ -1,7 +1,7 @@
 id = "wxml-zed"
 name = "WXML"
 description = "WXML (WeiXin Markup Language) support for Zed."
-version = "0.2.0"
+version = "0.3.0"
 schema_version = 1
 authors = ["zscumt123", "wxml-zed contributors"]
 repository = "https://github.com/zscumt123/wxml-zed"

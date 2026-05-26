@@ -24,11 +24,13 @@ git submodule.
 | Tree-sitter parse/query verification script | Yes |
 | Pre-LSP dependency and symbol model extractor | Yes |
 | Pre-LSP project graph extractor for pages, subpackages, local components, and app-global components | Yes |
-| Prototype LSP diagnostics for missing local `usingComponents` | Yes |
-| Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, and direct-scope static templates | Yes |
+| Prototype LSP diagnostics for missing local `usingComponents`, undefined event handlers, undefined expression references, and dead component bindings | Yes |
+| Real-time diagnostics on unsaved buffers via a single-file overlay (`textDocument/didChange`) | Yes |
+| Prototype go-to-definition for local WXML components, import/include dependencies, external WXS files, direct-scope static templates, WXS cross-references (`{{module.fn()}}`), and `wx:for` bindings | Yes |
+| Prototype LSP hover for expression-reference roots (data/property/setData/injector + WXS cross-references), event handlers, custom component tags, WXS module declarations, and `wx:for` bindings (use-site and declaration-side) | Yes |
 | Internal WXML language-service boundary for LSP features | Yes |
 | Prototype LSP document symbols for WXML declarations and dependencies | Yes |
-| Prototype LSP completion for built-in tags, resolved local components, direct-scope static templates, and common attributes | Yes |
+| Prototype LSP completion for built-in tags, resolved local components, direct-scope static templates, common attributes, event handler methods, and expression references (data/property/WXS) | Yes |
 | Prototype watched-file graph refresh for open-document diagnostics, definition, and completion | Yes |
 | In-process WASM symbol extraction (no `tree-sitter-cli` fork at runtime) | Yes |
 | Dynamic template completion/navigation, recursive/full template visibility, npm/plugin component support, and full component resolution navigation | Planned |
@@ -149,14 +151,21 @@ When changing queries or snippets:
 ## Scope
 
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
-missing local component diagnostics, go-to-definition for resolved local WXML
-component tags, go-to-definition for WXML import/include and external WXS file
-dependencies, go-to-definition for static template usages within the current
-file and direct `import` / `include` dependencies, and flat document symbols for
-WXML declaration/dependency entries. It also provides baseline completion for
-built-in tags, resolved owner-local/app-global component tags, static templates
-visible from the current file or direct `import` / `include` dependencies, and
-common WXML attributes.
+diagnostics for missing local components, undefined event handlers, undefined
+expression references, and dead component bindings (with a single-file overlay
+so they refresh on unsaved edits, not just on save); go-to-definition for
+resolved local WXML component tags, WXML import/include and external WXS file
+dependencies, static template usages within the current file and direct
+`import` / `include` dependencies, WXS cross-references (`{{module.fn()}}`), and
+`wx:for` bindings; hover for expression-reference roots
+(data/property/setData/injector and WXS cross-references), event handlers,
+custom component tags, WXS module declarations, and `wx:for` bindings (both
+use-site and the `wx:for-item` / `wx:for-index` declaration); and flat document
+symbols for WXML declaration/dependency entries. It also provides baseline
+completion for built-in tags, resolved owner-local/app-global component tags,
+static templates visible from the current file or direct `import` / `include`
+dependencies, common WXML attributes, event handler methods, and
+expression references (data/property/WXS modules).
 The LSP host can also refresh the cached project graph from
 `workspace/didChangeWatchedFiles` notifications for relevant `.json`, `.wxml`,
 and `.wxs` files, then republish diagnostics for already-open WXML documents.
@@ -170,22 +179,25 @@ partial symbol model rather than aborting graph build, so user mid-edit
 keystrokes do not crash the project graph.
 
 It intentionally does not provide symbol indexing, dynamic template
-completion/navigation, recursive/full template visibility, expression
-completion, WXS module completion, hover, nested structural document symbols,
-semantic tokens, code actions, formatting, Node-side production file watching,
-project-wide diagnostics, npm/plugin component navigation, `componentGenerics`,
-independent-subpackage component isolation rules, or production Node runtime
-packaging.
+completion/navigation, recursive/full template visibility, member-expression
+completion (only expression-reference roots are completed, not member chains or
+full expressions), `wx:for` binding definition/hover inside `<template name>`
+bodies (suppressed by the same template-body resolution rule), nested structural
+document symbols, semantic tokens, code actions, formatting, Node-side
+production file watching, project-wide diagnostics, npm/plugin component
+navigation, `componentGenerics`, independent-subpackage component isolation
+rules, or production Node runtime packaging.
 
 Formatting is delegated to Zed's configured HTML parser. That is a practical
 baseline, not a semantic WXML formatter.
 
 Inline `wxs` bodies and WXML interpolation expressions are injected as
 JavaScript for syntax highlighting only. The extension can navigate from
-external WXS declarations to resolved local `.wxs` files, but it does not
-type-check WXS, validate WeChat WXS APIs, resolve WXS module APIs, or provide
-WXS module completion. Those behaviors belong in a later language-service
-layer.
+external WXS declarations and `{{module.fn()}}` cross-references to the resolved
+local `.wxs` file or module declaration, and completes and hovers WXS module
+names as expression references, but it does not type-check WXS, validate WeChat
+WXS APIs, or resolve WXS module member APIs (such as completing methods on a
+module). Those behaviors belong in a later language-service layer.
 
 Basic tag editing support is provided through Zed's language config, bracket
 queries, comments, and snippets. The extension does not provide semantic end-tag
@@ -209,35 +221,44 @@ paths, and the existing WXML symbol model. It does not resolve npm components,
 plugin components, `componentGenerics`, watch mode, or editor navigation.
 
 `server/wxml-lsp.mjs` is a minimal stdio LSP prototype and protocol host. WXML
-feature mapping lives in `server/wxml-language-service.mjs`, which converts the
-project graph into diagnostics, definitions, and document symbols without
-owning JSON-RPC IO or graph scheduling. The LSP reports local `usingComponents`
-entries that resolve to a missing file and are also used as custom component
-tags in the current WXML file. It supports go-to-definition from resolved local
-custom component tags to their target `.wxml` files, from WXML
-`import`/`include` declarations to their target `.wxml` files, and from external
-WXS declarations to their target `.wxs` files, and from static template usages
-to matching template definitions in the current file or direct `import` /
-`include` dependencies. It also returns a flat document-symbol list for WXML
-declaration/dependency entries such as template definitions, WXS
-modules, imports, and includes. Completion items are available for built-in
-tags, resolved local component tags, direct-scope static templates, and common
-WXML attributes; unsupported contexts return no completion list instead of
-guessing. For the baseline fixture this
+feature mapping lives in `server/wxml-language-service.mjs` (with hover in
+`server/wxml-hover.mjs` and the pure `wx:for` scope resolvers in
+`server/wxml-for-scope.mjs`), which converts the project graph into diagnostics,
+definitions, hover, document symbols, and completion without owning JSON-RPC IO
+or graph scheduling. Diagnostics flag local `usingComponents` entries that
+resolve to a missing file and are used as custom component tags, undefined event
+handlers, undefined expression-reference roots, and dead component bindings. It
+supports go-to-definition from resolved local custom component tags to their
+target `.wxml` files, from WXML `import`/`include` declarations to their target
+`.wxml` files, from external WXS declarations to their target `.wxs` files, from
+static template usages to matching template definitions in the current file or
+direct `import` / `include` dependencies, from WXS cross-references
+(`{{module.fn()}}`) to the module declaration, and from `wx:for` bindings to
+their declaration. Hover resolves expression-reference roots
+(data/property/setData/injector and WXS cross-references), event handlers,
+custom component tags, WXS module declarations, and `wx:for` bindings (use-site
+and the `wx:for-item` / `wx:for-index` declaration). It also returns a flat
+document-symbol list for WXML declaration/dependency entries such as template
+definitions, WXS modules, imports, and includes. Completion items are available
+for built-in tags, resolved local component tags, direct-scope static templates,
+common WXML attributes, event handler methods, and expression-reference roots
+(data/property/WXS modules); unsupported contexts return no completion list
+instead of guessing. For the baseline fixture this
 reports `missing-card` in `pages/home/home.wxml`, resolves `<user-card>` to
 `components/user-card/user-card.wxml`, resolves the top-level `import`,
 `include`, and external `wxs` declarations to their target files, resolves the
 static `loadingRow` template usage to `templates/common.wxml`, resolves the
 subpackage `<global-badge>` usage through app-global `usingComponents`, resolves
 the home page `<global-badge>` usage through the owner-local override, and
-returns document symbols for those dependency entries. Diagnostics still run on
-open/save and relevant `workspace/didChangeWatchedFiles` notifications for
-already-open WXML documents. There is still no Node-side production file
-watcher, project-wide diagnostics, incremental parsing, nested structural
-document symbols, component usage symbols, JSON document symbols, dynamic
-template completion/navigation, recursive/full template visibility, expression
-completion, WXS module completion, npm/plugin component navigation, or
-`componentGenerics` support.
+returns document symbols for those dependency entries. Diagnostics run on
+open/save, on `textDocument/didChange` through a single-file overlay so unsaved
+edits refresh in real time, and on relevant `workspace/didChangeWatchedFiles`
+notifications for already-open WXML documents. There is still no Node-side
+production file watcher, project-wide diagnostics, incremental parsing, nested
+structural document symbols, component usage symbols, JSON document symbols,
+dynamic template completion/navigation, recursive/full template visibility,
+member-expression completion (only expression-reference roots are completed),
+npm/plugin component navigation, or `componentGenerics` support.
 
 ## Redistribution Status
 
