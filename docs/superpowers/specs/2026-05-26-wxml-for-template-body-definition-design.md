@@ -98,15 +98,21 @@ Two dependency-free additions (range/position math only):
 ```js
 // Innermost template range containing the position, or null. templateRanges is
 // an array of symbol-extractor ranges ({ start:{row,column}, end:{row,column} }).
+// Template definitions never partially overlap, so among the ranges that contain
+// the position the innermost is simply the one whose start point is latest — no
+// span/area heuristic needed (and two templates can't share a start point).
 export function findEnclosingTemplateRange(templateRanges, position) {
-  let best = null, bestArea = Infinity;
+  let best = null;
   for (const range of templateRanges ?? []) {
     if (!containsPosition(range, position)) continue;
-    const area = (range.end.row - range.start.row) * 100000
-      + (range.end.column - range.start.column);
-    if (area < bestArea) { best = range; bestArea = area; }
+    if (best === null || startsAfter(range.start, best.start)) best = range;
   }
   return best;
+}
+
+// a strictly after b in (row, column) order
+function startsAfter(a, b) {
+  return a.row > b.row || (a.row === b.row && a.column > b.column);
 }
 
 // Scopes whose wx:for DECLARATION (wxForRange start) falls within boundaryRange.
@@ -192,11 +198,16 @@ its W-7 snapshot untouched. Create:
 - `fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml`:
   ```wxml
   <view class="tpl-loops">
-    <!-- Case 1: wx:for declared INSIDE the template body (resolvable). -->
+    <!-- Case 1a: explicit wx:for-item + wx:for-index inside the template body. -->
     <template name="tpl-row">
-      <view wx:for="{{rows}}" wx:for-item="row" wx:key="id">
-        {{row.label}} ({{theme}})
+      <view wx:for="{{rows}}" wx:for-item="row" wx:for-index="idx" wx:key="id">
+        {{row.label}} #{{idx}} ({{theme}})
       </view>
+    </template>
+
+    <!-- Case 1b: implicit default item/index inside the template body. -->
+    <template name="tpl-implicit">
+      <view wx:for="{{rows}}" wx:key="id">{{item}} {{index}}</view>
     </template>
 
     <!-- Case 2: outer wx:for ENCLOSING the template definition (must NOT leak). -->
@@ -205,9 +216,13 @@ its W-7 snapshot untouched. Create:
     </view>
 
     <template is="tpl-row" />
+    <template is="tpl-implicit" />
     <template is="tpl-inner" />
   </view>
   ```
+  Note `{{item}}` appears in both `tpl-implicit` (`{{item}} {{index}}`) and
+  `tpl-inner` (`{{item}}`); tests must target each by its distinctive
+  surrounding line text, not a bare `{{item}}` search.
 - `fixtures/miniprogram/pages/tpl-loops/tpl-loops.js`:
   ```js
   Page({ data: { rows: [], groups: [], theme: "x" }, onLoad() {} });
@@ -220,17 +235,30 @@ its W-7 snapshot untouched. Create:
 Use a `TPL_LOOPS_WXML` path + `readFileSync`/`indexOf` position helpers
 (mirroring the D-series). Add `findIndex >= 0` setup guards.
 
-- **T-1 (Case 1 definition):** def on `{{row.label}}` inside `tpl-row` →
-  same-file Location, range text === `"row"`.
-- **T-2 (Case 1 hover):** hover same → title starts `**row** — \`wx:for-item\``.
-- **T-3 (data-ref suppressed):** def on `{{theme}}` inside `tpl-row` → `null`
-  (even though `theme` is a valid data key — template-body suppression holds).
-- **T-4 (data-ref suppressed, hover):** hover on `{{theme}}` inside `tpl-row` → `null`.
-- **T-5 (Case 2 no-leak definition):** def on `{{item}}` inside `tpl-inner` →
+Explicit-name cases (`tpl-row`):
+- **T-1 (explicit item, definition):** def on `{{row.label}}` → same-file
+  Location, range text === `"row"`.
+- **T-2 (explicit item, hover):** hover same → title `**row** — \`wx:for-item\``.
+- **T-3 (explicit index, definition):** def on `#{{idx}}` → range text === `"idx"`.
+- **T-4 (explicit index, hover):** hover same → title `**idx** — \`wx:for-index\``.
+
+Implicit-name cases (`tpl-implicit`, line `{{item}} {{index}}` — both fall back
+to the `wx:for` keyword token):
+- **T-5 (implicit item, definition):** def on `{{item}}` → range text === `"wx:for"`.
+- **T-6 (implicit item, hover):** hover same → title `**item** — \`wx:for-item\``.
+- **T-7 (implicit index, definition):** def on `{{index}}` → range text === `"wx:for"`.
+- **T-8 (implicit index, hover):** hover same → title `**index** — \`wx:for-index\``.
+
+Suppression / no-leak controls:
+- **T-9 (data-ref suppressed, definition):** def on `{{theme}}` inside `tpl-row`
+  → `null` (even though `theme` is a valid data key — template-body suppression holds).
+- **T-10 (data-ref suppressed, hover):** hover on `{{theme}}` → `null`.
+- **T-11 (Case 2 no-leak, definition):** def on `{{item}}` inside `tpl-inner` →
   `null` (must not resolve to the enclosing `<view wx:for="{{groups}}">` default
-  `item`).
-- **T-6 (Case 2 no-leak hover):** hover on `{{item}}` inside `tpl-inner` → `null`.
-- **T-7 (declaration-side unaffected):** hover on the `wx:for-item="row"` value
+  `item`; this is the boundary discriminator — same `item` name resolves in
+  `tpl-implicit` (T-5) but not in `tpl-inner`).
+- **T-12 (Case 2 no-leak, hover):** hover on `{{item}}` inside `tpl-inner` → `null`.
+- **T-13 (declaration-side unaffected):** hover on the `wx:for-item="row"` value
   inside `tpl-row` → title `**row** — \`wx:for-item\`` (confirms D still works
   inside templates; guards against accidentally gating it).
 
@@ -247,7 +275,14 @@ Use a `TPL_LOOPS_WXML` path + `readFileSync`/`indexOf` position helpers
   `verify-wasm-symbol-baselines.mjs` regenerates additively (new file) and W-7
   gains one frozen entry (`miniprogram-symbols-baseline.json::fixtures/
   miniprogram/pages/tpl-loops/tpl-loops.wxml`). Regenerate per the W-7 Step-1
-  command and paste the literal.
+  command and paste the literal. Also **de-hardcode** the `miniprogram (12
+  fixtures)` case `name` in `verify-wasm-symbol-baselines.mjs` — that count is a
+  hardcoded label and is already stale (the glob currently matches 17 `.wxml`
+  files, becoming 18 with this fixture). Change it to a count-free label such as
+  `miniprogram (all .wxml fixtures)` so it can't drift again. The new
+  `tpl-loops.js` does **not** affect the JS baselines — `verify-js-method-
+  baselines.mjs` lists specific `wasm-spike` files and does not glob
+  `fixtures/miniprogram`.
 - **graph-smoke:** no new host-wire scenario required — the LSP transport is
   already covered by L-W1/L-W2; this is a pure resolution-logic change behind the
   same handlers. (Adding one is optional, not required.)
@@ -255,16 +290,19 @@ Use a `TPL_LOOPS_WXML` path + `readFileSync`/`indexOf` position helpers
 
 ## Acceptance Criteria
 
-1. Definition on a `wx:for` loop variable referenced inside the template that
-   declares it resolves to a same-file Location (explicit → name range, implicit
-   → `wx:for` token). (T-1)
-2. Hover on the same renders the loop card. (T-2)
+1. Definition on a `wx:for` loop variable (item **or** index, explicit **or**
+   implicit) referenced inside the template that declares it resolves to a
+   same-file Location — explicit → its name range, implicit → the `wx:for`
+   token. (T-1, T-3, T-5, T-7)
+2. Hover on the same renders the correct loop card (`wx:for-item` vs
+   `wx:for-index`, with the resolved name). (T-2, T-4, T-6, T-8)
 3. Data/property/wxs references inside a template body still return null for both
-   definition and hover. (T-3, T-4)
+   definition and hover. (T-9, T-10)
 4. A reference inside a template body whose name matches an **outer** loop that
-   merely encloses the template definition returns null — no scope leak. (T-5, T-6)
+   merely encloses the template definition returns null — no scope leak — even
+   though the same name resolves inside a template that declares it. (T-11, T-12)
 5. Declaration-side hover on a `wx:for-item`/`-index` value inside a template
-   still works. (T-7)
+   still works. (T-13)
 6. All non-template wx:for definition/hover behavior is unchanged (W-1..W-11,
    D-1..D-10, HD-1..HD-3 green).
 7. Completion and diagnostics behavior unchanged; `graph.version` unchanged; all
