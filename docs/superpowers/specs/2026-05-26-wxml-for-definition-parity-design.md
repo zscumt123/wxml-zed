@@ -40,13 +40,21 @@ carrying `wx:for`:
 ```js
 {
   scopeRange,        // element span the binding is visible in
-  wxForRange,        // the iterable expression range (e.g. {{users}}); used for
-                     // self-exclusion so {{users}} doesn't bind to its own loop var
-  itemName, itemNameRange, itemSource,   // itemSource: "explicit" | "default"
-  indexName, indexNameRange, indexSource,
+  wxForRange,        // rangeOf(wxForAttr) — the WHOLE `wx:for="{{users}}"`
+                     // attribute (name + value), not just the value. Used for
+                     // self-exclusion: an identifier inside this range (which
+                     // includes the iterable `{{users}}`) does not bind to this
+                     // loop's own var.
+  itemName, itemNameRange, itemSource,   // itemSource: "explicit" | "implicit"
+  indexName, indexNameRange, indexSource, // indexSource: "explicit" | "implicit"
   ownerTag,          // tag name, or null on grammar error-recovery
 }
 ```
+
+`itemNameRange` / `indexNameRange` are non-null only when the corresponding
+source is `"explicit"` (an actual `wx:for-item=`/`wx:for-index=` value); for
+`"implicit"` they are `null` and `itemName`/`indexName` default to
+`"item"`/`"index"`.
 
 `server/wxml-hover.mjs` consumes it: `findMatchingWxForBinding(scopes, position,
 name)` reverse-scans (innermost-first) returning the first scope whose
@@ -63,35 +71,69 @@ definition currently produces no `Location` for that same resolution.)
 Add one field to each `wxForScopes[]` entry in `shared/wxml-symbol-extractor.mjs`:
 
 ```js
-wxForKeywordRange,   // range of the `wx:for` attribute-NAME token (not its value)
+// rangeOf(firstChildOfType(wxForAttr, "attribute_name")) — the `wx:for`
+// name token ONLY. Must NOT be rangeOf(wxForAttr): that is the whole
+// attribute (already stored as wxForRange), and would make default
+// definition jump to the entire `wx:for="{{...}}"` span.
+wxForKeywordRange,
 ```
 
 This is the definition target for **default** `item` / `index`, which have no
-explicit name attribute to point at. Pointing at the `wx:for` attribute (not the
-tag name) is semantically correct: the `wx:for` attribute is *the reason* default
-`item`/`index` are introduced. Same additive pattern as `wxs.nameRange` and
-`components.tagNameRange` — no `graph.version` bump.
+explicit name attribute to point at. Pointing at the `wx:for` attribute name (not
+the tag name, not the whole attribute) is semantically correct: the `wx:for`
+attribute is *the reason* default `item`/`index` are introduced. The extraction
+must use the `attribute_name` child node (the same `firstChildOfType(attr,
+"attribute_name")` pattern used elsewhere in the extractor at lines 83/93/177/210),
+producing a narrow range over the literal text `wx:for`. Same additive pattern as
+`wxs.nameRange` and `components.tagNameRange` — no `graph.version` bump.
 
 `scripts/extract-wxml-symbols.mjs` needs no change for this: `wxForKeywordRange`
 is nested inside existing `wxForScopes[]` entries (nested additions ride through;
 only new *top-level* fields need the destructure/return update — as `wxForScopes`
 itself did).
 
+## Module Structure (resolver extraction)
+
+`findMatchingWxForBinding` currently lives in `server/wxml-hover.mjs`. A needs the
+**same** resolver from `getDefinition` in `server/wxml-language-service.mjs`. But
+the module graph is **already circular**: `wxml-hover.mjs` imports helpers from
+`wxml-language-service.mjs`, which re-exports `getHover` from `wxml-hover.mjs`
+(`server/wxml-language-service.mjs:965`). It survives only by a documented TDZ
+rule (no imported helper called at module top level — hover header comment). Adding
+a reverse import of a hover helper into language-service would tighten that cycle.
+
+To avoid deepening the footgun, extract the **pure** position→scope resolvers into
+a new leaf module `server/wxml-for-scope.mjs` with **no** back-imports from either
+consumer:
+
+- `findMatchingWxForBinding(scopes, position, name)` — moved verbatim from hover
+  (used by hover step 2a and definition A).
+- `findWxForDeclarationAtPosition(scopes, position)` — **new**, returns
+  `{ scope, kind: "item" | "index" }` or `null` when `position` falls inside a
+  scope's `itemNameRange` / `indexNameRange` (used by D).
+
+These are pure functions over `wxForScopes[]` + `position` (they need only
+`containsPosition`, which also moves or is duplicated as a tiny local — it has no
+other dependencies). `makeWxForHover` and `HOVER_KIND_LABELS` **stay** in
+`wxml-hover.mjs` (card rendering is hover-specific). Both `wxml-hover.mjs` and
+`wxml-language-service.mjs` import the resolvers from `wxml-for-scope.mjs`. This
+removes a hover↔language-service edge rather than adding one.
+
 ## A — getDefinition step 2a
 
 Add a wx:for branch to `getDefinition`, placed where hover step 2a sits —
 **before** the component / wxs fall-through branches, mirroring hover's matcher
-order. It reuses the **same** `findMatchingWxForBinding` resolver: export it from
-`wxml-hover.mjs` (marked `@internal`) and import it into the definition path —
-the same internal cross-import pattern already used between these two modules. On
-a match, return a single `Location` in the **same file**:
+order. It calls `findMatchingWxForBinding` (now from `wxml-for-scope.mjs`). On a
+match, select the target range from the matched scope by **which binding matched**
+(item vs index) and **its source**, then return a single `Location` in the **same
+file**:
 
-| Resolved binding                          | Target range            |
-| ----------------------------------------- | ----------------------- |
-| explicit `wx:for-item="foo"` → `{{foo}}`  | `itemNameRange`         |
-| explicit `wx:for-index="idx"` → `{{idx}}` | `indexNameRange`        |
-| default `{{item}}`                        | `wxForKeywordRange`     |
-| default `{{index}}`                       | `wxForKeywordRange`     |
+| Resolved binding                                    | Target range        |
+| --------------------------------------------------- | ------------------- |
+| `item` binding, `itemSource === "explicit"`         | `itemNameRange`     |
+| `index` binding, `indexSource === "explicit"`       | `indexNameRange`    |
+| `item` binding, `itemSource === "implicit"`         | `wxForKeywordRange` |
+| `index` binding, `indexSource === "implicit"`       | `wxForKeywordRange` |
 
 Semantics inherited from the shared resolver (already proven by hover W-1..W-10):
 
@@ -106,8 +148,10 @@ Semantics inherited from the shared resolver (already proven by hover W-1..W-10)
 
 ## D — declaration-side hover
 
-Add a hover branch: if the cursor falls inside any scope's `itemNameRange` or
-`indexNameRange`, render the same card via `makeWxForHover`
+Add a hover branch driven by `findWxForDeclarationAtPosition(scopes, position)`
+(from `wxml-for-scope.mjs`): when it returns `{ scope, kind }` — i.e. the cursor
+is inside an explicit `itemNameRange` / `indexNameRange` — render the same card via
+`makeWxForHover(scope, kind, range)`
 (`**foo** — \`wx:for-item\`` / `Declared on <view> at line N`, or
 `Declared in wx:for at line N` when `ownerTag` is null).
 
@@ -142,6 +186,11 @@ Fixtures: reuse `fixtures/miniprogram/pages/loops/loops.wxml` (already has defau
 / explicit / nested / `<block wx:for>` shapes). Extend only if a target range case
 is missing.
 
+**Resolver-move guard:** `findMatchingWxForBinding` moves from `wxml-hover.mjs` to
+`wxml-for-scope.mjs` verbatim. The existing hover wx:for cases (W-1..W-10 in
+`verify-wxml-language-service.mjs`, L-W1 in `verify-lsp-diagnostics.mjs`) must stay
+green unchanged — that proves the extraction is behavior-preserving for hover.
+
 **Invariant guard (zero-behavior-change for completion/diagnostics):** A and D add
 no wx:for completion or diagnostic case. The existing W-7 byte-equal snapshot and
 the graph-smoke completion/diagnostic scenarios already lock this; confirm they
@@ -157,7 +206,8 @@ verifier (`scripts/verify-wxml-narrow-ranges.mjs`) gains a case asserting
 
 1. cmd-click on `{{foo}}` (explicit) jumps to the `wx:for-item="foo"` value range.
 2. cmd-click on `{{idx}}` (explicit) jumps to the `wx:for-index="idx"` value range.
-3. cmd-click on `{{item}}` / `{{index}}` (default) jumps to the `wx:for` attribute.
+3. cmd-click on `{{item}}` / `{{index}}` (implicit) jumps to the `wx:for`
+   attribute-name token (`wxForKeywordRange`), not the whole attribute or tag.
 4. cmd-click resolves nested/shadowing per hover semantics (innermost wins;
    wx:for beats data of the same name).
 5. cmd-click on an identifier outside any loop produces no wx:for Location and
