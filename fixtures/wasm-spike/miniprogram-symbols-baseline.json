@@ -1647,6 +1647,16 @@
               "column": 22
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 8,
+              "column": 4
+            },
+            "end": {
+              "row": 8,
+              "column": 10
+            }
+          },
           "itemName": "item",
           "itemNameRange": null,
           "itemSource": "implicit",
@@ -2098,6 +2108,16 @@
               "column": 38
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 2,
+              "column": 20
+            },
+            "end": {
+              "row": 2,
+              "column": 26
+            }
+          },
           "itemName": "item",
           "itemNameRange": null,
           "itemSource": "implicit",
@@ -2125,6 +2145,16 @@
             "end": {
               "row": 7,
               "column": 41
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 7,
+              "column": 20
+            },
+            "end": {
+              "row": 7,
+              "column": 26
             }
           },
           "itemName": "prod",
@@ -2174,6 +2204,16 @@
               "column": 27
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 12,
+              "column": 8
+            },
+            "end": {
+              "row": 12,
+              "column": 14
+            }
+          },
           "itemName": "outer",
           "itemNameRange": {
             "start": {
@@ -2210,6 +2250,16 @@
             "end": {
               "row": 13,
               "column": 36
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 13,
+              "column": 10
+            },
+            "end": {
+              "row": 13,
+              "column": 16
             }
           },
           "itemName": "inner",
@@ -2250,6 +2300,16 @@
               "column": 25
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 21,
+              "column": 8
+            },
+            "end": {
+              "row": 21,
+              "column": 14
+            }
+          },
           "itemName": "item",
           "itemNameRange": {
             "start": {
@@ -2286,6 +2346,16 @@
             "end": {
               "row": 31,
               "column": 28
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 31,
+              "column": 9
+            },
+            "end": {
+              "row": 31,
+              "column": 15
             }
           },
           "itemName": "grp",

@@ -113,6 +113,16 @@
               "column": 24
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 0,
+              "column": 6
+            },
+            "end": {
+              "row": 0,
+              "column": 12
+            }
+          },
           "itemName": "user",
           "itemNameRange": {
             "start": {

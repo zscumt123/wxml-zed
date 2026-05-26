@@ -396,6 +396,16 @@
               "column": 22
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 8,
+              "column": 4
+            },
+            "end": {
+              "row": 8,
+              "column": 10
+            }
+          },
           "itemName": "item",
           "itemNameRange": null,
           "itemSource": "implicit",

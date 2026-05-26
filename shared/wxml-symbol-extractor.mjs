@@ -338,9 +338,19 @@ export function collectFile(tree, inputAbs) {
           const itemExplicit = typeof itemRaw === "string" && itemRaw.length > 0;
           const indexExplicit = typeof indexRaw === "string" && indexRaw.length > 0;
 
+          // Narrow range over the `wx:for` attribute-NAME token (e.g. the
+          // literal `wx:for`), used as the definition target for implicit
+          // item/index which have no explicit name attribute. Must NOT be
+          // rangeOf(wxForAttr) — that is the whole `wx:for="{{...}}"` attribute
+          // (already stored as wxForRange). Null-safe for grammar edge cases.
+          // Note: for a bare `wx:for` (no `="..."` value) this coincides with
+          // wxForRange, since the attribute node then spans only the keyword token.
+          const wxForKeywordNode = firstChildOfType(wxForAttr, "attribute_name");
+
           wxForScopes.push({
             scopeRange: rangeOf(node),
             wxForRange: rangeOf(wxForAttr),
+            wxForKeywordRange: wxForKeywordNode ? rangeOf(wxForKeywordNode) : null,
             itemName: itemExplicit ? itemRaw : "item",
             itemNameRange: itemExplicit && itemValueNode ? innerValueRange(itemValueNode) : null,
             itemSource: itemExplicit ? "explicit" : "implicit",

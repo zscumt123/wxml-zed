@@ -86,6 +86,16 @@
               "column": 22
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 0,
+              "column": 7
+            },
+            "end": {
+              "row": 0,
+              "column": 13
+            }
+          },
           "itemName": "row",
           "itemNameRange": {
             "start": {

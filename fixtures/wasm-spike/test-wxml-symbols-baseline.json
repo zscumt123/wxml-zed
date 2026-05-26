@@ -1097,6 +1097,16 @@
               "column": 20
             }
           },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 17,
+              "column": 2
+            },
+            "end": {
+              "row": 17,
+              "column": 8
+            }
+          },
           "itemName": "row",
           "itemNameRange": {
             "start": {
@@ -1142,6 +1152,16 @@
             "end": {
               "row": 27,
               "column": 23
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 27,
+              "column": 6
+            },
+            "end": {
+              "row": 27,
+              "column": 12
             }
           },
           "itemName": "item",

@@ -209,6 +209,42 @@ function testBlockElementCreatesScope() {
     `S-F8: wxForBindings.items must include "row" (compat with legacy attribute-level extraction); got ${JSON.stringify(bindings.items)}`);
 }
 
+// S-F9: wxForKeywordRange is the narrow `wx:for` attribute-NAME token range
+// (the definition target for implicit item/index), NOT the whole attribute.
+function testWxForKeywordRange() {
+  const FIXTURE = "fixtures/miniprogram/pages/loops/loops.wxml";
+  const result = extract(FIXTURE);
+  const file = result.files[0];
+  const scopes = file.wxForScopes ?? [];
+  assert(scopes.length > 0, `S-F9: expected at least one scope; got 0`);
+
+  // Read fixture text once; reuse for all slice checks.
+  const lines = fs.readFileSync(path.join(ROOT, FIXTURE), "utf8").split("\n");
+
+  // Every scope must carry a valid, narrow wxForKeywordRange covering "wx:for".
+  for (let i = 0; i < scopes.length; i++) {
+    const s = scopes[i];
+    const label = `S-F9[${i}] (itemName=${s.itemName})`;
+    const kr = s.wxForKeywordRange;
+    assert(kr, `${label}: wxForKeywordRange must be present; got ${JSON.stringify(s)}`);
+    assert(kr.start.row === kr.end.row, `${label}: keyword range must be single-line; got ${JSON.stringify(kr)}`);
+    assert(kr.end.column - kr.start.column === 6, `${label}: 'wx:for' is 6 chars; got width ${kr.end.column - kr.start.column}`);
+    const slice = lines[kr.start.row].slice(kr.start.column, kr.end.column);
+    assert(slice === "wx:for", `${label}: keyword range must cover exactly 'wx:for'; got '${slice}'`);
+  }
+
+  // Additionally verify the implicit-item scope's keyword range specifically.
+  const usersScope = scopes.find((s) => s.itemName === "item" && s.itemSource === "implicit");
+  assert(usersScope, `S-F9: expected implicit users scope; got ${JSON.stringify(scopes.map((s) => ({ i: s.itemName, src: s.itemSource })))}`);
+  const kr = usersScope.wxForKeywordRange;
+  assert(kr, `S-F9: wxForKeywordRange must be present on implicit scope; got ${JSON.stringify(usersScope)}`);
+  assert(kr.start.row === kr.end.row, `S-F9: keyword range must be single-line; got ${JSON.stringify(kr)}`);
+  assert(kr.end.column - kr.start.column === 6, `S-F9: 'wx:for' is 6 chars; got width ${kr.end.column - kr.start.column}`);
+  const line = lines[kr.start.row];
+  const slice = line.slice(kr.start.column, kr.end.column);
+  assert(slice === "wx:for", `S-F9: keyword range must cover exactly 'wx:for'; got '${slice}'`);
+}
+
 // W-7: derived wxForBindings must byte-equal the pre-change snapshot
 // for every file in every baseline. The snapshot is the literal
 // wxForBindings that the legacy extractor produced before this change.
@@ -298,6 +334,7 @@ const CASES = [
   ["S-F6: bare wx:for preserves legacy hasAnyWxFor", testBareWxForCreatesScope],
   ["S-F7: dynamic wx:for-item interpolation does not leak into items", testInterpolatedItemNameFallsBackToImplicit],
   ["S-F8: <block wx:for> creates a scope (legacy compat)", testBlockElementCreatesScope],
+  ["S-F9: wxForKeywordRange covers the narrow wx:for attribute-name token", testWxForKeywordRange],
   ["W-7: wxForBindings compat shim is byte-equal across all baselines", testCompatShimByteEqual],
 ];
 
