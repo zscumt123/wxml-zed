@@ -4,7 +4,8 @@
     "pages/detail/detail",
     "pages/cross-binding/cross-binding",
     "pages/dyn-page/dyn-page",
-    "pages/loops/loops"
+    "pages/loops/loops",
+    "pages/tpl-loops/tpl-loops"
   ],
   "subPackages": [
     {

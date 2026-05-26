@@ -1,0 +1,22 @@
+<view class="tpl-loops">
+  <!-- Case 1a: explicit wx:for-item + wx:for-index inside the template body. -->
+  <template name="tpl-row">
+    <view wx:for="{{rows}}" wx:for-item="row" wx:for-index="idx" wx:key="id">
+      {{row.label}} #{{idx}} ({{theme}})
+    </view>
+  </template>
+
+  <!-- Case 1b: implicit default item/index inside the template body. -->
+  <template name="tpl-implicit">
+    <view wx:for="{{rows}}" wx:key="id">{{item}} {{index}}</view>
+  </template>
+
+  <!-- Case 2: outer wx:for ENCLOSING the template definition (must NOT leak). -->
+  <view wx:for="{{groups}}">
+    <template name="tpl-inner">{{item}}</template>
+  </view>
+
+  <template is="tpl-row" />
+  <template is="tpl-implicit" />
+  <template is="tpl-inner" />
+</view>

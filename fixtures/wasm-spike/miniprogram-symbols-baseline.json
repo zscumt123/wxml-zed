@@ -2391,6 +2391,497 @@
       }
     },
     {
+      "path": "fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml",
+      "dependencies": [],
+      "symbols": [
+        {
+          "kind": "template",
+          "name": "tpl-row",
+          "range": {
+            "start": {
+              "row": 2,
+              "column": 2
+            },
+            "end": {
+              "row": 6,
+              "column": 13
+            }
+          }
+        },
+        {
+          "kind": "template",
+          "name": "tpl-implicit",
+          "range": {
+            "start": {
+              "row": 9,
+              "column": 2
+            },
+            "end": {
+              "row": 11,
+              "column": 13
+            }
+          }
+        },
+        {
+          "kind": "template",
+          "name": "tpl-inner",
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 4
+            },
+            "end": {
+              "row": 15,
+              "column": 50
+            }
+          }
+        }
+      ],
+      "references": [
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "tpl-row",
+          "range": {
+            "start": {
+              "row": 18,
+              "column": 2
+            },
+            "end": {
+              "row": 18,
+              "column": 27
+            }
+          },
+          "name": "tpl-row"
+        },
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "tpl-implicit",
+          "range": {
+            "start": {
+              "row": 19,
+              "column": 2
+            },
+            "end": {
+              "row": 19,
+              "column": 32
+            }
+          },
+          "name": "tpl-implicit"
+        },
+        {
+          "kind": "template",
+          "dynamic": false,
+          "raw": "tpl-inner",
+          "range": {
+            "start": {
+              "row": 20,
+              "column": 2
+            },
+            "end": {
+              "row": 20,
+              "column": 29
+            }
+          },
+          "name": "tpl-inner"
+        }
+      ],
+      "components": [],
+      "eventHandlers": [],
+      "expressionRefs": [
+        {
+          "name": "rows",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 3,
+              "column": 20
+            },
+            "end": {
+              "row": 3,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 3,
+              "column": 20
+            },
+            "end": {
+              "row": 3,
+              "column": 24
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "row",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 8
+            },
+            "end": {
+              "row": 4,
+              "column": 11
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 8
+            },
+            "end": {
+              "row": 4,
+              "column": 17
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "idx",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 23
+            },
+            "end": {
+              "row": 4,
+              "column": 26
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 23
+            },
+            "end": {
+              "row": 4,
+              "column": 26
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "theme",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 4,
+              "column": 32
+            },
+            "end": {
+              "row": 4,
+              "column": 37
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 4,
+              "column": 32
+            },
+            "end": {
+              "row": 4,
+              "column": 37
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "rows",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 20
+            },
+            "end": {
+              "row": 10,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 20
+            },
+            "end": {
+              "row": 10,
+              "column": 24
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 42
+            },
+            "end": {
+              "row": 10,
+              "column": 46
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 42
+            },
+            "end": {
+              "row": 10,
+              "column": 46
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "index",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 10,
+              "column": 51
+            },
+            "end": {
+              "row": 10,
+              "column": 56
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 10,
+              "column": 51
+            },
+            "end": {
+              "row": 10,
+              "column": 56
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        },
+        {
+          "name": "groups",
+          "source": "interpolation",
+          "inTemplateDefinition": false,
+          "range": {
+            "start": {
+              "row": 14,
+              "column": 18
+            },
+            "end": {
+              "row": 14,
+              "column": 24
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 14,
+              "column": 18
+            },
+            "end": {
+              "row": 14,
+              "column": 24
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": "wx:for"
+        },
+        {
+          "name": "item",
+          "source": "interpolation",
+          "inTemplateDefinition": true,
+          "range": {
+            "start": {
+              "row": 15,
+              "column": 33
+            },
+            "end": {
+              "row": 15,
+              "column": 37
+            }
+          },
+          "expressionRange": {
+            "start": {
+              "row": 15,
+              "column": 33
+            },
+            "end": {
+              "row": 15,
+              "column": 37
+            }
+          },
+          "containingTag": "view",
+          "containingAttribute": null
+        }
+      ],
+      "wxForScopes": [
+        {
+          "scopeRange": {
+            "start": {
+              "row": 3,
+              "column": 4
+            },
+            "end": {
+              "row": 5,
+              "column": 11
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 3,
+              "column": 10
+            },
+            "end": {
+              "row": 3,
+              "column": 27
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 3,
+              "column": 10
+            },
+            "end": {
+              "row": 3,
+              "column": 16
+            }
+          },
+          "itemName": "row",
+          "itemNameRange": {
+            "start": {
+              "row": 3,
+              "column": 41
+            },
+            "end": {
+              "row": 3,
+              "column": 44
+            }
+          },
+          "itemSource": "explicit",
+          "indexName": "idx",
+          "indexNameRange": {
+            "start": {
+              "row": 3,
+              "column": 60
+            },
+            "end": {
+              "row": 3,
+              "column": 63
+            }
+          },
+          "indexSource": "explicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 10,
+              "column": 4
+            },
+            "end": {
+              "row": 10,
+              "column": 65
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 10,
+              "column": 10
+            },
+            "end": {
+              "row": 10,
+              "column": 27
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 10,
+              "column": 10
+            },
+            "end": {
+              "row": 10,
+              "column": 16
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        },
+        {
+          "scopeRange": {
+            "start": {
+              "row": 14,
+              "column": 2
+            },
+            "end": {
+              "row": 16,
+              "column": 9
+            }
+          },
+          "wxForRange": {
+            "start": {
+              "row": 14,
+              "column": 8
+            },
+            "end": {
+              "row": 14,
+              "column": 27
+            }
+          },
+          "wxForKeywordRange": {
+            "start": {
+              "row": 14,
+              "column": 8
+            },
+            "end": {
+              "row": 14,
+              "column": 14
+            }
+          },
+          "itemName": "item",
+          "itemNameRange": null,
+          "itemSource": "implicit",
+          "indexName": "index",
+          "indexNameRange": null,
+          "indexSource": "implicit",
+          "ownerTag": "view"
+        }
+      ],
+      "wxForBindings": {
+        "items": [
+          "row"
+        ],
+        "indexes": [
+          "idx"
+        ],
+        "hasAnyWxFor": true
+      }
+    },
+    {
       "path": "fixtures/miniprogram/shared/header.wxml",
       "dependencies": [],
       "symbols": [],
