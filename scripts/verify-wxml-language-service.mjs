@@ -1629,6 +1629,46 @@ function assertHoverOnBlockWxForItem(graph) {
     `W-11: expected source line to mention <block> as ownerTag; got ${value}`);
 }
 
+// Phase 3 Task 4 — Declaration-side hover (HD-1..HD-3) --------------------
+
+function assertHoverOnWxForItemDeclaration(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes(`wx:for-item="prod"`));
+  assert(i >= 0, "HD-1 setup: line with wx:for-item=\"prod\"");
+  const ch = lines[i].indexOf(`wx:for-item="prod"`) + `wx:for-item="`.length; // on `p`
+  const hover = getHover({ graph, documentPath: LOOPS_WXML, position: { line: i, character: ch + 1 }, extensionRoot: ROOT });
+  assert(hover, "HD-1: expected Hover on wx:for-item declaration");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**prod** — `wx:for-item`"), `HD-1: bad title; got ${value}`);
+}
+
+function assertHoverOnWxForIndexDeclaration(graph) {
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes(`wx:for-index="idx"`));
+  assert(i >= 0, "HD-2 setup: line with wx:for-index=\"idx\"");
+  const ch = lines[i].indexOf(`wx:for-index="idx"`) + `wx:for-index="`.length; // on `i`
+  const hover = getHover({ graph, documentPath: LOOPS_WXML, position: { line: i, character: ch + 1 }, extensionRoot: ROOT });
+  assert(hover, "HD-2: expected Hover on wx:for-index declaration");
+  const value = hoverContents(hover);
+  assert(value.startsWith("**idx** — `wx:for-index`"), `HD-2: bad title; got ${value}`);
+}
+
+function assertHoverOnIterableValueResolvesData(graph) {
+  // The `users` inside wx:for="{{users}}" is the iterable, NOT a declaration.
+  // The declaration-side branch must NOT fire: `{{users}}` lives in wxForRange
+  // (not in any itemNameRange/indexNameRange), so findWxForDeclarationAtPosition
+  // cannot match it by construction; `users` resolves via the expression-ref/data
+  // path instead.
+  const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+  const i = lines.findIndex((l) => l.includes(`wx:for="{{users}}"`));
+  assert(i >= 0, "HD-3 setup: line with wx:for=\"{{users}}\"");
+  const ch = lines[i].indexOf(`wx:for="{{users}}"`) + `wx:for="{{`.length; // on `u`
+  const hover = getHover({ graph, documentPath: LOOPS_WXML, position: { line: i, character: ch + 1 }, extensionRoot: ROOT });
+  assert(hover, "HD-3: expected Hover for `users` on the iterable value");
+  const value = hoverContents(hover);
+  assert(value.includes("`data`"), `HD-3: iterable value must resolve as data, not a wx:for card; got ${value}`);
+}
+
 // Phase 3 Stage E — wx:for binding definition (D-1..D-10) ----------------
 
 // Returns the single-line text covered by an LSP range, for asserting a
@@ -3518,3 +3558,8 @@ assertDefinitionOutsideLoopFallsThroughToData(graph);
 assertDefinitionBlockWxForItem(graph);
 assertDefinitionWxForLegacyGraphDegrades(graph);
 assertDefinitionWxForExplicitLegacyDegrades(graph);
+
+// Phase 3 Task 4 — Declaration-side hover (HD-1..HD-3)
+assertHoverOnWxForItemDeclaration(graph);
+assertHoverOnWxForIndexDeclaration(graph);
+assertHoverOnIterableValueResolvesData(graph);

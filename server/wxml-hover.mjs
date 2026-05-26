@@ -10,7 +10,7 @@ import {
 import {
   containsPosition,
   findMatchingWxForBinding,
-  findWxForDeclarationAtPosition, // findWxForDeclarationAtPosition: wired into the declaration-side hover branch in Task 4
+  findWxForDeclarationAtPosition,
 } from "./wxml-for-scope.mjs";
 
 // NOTE: wxml-hover.mjs ↔ wxml-language-service.mjs is a circular module
@@ -131,6 +131,7 @@ function makeWxForHover(scope, kind, refRange) {
  * Pipeline (executed in order; first matching branch returns):
  *   1. Event handler         — AUTHORITATIVE (page/component method).
  *   2. Expression ref        — AUTHORITATIVE (data / setData / injector / property / wxs xref).
+ *   D. Declaration-side wx:for-item/index — FALL-THROUGH (renders the same card as 2a).
  *   3. Component tag         — FALL-THROUGH (custom component path).
  *   4. Wxs module declaration— FALL-THROUGH (external path / inline note).
  *
@@ -265,6 +266,19 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
     }
 
     return null;
+  }
+
+  // D. Declaration-side hover: cursor inside an EXPLICIT wx:for-item /
+  // wx:for-index attribute value. Renders the same card as the use-site (2a).
+  // These name ranges never overlap interpolation or event-handler ranges, so
+  // this cannot collide with branches 1/2. Implicit bindings have null name
+  // ranges and never match (the resolver guards on range presence).
+  const wxForDecl = findWxForDeclarationAtPosition(fileModel.wxForScopes, position);
+  if (wxForDecl) {
+    const refRange = wxForDecl.kind === "item"
+      ? wxForDecl.scope.itemNameRange
+      : wxForDecl.scope.indexNameRange;
+    return makeWxForHover(wxForDecl.scope, wxForDecl.kind, refRange);
   }
 
   // 3. Component tag match — resolve via graph.usingComponents.
