@@ -135,6 +135,20 @@ file**:
 | `item` binding, `itemSource === "implicit"`         | `wxForKeywordRange` |
 | `index` binding, `indexSource === "implicit"`       | `wxForKeywordRange` |
 
+**Legacy-graph degrade (required — not optional).** Because `graph.version` is
+**not** bumped, a graph built before this change — or a hand-written test graph —
+may carry `wxForScopes[]` entries **without** `wxForKeywordRange`. The implicit
+branch MUST return `null` (no Location) when the selected target range is absent,
+rather than passing `undefined` into `locationForGraphPathWithRange`:
+`rangeFromSymbolRange` dereferences `range.start.row` on its first line
+(`server/wxml-language-service.mjs:94`) and would throw `TypeError` on a missing
+field. The guard is "return the Location only if the selected target range is
+present; otherwise `null`" — and it applies to the explicit branches too
+(`itemNameRange` / `indexNameRange` absent → `null`), so the whole wx:for
+definition branch degrades gracefully on any pre-field graph. A `null` here is a
+graceful miss, **not** an authoritative null: it still falls through to the
+remaining definition branches (same as the outside-loop case below).
+
 Semantics inherited from the shared resolver (already proven by hover W-1..W-10):
 
 - **Shadowing (W-8):** when a data key and a wx:for binding share a name, wx:for
@@ -173,6 +187,10 @@ runner, not a SCENARIOS array):
   nested-shadow (innermost wins), data-vs-wxfor-shadow (wx:for wins), outside-loop
   (no wx:for Location). Assert the returned `Location.range` equals the expected
   declaration range.
+- **Legacy-graph degrade:** feed a synthetic graph whose `wxForScopes[]` entry
+  omits `wxForKeywordRange` (an implicit binding), request definition on `{{item}}`,
+  and assert it returns `null` **without throwing** — same defensive style as the
+  existing S-W4 / S-C3 missing-field cases. Guards the no-version-bump contract.
 - **Declaration hover (D):** cursor on `wx:for-item="foo"` value → item card;
   cursor on `wx:for-index="idx"` value → index card; cursor on `wx:for="{{users}}"`
   value → resolves `users` as data (not a wx:for card).
@@ -187,9 +205,11 @@ Fixtures: reuse `fixtures/miniprogram/pages/loops/loops.wxml` (already has defau
 is missing.
 
 **Resolver-move guard:** `findMatchingWxForBinding` moves from `wxml-hover.mjs` to
-`wxml-for-scope.mjs` verbatim. The existing hover wx:for cases (W-1..W-10 in
-`verify-wxml-language-service.mjs`, L-W1 in `verify-lsp-diagnostics.mjs`) must stay
-green unchanged — that proves the extraction is behavior-preserving for hover.
+`wxml-for-scope.mjs` verbatim. The existing hover wx:for cases (W-1..**W-11** in
+`verify-wxml-language-service.mjs` — W-11 covers `<block wx:for>`, the regression
+fixed in `ebd5ffa`; plus L-W1 in `verify-lsp-diagnostics.mjs`) must stay green
+unchanged — that proves the extraction is behavior-preserving for hover, including
+the block-element path.
 
 **Invariant guard (zero-behavior-change for completion/diagnostics):** A and D add
 no wx:for completion or diagnostic case. The existing W-7 byte-equal snapshot and
@@ -216,4 +236,7 @@ verifier (`scripts/verify-wxml-narrow-ranges.mjs`) gains a case asserting
 7. Hover on `wx:for="{{users}}"` value still resolves `users` as data.
 8. Completion and diagnostics outputs are byte-equal to pre-change (verified by
    W-7 + graph-smoke staying green with no new wx:for cases).
-9. All offline verifiers green; `graph.version` unchanged.
+9. A graph whose `wxForScopes[]` lacks `wxForKeywordRange` (pre-field / legacy)
+   returns `null` for implicit-binding definition without throwing — the wx:for
+   branch degrades gracefully under the no-version-bump contract.
+10. All offline verifiers green; `graph.version` unchanged.
