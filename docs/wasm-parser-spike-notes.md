@@ -1141,7 +1141,35 @@ Verification: narrow-ranges 15/15 (incl S-F9 + W-7), wasm baselines 8/8 (8
 files now carry `wxForKeywordRange` additively), language-service all green
 (W-1..W-11 + D-1..D-10 + HD-1..HD-3), lsp-diagnostics graph-smoke 21/21 (incl
 new L-W2), full `verify-tree-sitter.sh` umbrella green. A final holistic review
-returned SHIP with no Critical/Important findings.
+returned SHIP with no Critical/Important findings. An independent high-effort
+recall-biased code review (3 angles) returned zero findings — the two surviving
+candidates (degrade fall-through to shadowed data; definition reads saved graph
+not live overlay) both REFUTED as unreachable / pre-existing-by-design.
+
+**chelaile A/D dogfood (2026-05-26).** Offline programmatic dogfood against the
+real `mp-wx-chelaile/wx` checkout: built the project graph, then called
+`getDefinition`/`getHover` directly (pure functions; the LSP transport is
+covered separately by L-W1/L-W2), auto-discovering every `wx:for` scope across
+the project and probing A (cmd-click a `{{itemName}}` use-site → same-file
+Location) and D (hover an explicit `wx:for-item="X"` value → loop card). Result:
+60 wxml files with `wx:for`; **A 83/83 pass, D 22/22 pass** (one A use-site
+skipped — see below). No config written to chelaile; throwaway script kept under
+`$TMPDIR`, deleted after the run; wxml-zed tree clean.
+
+The one skipped A case (`cll-ad-self.wxml:5` `{{ad}}`) sits inside a
+`<template name="ad-self">` body. Both `getDefinition` (`:985`) and `getHover`
+(`:188`) early-return on `expressionRefMatch.inTemplateDefinition` **before** the
+wx:for step-2a branch (`:991` / `:193`), so a loop binding referenced inside a
+template definition gets neither definition nor hover. This is the pre-existing
+template-body anti-noise suppression (refs inside `<template name>` resolve in
+the *caller's* data scope at use-time, which we lack) applied uniformly — **not
+a wx:for regression**. Design note: a wx:for loop variable inside a template body
+is actually *lexically local* (the `wx:for` declares it right there, independent
+of caller scope), so the suppression is over-broad for that specific case. A
+future enhancement could run the wx:for-binding lookup before the
+`inTemplateDefinition` return — but only for bindings whose scope lies within the
+same template — and it needs its own design; logged in the v2 backlog, not part
+of this round.
 
 ---
 
