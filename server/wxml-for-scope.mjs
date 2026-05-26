@@ -91,6 +91,32 @@ export function scopesDeclaredWithin(scopes, boundaryRange) {
 }
 
 /**
+ * All wx:for bindings (item + index of every loop) whose scope is active at the
+ * position: scopeRange contains the position AND the loop's own wxForRange does
+ * NOT (iterable-exclusion — an identifier inside `wx:for="{{x}}"` evaluates in
+ * the OUTER scope, so the loop's own binding is not active there).
+ *
+ * Returned INNERMOST-FIRST (reverse extraction order; extraction is pre-order so
+ * children come after parents). Callers that dedup by name keep the innermost
+ * binding's kind/detail on a same-name shadow. Ordering does NOT determine UI
+ * order — getCompletions sorts items by label afterward.
+ *
+ * Scopes missing scopeRange/wxForRange are skipped defensively (legacy graphs).
+ */
+export function activeWxForBindingsAt(scopes, position) {
+  const out = [];
+  for (let i = (scopes ?? []).length - 1; i >= 0; i--) {
+    const scope = scopes[i];
+    if (!scope.scopeRange || !scope.wxForRange) continue;
+    if (!containsPosition(scope.scopeRange, position)) continue;
+    if (containsPosition(scope.wxForRange, position)) continue;
+    out.push({ name: scope.itemName, kind: "item" });
+    out.push({ name: scope.indexName, kind: "index" });
+  }
+  return out;
+}
+
+/**
  * Declaration-side lookup: return { scope, kind } when the cursor is inside an
  * EXPLICIT wx:for-item / wx:for-index attribute value (itemNameRange /
  * indexNameRange). Implicit bindings have null name ranges, so they never match

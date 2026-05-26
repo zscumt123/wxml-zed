@@ -76,10 +76,10 @@ function testActiveBindingsShadowInnermostFirst() {
     scope("x", "ii", rng(2, 0, 8, 0), rng(2, 0, 2, 20)),
   ];
   const out = activeWxForBindingsAt(scopes, { line: 5, character: 5 });
-  // Both "x" present; the INNER one comes first so a seen-dedup keeps it.
-  const firstX = out.find((b) => b.name === "x");
-  assert(out[0].name === "x" && out[0].kind === "item", `B-U4: inner x first; got ${JSON.stringify(out)}`);
-  assert(firstX === out[0], `B-U4: innermost x must be the first x`);
+  // Both "x" entries are present; the INNER loop's pair must come before the
+  // OUTER loop's pair so a seen-dedup keeps the inner binding.
+  assert(out.map((b) => b.name).join(",") === "x,ii,x,oi",
+    `B-U4: expected inner x/index before outer x/index; got ${JSON.stringify(out)}`);
 }
 
 function testActiveBindingsIterableExclusion() {

@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { activeWxForBindingsAt } from "../server/wxml-for-scope.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXTRACTOR = path.join(ROOT, "scripts/extract-wxml-symbols.mjs");
@@ -321,6 +322,79 @@ function testCompatShimByteEqual() {
   }
 }
 
+// Synthetic scope/range builders for activeWxForBindingsAt unit tests.
+function rng(sr, sc, er, ec) {
+  return { start: { row: sr, column: sc }, end: { row: er, column: ec } };
+}
+
+function scope(itemName, indexName, scopeRange, wxForRange) {
+  return { itemName, indexName, scopeRange, wxForRange };
+}
+
+function testActiveBindingsOutside() {
+  const scopes = [scope("item", "index", rng(0, 0, 5, 0), rng(0, 0, 0, 20))];
+  const out = activeWxForBindingsAt(scopes, { line: 10, character: 0 });
+  assert(out.length === 0, `B-U1: outside all scopes must be empty; got ${JSON.stringify(out)}`);
+}
+
+function testActiveBindingsSingle() {
+  const scopes = [scope("item", "index", rng(0, 0, 5, 0), rng(0, 0, 0, 20))];
+  const out = activeWxForBindingsAt(scopes, { line: 2, character: 4 });
+  assert(out.length === 2, `B-U2: single active loop -> item+index; got ${JSON.stringify(out)}`);
+  assert(out[0].name === "item" && out[0].kind === "item", `B-U2: item entry; got ${JSON.stringify(out)}`);
+  assert(out[1].name === "index" && out[1].kind === "index", `B-U2: index entry; got ${JSON.stringify(out)}`);
+}
+
+function testActiveBindingsNestedInnermostFirst() {
+  // Pre-order extraction: outer pushed first, inner second.
+  const scopes = [
+    scope("outer", "oi", rng(0, 0, 10, 0), rng(0, 0, 0, 20)),
+    scope("inner", "ii", rng(2, 0, 8, 0), rng(2, 0, 2, 20)),
+  ];
+  const out = activeWxForBindingsAt(scopes, { line: 5, character: 5 });
+  // innermost-first: inner's bindings precede outer's.
+  assert(out.map((b) => b.name).join(",") === "inner,ii,outer,oi",
+    `B-U3: nested union innermost-first; got ${JSON.stringify(out.map((b) => b.name))}`);
+}
+
+function testActiveBindingsShadowInnermostFirst() {
+  const scopes = [
+    scope("x", "oi", rng(0, 0, 10, 0), rng(0, 0, 0, 20)),
+    scope("x", "ii", rng(2, 0, 8, 0), rng(2, 0, 2, 20)),
+  ];
+  const out = activeWxForBindingsAt(scopes, { line: 5, character: 5 });
+  // Both "x" entries are present; the INNER loop's pair must come before the
+  // OUTER loop's pair so a seen-dedup keeps the inner binding.
+  assert(out.map((b) => b.name).join(",") === "x,ii,x,oi",
+    `B-U4: expected inner x/index before outer x/index; got ${JSON.stringify(out)}`);
+}
+
+function testActiveBindingsIterableExclusion() {
+  const scopes = [
+    scope("outer", "oi", rng(0, 0, 10, 0), rng(0, 0, 0, 20)),
+    scope("inner", "ii", rng(2, 0, 8, 0), rng(2, 0, 2, 40)),
+  ];
+  // Position inside inner's wxForRange (its iterable) -> inner excluded, outer kept.
+  const out = activeWxForBindingsAt(scopes, { line: 2, character: 10 });
+  const names = out.map((b) => b.name);
+  assert(!names.includes("inner") && !names.includes("ii"), `B-U5: inner excluded inside its iterable; got ${JSON.stringify(names)}`);
+  assert(names.includes("outer"), `B-U5: enclosing outer still active; got ${JSON.stringify(names)}`);
+}
+
+function testActiveBindingsDefensive() {
+  const scopes = [
+    { itemName: "a", indexName: "ai" }, // no scopeRange / wxForRange
+    scope("b", "bi", rng(0, 0, 5, 0), rng(0, 0, 0, 20)),
+  ];
+  let out;
+  try {
+    out = activeWxForBindingsAt(scopes, { line: 2, character: 2 });
+  } catch (err) {
+    throw new Error(`B-U6: threw on range-less scope: ${err.message}`);
+  }
+  assert(out.map((b) => b.name).join(",") === "b,bi", `B-U6: range-less scope skipped; got ${JSON.stringify(out)}`);
+}
+
 const CASES = [
   ["S-W1: external wxs nameRange", testExternalWxsNameRange],
   ["S-W2: inline wxs nameRange", testInlineWxsNameRange],
@@ -336,6 +410,12 @@ const CASES = [
   ["S-F7: dynamic wx:for-item interpolation does not leak into items", testInterpolatedItemNameFallsBackToImplicit],
   ["S-F8: <block wx:for> creates a scope (legacy compat)", testBlockElementCreatesScope],
   ["S-F9: wxForKeywordRange covers the narrow wx:for attribute-name token", testWxForKeywordRange],
+  ["B-U1: activeWxForBindingsAt outside all scopes", testActiveBindingsOutside],
+  ["B-U2: activeWxForBindingsAt single loop", testActiveBindingsSingle],
+  ["B-U3: activeWxForBindingsAt nested innermost-first", testActiveBindingsNestedInnermostFirst],
+  ["B-U4: activeWxForBindingsAt same-name shadow innermost-first", testActiveBindingsShadowInnermostFirst],
+  ["B-U5: activeWxForBindingsAt iterable-exclusion keeps outer", testActiveBindingsIterableExclusion],
+  ["B-U6: activeWxForBindingsAt skips range-less scopes", testActiveBindingsDefensive],
   ["W-7: wxForBindings compat shim is byte-equal across all baselines", testCompatShimByteEqual],
 ];
 
