@@ -11,6 +11,8 @@ import {
   containsPosition,
   findMatchingWxForBinding,
   findWxForDeclarationAtPosition,
+  findEnclosingTemplateRange,
+  scopesDeclaredWithin,
 } from "./wxml-for-scope.mjs";
 
 // NOTE: wxml-hover.mjs ↔ wxml-language-service.mjs is a circular module
@@ -185,7 +187,23 @@ export function getHover({ graph, documentPath, position, extensionRoot }) {
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
-    if (expressionRefMatch.inTemplateDefinition) return null;
+    if (expressionRefMatch.inTemplateDefinition) {
+      // Same as getDefinition: a wx:for loop variable declared inside the same
+      // template is resolvable; an outer loop enclosing the template definition
+      // must not leak; data/property/wxs stay suppressed (caller scope unknown).
+      const templateRanges = (fileModel.symbols ?? [])
+        .filter((s) => s.kind === "template")
+        .map((s) => s.range);
+      const boundary = findEnclosingTemplateRange(templateRanges, position);
+      if (boundary) {
+        const localScopes = scopesDeclaredWithin(fileModel.wxForScopes, boundary);
+        const wxForBinding = findMatchingWxForBinding(localScopes, position, expressionRefMatch.name);
+        if (wxForBinding) {
+          return makeWxForHover(wxForBinding.scope, wxForBinding.kind, expressionRefMatch.range);
+        }
+      }
+      return null;
+    }
 
     // 2a. wx:for binding lookup — opportunistic, no ownerConfig needed.
     // Per WXML lexical scope semantics, wx:for-item / wx:for-index shadow

@@ -3477,6 +3477,82 @@ function assertTplDefCase2NoLeak(graph) {
   assert(loc === null, `T-11: outer loop must NOT leak into template body; got ${JSON.stringify(loc)}`);
 }
 
+// Phase 3 Task 3 — Template-body wx:for hover (T-2, T-4, T-6, T-8, T-10, T-12, T-13, T-14) --------
+
+function tplHoverAt(graph, line, character) {
+  return getHover({ graph, documentPath: TPL_LOOPS_WXML, position: { line, character }, extensionRoot: ROOT });
+}
+
+function assertTplHoverExplicitItem(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{row.label}}", "T-2");
+  const ch = lines[i].indexOf("{{row.label}}") + 2;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-2: expected Hover for explicit item `row`");
+  assert(hoverContents(hov).startsWith("**row** — `wx:for-item`"), `T-2: bad title; got ${hoverContents(hov)}`);
+}
+
+function assertTplHoverExplicitIndex(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "#{{idx}}", "T-4");
+  const ch = lines[i].indexOf("#{{idx}}") + 3;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-4: expected Hover for explicit index `idx`");
+  assert(hoverContents(hov).startsWith("**idx** — `wx:for-index`"), `T-4: bad title; got ${hoverContents(hov)}`);
+}
+
+function assertTplHoverImplicitItem(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{item}} {{index}}", "T-6");
+  const ch = lines[i].indexOf("{{item}} {{index}}") + 2;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-6: expected Hover for implicit item");
+  assert(hoverContents(hov).startsWith("**item** — `wx:for-item`"), `T-6: bad title; got ${hoverContents(hov)}`);
+}
+
+function assertTplHoverImplicitIndex(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{item}} {{index}}", "T-8");
+  const ch = lines[i].indexOf("{{index}}") + 2;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-8: expected Hover for implicit index");
+  assert(hoverContents(hov).startsWith("**index** — `wx:for-index`"), `T-8: bad title; got ${hoverContents(hov)}`);
+}
+
+function assertTplHoverDataRefSuppressed(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "({{theme}})", "T-10");
+  const ch = lines[i].indexOf("{{theme}}") + 2;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov === null, `T-10: data ref hover inside template must stay suppressed (null); got ${JSON.stringify(hov)}`);
+}
+
+function assertTplHoverCase2NoLeak(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, 'name="tpl-inner"', "T-12");
+  const ch = lines[i].indexOf("{{item}}") + 2;
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov === null, `T-12: outer loop must NOT leak into template body hover; got ${JSON.stringify(hov)}`);
+}
+
+function assertTplHoverDeclItem(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, 'wx:for-item="row"', "T-13");
+  const ch = lines[i].indexOf('wx:for-item="row"') + 'wx:for-item="'.length; // on `r`
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-13: expected declaration-side Hover for `row`");
+  assert(hoverContents(hov).startsWith("**row** — `wx:for-item`"), `T-13: bad title; got ${hoverContents(hov)}`);
+}
+
+function assertTplHoverDeclIndex(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, 'wx:for-index="idx"', "T-14");
+  const ch = lines[i].indexOf('wx:for-index="idx"') + 'wx:for-index="'.length; // on `i`
+  const hov = tplHoverAt(graph, i, ch + 1);
+  assert(hov, "T-14: expected declaration-side Hover for `idx`");
+  assert(hoverContents(hov).startsWith("**idx** — `wx:for-index`"), `T-14: bad title; got ${hoverContents(hov)}`);
+}
+
 const graph = loadGraph();
 assertHomeConfigScript(graph);
 assertEventHandlerDefinition(graph);
@@ -3640,3 +3716,13 @@ assertTplDefImplicitItem(graph);
 assertTplDefImplicitIndex(graph);
 assertTplDefDataRefSuppressed(graph);
 assertTplDefCase2NoLeak(graph);
+
+// Phase 3 Task 3 — Template-body wx:for hover (T-2, T-4, T-6, T-8, T-10, T-12, T-13, T-14)
+assertTplHoverExplicitItem(graph);
+assertTplHoverExplicitIndex(graph);
+assertTplHoverImplicitItem(graph);
+assertTplHoverImplicitIndex(graph);
+assertTplHoverDataRefSuppressed(graph);
+assertTplHoverCase2NoLeak(graph);
+assertTplHoverDeclItem(graph);
+assertTplHoverDeclIndex(graph);
