@@ -1173,6 +1173,59 @@ of this round.
 
 ---
 
+### Follow-up: wx:for definition + hover inside `<template name>` bodies (2026-05-26)
+
+Closed the template-body gap the v2-A/D dogfood surfaced (above). The blunt
+`inTemplateDefinition` early-return in `getDefinition` and `getHover` is replaced
+by a same-template `wx:for` lookup: a loop variable referenced inside a template
+body resolves **only** when the loop is declared within that same template;
+data/property/wxs references stay suppressed (caller scope still unknown).
+
+Spec `docs/superpowers/specs/2026-05-26-wxml-for-template-body-definition-design.md`,
+plan `docs/superpowers/plans/2026-05-26-wxml-for-template-body-definition.md`.
+Shipped across 3 commits (`216a49b` tpl-loops fixture → `a966336` getDefinition
+branch + leaf helpers → `392e22d` getHover branch).
+
+Design that made it small and safe:
+
+- **Two pure leaf helpers** in `server/wxml-for-scope.mjs`:
+  `findEnclosingTemplateRange(templateRanges, position)` (innermost = latest
+  start, since template definitions never partially overlap) and
+  `scopesDeclaredWithin(scopes, boundaryRange)` (keeps only scopes whose
+  `wxForRange.start` — the `wx:for` declaration — falls within the template
+  range). `findMatchingWxForBinding` is reused unchanged.
+- **The boundary discriminator is the whole trick.** Two cases share the loop
+  name `item`: an implicit loop declared *inside* `tpl-implicit` resolves; an
+  outer `<view wx:for="{{groups}}">` that merely *encloses* `<template
+  name="tpl-inner">` does not leak in, because its `wxForRange.start` is outside
+  the `tpl-inner` range so `scopesDeclaredWithin` filters it out. WeChat
+  templates don't capture the surrounding scope (only `data` passed at
+  `<template is>`), so that outer-loop reference is genuinely a caller-data ref.
+- **Template definitions are already in `fileModel.symbols`** as
+  `{ kind: "template", range }` — no new extractor field, no `graph.version` bump.
+- **Declaration-side hover was already working** (it runs through
+  `findWxForDeclarationAtPosition`, downstream of the `inTemplateDefinition`
+  gate) and was explicitly out of scope; T-13/T-14 guard that it stays working.
+
+Scope held tight: `getDefinition`/`getHover` template branches are exact mirrors
+(differing only in Location vs `makeWxForHover`); only the
+`inTemplateDefinition === true` branch changed, so non-template resolution
+(W-1..W-11, D-1..D-10, HD-1..HD-3), completion, and diagnostics are provably
+untouched. The two near-identical template branches are acceptable duplication
+for now; if a third template-body consumer ever appears, extract a shared
+`resolveWxForInTemplate(fileModel, position, name)` then (deferred, per review).
+
+Verification: 14 new cases T-1..T-14 (explicit/implicit item+index resolve,
+data-ref suppressed, Case-2 no-leak, declaration-side regression) — all green;
+narrow-ranges 15/15, wasm baselines 8/8 (new tpl-loops fixture added
+additively; the stale `miniprogram (N fixtures)` label was de-hardcoded),
+language-service + graph-smoke green, full `verify-tree-sitter.sh` umbrella
+green. A final holistic review returned SHIP with zero findings after live
+edge-probing (iterable-exclusion × template branch, Case-2 boundary arithmetic
+on real ranges, template_definition-vs-usage `kind` collision).
+
+---
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
