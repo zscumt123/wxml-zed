@@ -760,6 +760,31 @@ async function testHoverWxForBinding() {
   });
 }
 
+async function testDefinitionWxForBinding() {
+  // L-W2: open loops.wxml, go-to-definition on the default-loop `item` in
+  // {{item.name}}, assert it resolves to a same-file Location (the wx:for attr).
+  await withClient({ rootPath: ROOT }, async (client) => {
+    const uri = client.openDocument(LOOPS_WXML);
+    await client.waitForDiagnostics(uri, (items) => items.length === 0, "loops diagnostics before definition wx:for");
+    // loops.wxml line 4 (row 3): `    {{item.name}} ({{index}})` — cursor on `item`.
+    const result = await client.definition(LOOPS_WXML, { line: 3, character: 7 });
+    assert(result, "L-W2: expected Location, got null");
+    const loc = Array.isArray(result) ? result[0] : result;
+    assert(
+      loc && typeof loc.uri === "string" && loc.uri.endsWith("/fixtures/miniprogram/pages/loops/loops.wxml"),
+      `L-W2: expected same-file loops.wxml Location; got ${JSON.stringify(result)}`,
+    );
+    // Also assert the wire-level range points at the `wx:for` token (default
+    // item → wxForKeywordRange), so the integration path can't pass with a
+    // same-file-but-wrong range.
+    const r = loc.range;
+    assert(r && r.start.line === r.end.line, `L-W2: expected single-line range; got ${JSON.stringify(r)}`);
+    const lines = fs.readFileSync(LOOPS_WXML, "utf8").split("\n");
+    const slice = lines[r.start.line].slice(r.start.character, r.end.character);
+    assert(slice === "wx:for", `L-W2: wire range must cover the wx:for token; got '${slice}'`);
+  });
+}
+
 async function testImportDefinition() {
   await withClient({ rootPath: ROOT }, async (client) => {
     const uri = client.openDocument(HOME_WXML);
@@ -1773,6 +1798,7 @@ const scenarios = [
   ["hover returns null for member chain", testHoverNullForMemberChain],
   ["hover returns arrow form for custom component", testHoverArrowForCustomComponent],
   ["hover wx:for binding", testHoverWxForBinding],
+  ["definition wx:for binding", testDefinitionWxForBinding],
   ["import definition", testImportDefinition],
   ["include definition", testIncludeDefinition],
   ["external wxs definition", testExternalWxsDefinition],
@@ -1843,6 +1869,7 @@ const SCENARIO_SUITES = {
     "hover returns null for member chain",
     "hover returns arrow form for custom component",
     "hover wx:for binding",
+    "definition wx:for binding",
     "completion immediately after open",
     "event handler completion",
     "data ref completion",
