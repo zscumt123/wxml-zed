@@ -3,7 +3,9 @@
 // wxml-hover.mjs and wxml-language-service.mjs can import from it without
 // forming a circular module graph. (containsPosition moved here from
 // wxml-language-service.mjs; findMatchingWxForBinding moved here from
-// wxml-hover.mjs; findWxForDeclarationAtPosition is new.
+// wxml-hover.mjs; findWxForDeclarationAtPosition is new;
+// findEnclosingTemplateRange + scopesDeclaredWithin support wx:for resolution
+// inside <template name> bodies.
 // See docs/superpowers/plans/2026-05-26-wxml-for-definition-parity.md.)
 
 function symbolPointToLsp(point) {
@@ -51,6 +53,39 @@ export function findMatchingWxForBinding(scopes, position, name) {
     if (name === scope.indexName) return { scope, kind: "index" };
   }
   return null;
+}
+
+// a strictly after b in (row, column) order
+function startsAfter(a, b) {
+  return a.row > b.row || (a.row === b.row && a.column > b.column);
+}
+
+/**
+ * Innermost template-definition range containing the position, or null.
+ * templateRanges: symbol-extractor ranges ({ start:{row,column}, end:{row,column} }).
+ * Template definitions never partially overlap, so the innermost containing one
+ * is simply the range whose start point is latest (and two templates can't share
+ * a start point).
+ */
+export function findEnclosingTemplateRange(templateRanges, position) {
+  let best = null;
+  for (const range of templateRanges ?? []) {
+    if (!containsPosition(range, position)) continue;
+    if (best === null || startsAfter(range.start, best.start)) best = range;
+  }
+  return best;
+}
+
+/**
+ * Scopes whose wx:for DECLARATION (wxForRange start) falls within boundaryRange.
+ * Keeps only loops declared inside the enclosing template, so an outer loop that
+ * merely encloses the template definition (Case 2) is excluded.
+ */
+export function scopesDeclaredWithin(scopes, boundaryRange) {
+  return (scopes ?? []).filter((scope) => containsPosition(boundaryRange, {
+    line: scope.wxForRange.start.row,
+    character: scope.wxForRange.start.column,
+  }));
 }
 
 /**

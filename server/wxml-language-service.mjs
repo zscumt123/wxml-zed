@@ -13,7 +13,7 @@ import {
 // containsPosition moved to the pure leaf module. Import for local use (5 call
 // sites here) AND re-export to preserve the @internal surface this module
 // previously provided to siblings.
-import { containsPosition, findMatchingWxForBinding } from "./wxml-for-scope.mjs";
+import { containsPosition, findMatchingWxForBinding, findEnclosingTemplateRange, scopesDeclaredWithin } from "./wxml-for-scope.mjs";
 export { containsPosition };
 
 const WARNING = 2;
@@ -982,7 +982,31 @@ export function getDefinition({ graph, documentPath, position, extensionRoot }) 
   const expressionRefMatch = (fileModel.expressionRefs ?? [])
     .find((entry) => containsPosition(entry.range, position));
   if (expressionRefMatch) {
-    if (expressionRefMatch.inTemplateDefinition) return null;
+    if (expressionRefMatch.inTemplateDefinition) {
+      // Template bodies suppress caller-scope data/property/wxs refs, but a
+      // wx:for loop variable declared INSIDE the same template is lexically
+      // local and resolvable. Restrict to scopes declared within the enclosing
+      // template so an outer loop enclosing the template definition cannot leak.
+      const templateRanges = (fileModel.symbols ?? [])
+        .filter((s) => s.kind === "template")
+        .map((s) => s.range);
+      const boundary = findEnclosingTemplateRange(templateRanges, position);
+      if (boundary) {
+        const localScopes = scopesDeclaredWithin(fileModel.wxForScopes, boundary);
+        const wxForBinding = findMatchingWxForBinding(localScopes, position, expressionRefMatch.name);
+        if (wxForBinding) {
+          const { scope, kind } = wxForBinding;
+          // Same source-keyed target selection as the non-template 2a block below.
+          const targetRange = kind === "item"
+            ? (scope.itemSource === "explicit" ? scope.itemNameRange : scope.wxForKeywordRange)
+            : (scope.indexSource === "explicit" ? scope.indexNameRange : scope.wxForKeywordRange);
+          if (targetRange) {
+            return locationForGraphPathWithRange(documentGraphPath, targetRange, extensionRoot);
+          }
+        }
+      }
+      return null; // data/property/wxs in template bodies stay suppressed
+    }
 
     // 2a. wx:for binding — mirrors getHover step 2a. A loop binding shadows
     // data/property/wxs of the same name inside the loop body (parity with W-8).

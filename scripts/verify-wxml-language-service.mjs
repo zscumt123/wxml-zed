@@ -31,6 +31,7 @@ const DYN_PAGE_WXML = path.join(MINIPROGRAM_ROOT, "pages/dyn-page/dyn-page.wxml"
 const DYN_PAGE_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml";
 const LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/loops/loops.wxml");
 const LOOPS_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/loops/loops.wxml";
+const TPL_LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/tpl-loops/tpl-loops.wxml");
 const LOCAL_BAR_CONFIG_PATH = "fixtures/miniprogram/components/local-bar/local-bar.json";
 const DYN_CARD_CONFIG_PATH = "fixtures/miniprogram/components/dyn-card/dyn-card.json";
 
@@ -3408,6 +3409,74 @@ function assertHomeConfigScript(graph) {
   }
 }
 
+// Phase 3 Task 2 — Template-body wx:for definition (T-1..T-11) ----------------
+
+function tplLines() {
+  return fs.readFileSync(TPL_LOOPS_WXML, "utf8").split("\n");
+}
+function tplRow(lines, needle, label) {
+  const i = lines.findIndex((l) => l.includes(needle));
+  assert(i >= 0, `${label} setup: line containing ${JSON.stringify(needle)}`);
+  return i;
+}
+function tplDefAt(graph, line, character) {
+  return getDefinition({ graph, documentPath: TPL_LOOPS_WXML, position: { line, character }, extensionRoot: ROOT });
+}
+const TPL_URI_TAIL = "/fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml";
+
+function assertTplDefExplicitItem(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{row.label}}", "T-1");
+  const ch = lines[i].indexOf("{{row.label}}") + 2; // on `r` of row
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc, "T-1: expected Location for explicit item `row`");
+  assert(loc.uri.endsWith(TPL_URI_TAIL), `T-1: same-file uri; got ${loc.uri}`);
+  assert(lspRangeText(lines, loc.range) === "row", `T-1: range must cover 'row'; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertTplDefExplicitIndex(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "#{{idx}}", "T-3");
+  const ch = lines[i].indexOf("#{{idx}}") + 3; // on `i` of idx (skip `#{{`)
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc, "T-3: expected Location for explicit index `idx`");
+  assert(lspRangeText(lines, loc.range) === "idx", `T-3: range must cover 'idx'; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertTplDefImplicitItem(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{item}} {{index}}", "T-5"); // tpl-implicit line
+  const ch = lines[i].indexOf("{{item}} {{index}}") + 2; // on `i` of item
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc, "T-5: expected Location for implicit item");
+  assert(lspRangeText(lines, loc.range) === "wx:for", `T-5: implicit item must jump to the wx:for token; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertTplDefImplicitIndex(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "{{item}} {{index}}", "T-7");
+  const ch = lines[i].indexOf("{{index}}") + 2; // on `i` of index
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc, "T-7: expected Location for implicit index");
+  assert(lspRangeText(lines, loc.range) === "wx:for", `T-7: implicit index must jump to the wx:for token; got '${lspRangeText(lines, loc.range)}'`);
+}
+
+function assertTplDefDataRefSuppressed(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, "({{theme}})", "T-9");
+  const ch = lines[i].indexOf("{{theme}}") + 2; // on `t` of theme
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc === null, `T-9: data ref inside template must stay suppressed (null); got ${JSON.stringify(loc)}`);
+}
+
+function assertTplDefCase2NoLeak(graph) {
+  const lines = tplLines();
+  const i = tplRow(lines, 'name="tpl-inner"', "T-11"); // the tpl-inner line carries {{item}}
+  const ch = lines[i].indexOf("{{item}}") + 2;
+  const loc = tplDefAt(graph, i, ch + 1);
+  assert(loc === null, `T-11: outer loop must NOT leak into template body; got ${JSON.stringify(loc)}`);
+}
+
 const graph = loadGraph();
 assertHomeConfigScript(graph);
 assertEventHandlerDefinition(graph);
@@ -3563,3 +3632,11 @@ assertDefinitionWxForExplicitLegacyDegrades(graph);
 assertHoverOnWxForItemDeclaration(graph);
 assertHoverOnWxForIndexDeclaration(graph);
 assertHoverOnIterableValueResolvesData(graph);
+
+// Phase 3 Task 2 — Template-body wx:for definition (T-1..T-11)
+assertTplDefExplicitItem(graph);
+assertTplDefExplicitIndex(graph);
+assertTplDefImplicitItem(graph);
+assertTplDefImplicitIndex(graph);
+assertTplDefDataRefSuppressed(graph);
+assertTplDefCase2NoLeak(graph);
