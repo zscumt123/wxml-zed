@@ -329,6 +329,12 @@ console.log("OK: every baseline differs only by the removed wxForBindings key");
 ```
 Expected: `OK: every baseline differs only by the removed wxForBindings key`. If it throws a DRIFT assertion, STOP — a field other than `wxForBindings` changed; investigate before committing.
 
+Then explicitly lock the deletion target itself — the deepEqual above strips `wxForBindings` from BOTH sides, so it proves "no other field drifted" but NOT that the field is actually gone. Confirm absence directly:
+```bash
+grep -rn '"wxForBindings"' fixtures/wasm-spike && echo "FAIL: field still present" || echo "OK: no wxForBindings key remains in any baseline"
+```
+Expected: `OK: no wxForBindings key remains in any baseline` (grep finds nothing, so the `||` branch fires).
+
 As a human cross-check: `git diff fixtures/wasm-spike` should show only removed `wxForBindings` objects (plus comma/brace adjustments), nothing else.
 
 - [ ] **Step 10: Run the full verifier suite — confirm green**
@@ -346,7 +352,7 @@ Expected: narrow-ranges `20 passed, 0 failed`; wasm `All 8 wasm symbol baselines
 ```bash
 bash scripts/verify-tree-sitter.sh
 ```
-Expected: exits 0. SANDBOX NOTE: this spawns the npx tree-sitter-cli binary, which fails with `EACCES` under the command sandbox — a known environment constraint. If you see EACCES / operation-not-permitted, retry the SAME command with the Bash tool's `dangerouslyDisableSandbox: true`. Report which mode succeeded.
+Expected: exits 0. SANDBOX NOTE: this spawns the npx tree-sitter-cli binary, which fails with `EACCES` under a command sandbox — a known environment constraint, not a code issue. If you see EACCES / operation-not-permitted, rerun the SAME command outside the sandbox via your runner's approved sandbox-escalation mechanism (e.g. Claude Code's Bash `dangerouslyDisableSandbox: true`, or the equivalent "run outside sandbox / approved escalation" option in your environment). Report which mode succeeded.
 
 - [ ] **Step 12: Commit**
 
