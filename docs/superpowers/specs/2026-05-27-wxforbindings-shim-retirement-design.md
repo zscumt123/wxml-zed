@@ -126,6 +126,32 @@ needed (removal of an unread field is backward-safe for all current consumers).
 
 ## Testing
 
+### Normalized pre/post baseline diff (the load-bearing guard)
+
+`verify-wasm-symbol-baselines.mjs` alone CANNOT prove "only `wxForBindings` was
+removed": once the baselines are regenerated, it merely confirms the new
+extractor equals the new baseline — it cannot catch incidental drift in some
+other field that rode along. So before regenerating, capture the originals and do
+an explicit normalized comparison:
+
+1. **Before any code change**, snapshot the baselines:
+   `cp fixtures/wasm-spike/*-symbols-baseline.json "$TMPDIR/wxforbindings-before/"`
+   (create the dir first).
+2. After the extractor change + baseline regen, run a one-shot script that, for
+   each baseline file, loads BOTH the `$TMPDIR/wxforbindings-before/` copy and the
+   regenerated repo copy, **recursively deletes every `wxForBindings` key** from
+   both trees, and asserts the normalized trees are `deepEqual`.
+3. **Expected: exact equality for all 8 baselines.** Any inequality means a field
+   other than `wxForBindings` drifted — STOP and investigate before committing.
+
+As a human cross-check, `git diff fixtures/wasm-spike` should show ONLY removed
+`wxForBindings` objects (and the surrounding comma/brace adjustments) — no
+additions or changes to any other field. This normalized deepEqual is what
+actually enforces Acceptance Criterion 1; it is a one-time implementation-phase
+check (a throwaway `$TMPDIR` script), not a committed verifier.
+
+### Suite verification
+
 - `node scripts/verify-wxml-narrow-ranges.mjs` → 20 passed, 0 failed (was 21;
   W-7 removed; S-F5..F8 converted and still green on their `wxForScopes`
   assertions).
@@ -142,7 +168,9 @@ needed (removal of an unread field is backward-safe for all current consumers).
 ## Acceptance Criteria
 
 1. The extractor output no longer contains a `wxForBindings` key; `wxForScopes`
-   and all other fields are byte-identical to before for every fixture.
+   and all other fields are byte-identical to before for every fixture —
+   **enforced by the normalized pre/post deepEqual** (Testing §1), not merely by
+   the regenerate-then-verify cycle.
 2. The loose accumulators and the dead `else` feeder branch are removed; an
    element with `wx:for-item`/`-index` but no `wx:for` produces no scope (S-F5
    still green) and contributes no binding anywhere.
