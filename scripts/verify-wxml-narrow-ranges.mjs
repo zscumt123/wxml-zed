@@ -149,11 +149,6 @@ function testLooseAttrCompat() {
   const file = result.files[0];
   const scopes = file.wxForScopes ?? [];
   assert(scopes.length === 0, `S-F5: loose wx:for-item without wx:for must NOT create a scope; got ${JSON.stringify(scopes)}`);
-  const bindings = file.wxForBindings;
-  assert(bindings, `S-F5: expected wxForBindings (compat shim)`);
-  assert(bindings.items.includes("loose"), `S-F5: derived wxForBindings.items must include legacy loose name; got ${JSON.stringify(bindings.items)}`);
-  assert(bindings.indexes.includes("loose_idx"), `S-F5: derived wxForBindings.indexes must include legacy loose name; got ${JSON.stringify(bindings.indexes)}`);
-  assert(bindings.hasAnyWxFor === false, `S-F5: hasAnyWxFor must be false (no real wx:for present); got ${bindings.hasAnyWxFor}`);
 }
 
 function testBareWxForCreatesScope() {
@@ -167,9 +162,6 @@ function testBareWxForCreatesScope() {
   assert(s.indexName === "index" && s.indexSource === "implicit",
     `S-F6: same for index; got ${JSON.stringify(s)}`);
   assert(s.wxForRange, `S-F6: wxForRange must exist (covers the bare wx:for attr)`);
-  const bindings = file.wxForBindings;
-  assert(bindings.hasAnyWxFor === true,
-    `S-F6: derived hasAnyWxFor must be true (legacy parity); got ${bindings.hasAnyWxFor}`);
 }
 
 function testInterpolatedItemNameFallsBackToImplicit() {
@@ -179,19 +171,13 @@ function testInterpolatedItemNameFallsBackToImplicit() {
   assert(scopes.length === 1, `S-F7: expected exactly one scope; got ${scopes.length}`);
   const s = scopes[0];
   assert(s.itemName === "item" && s.itemSource === "implicit" && s.itemNameRange === null,
-    `S-F7: dynamic wx:for-item="{{dyn}}" must fall back to implicit; got ${JSON.stringify(s)}`);
-  const bindings = file.wxForBindings;
-  assert(!bindings.items.includes("{{dyn}}"),
-    `S-F7: wxForBindings.items must NOT contain the literal "{{dyn}}"; got ${JSON.stringify(bindings.items)}`);
-  assert(!bindings.items.includes("dyn"),
-    `S-F7: wxForBindings.items must NOT contain "dyn" either; got ${JSON.stringify(bindings.items)}`);
+    `S-F7: dynamic wx:for-item="{{dyn}}" must fall back to implicit (name not captured); got ${JSON.stringify(s)}`);
 }
 
 // S-F8: <block wx:for> must create a scope just like <view wx:for>.
 // Pre-fix the extractor only matched node.type === "element", missing
-// block_element entirely. Legacy attribute-level extraction set
-// hasAnyWxFor = true for any wx:for attribute regardless of parent
-// element type; that compat must be preserved.
+// block_element entirely; this locks in that a block_element wx:for
+// produces a real wxForScope entry.
 function testBlockElementCreatesScope() {
   const result = extract("fixtures/wasm-spike/wx-for-block.wxml");
   const file = result.files[0];
@@ -203,11 +189,6 @@ function testBlockElementCreatesScope() {
   assert(s.ownerTag === "block",
     `S-F8: ownerTag should be "block"; got ${JSON.stringify(s.ownerTag)}`);
   assert(s.wxForRange, `S-F8: wxForRange must exist on the block-element scope`);
-  const bindings = file.wxForBindings;
-  assert(bindings.hasAnyWxFor === true,
-    `S-F8: derived hasAnyWxFor must be true for <block wx:for>; got ${bindings.hasAnyWxFor}`);
-  assert(bindings.items.includes("row"),
-    `S-F8: wxForBindings.items must include "row" (compat with legacy attribute-level extraction); got ${JSON.stringify(bindings.items)}`);
 }
 
 // S-F9: wxForKeywordRange is the narrow `wx:for` attribute-NAME token range
@@ -244,83 +225,6 @@ function testWxForKeywordRange() {
   const line = lines[kr.start.row];
   const slice = line.slice(kr.start.column, kr.end.column);
   assert(slice === "wx:for", `S-F9: keyword range must cover exactly 'wx:for'; got '${slice}'`);
-}
-
-// W-7: derived wxForBindings must byte-equal the pre-change snapshot
-// for every file in every baseline. The snapshot is the literal
-// wxForBindings that the legacy extractor produced before this change.
-// Captured pre-Task-2; inlined here as a closed reference set.
-// To regenerate this snapshot map after adding/removing a fixture:
-//   for f in fixtures/wasm-spike/*-symbols-baseline.json; do
-//     node -e "
-//       const data = JSON.parse(require('fs').readFileSync('$f', 'utf8'));
-//       for (const file of (data.files || data)) {
-//         console.log(JSON.stringify({ path: file.path, wxForBindings: file.wxForBindings }));
-//       }
-//     "
-//   done
-// Then paste each line's contents into the map below, keyed by
-// `<basename of baseline>::<file.path>`.
-const W7_FROZEN_WX_FOR_BINDINGS = {
-  "edge-recovery-symbols-baseline.json::fixtures/real-world/edge-recovery.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "home-symbols-baseline.json::fixtures/miniprogram/pages/home/home.wxml": {"items":[],"indexes":[],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/dyn-card/dyn-card.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/folder-comp/index.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/global-badge/global-badge.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/local-badge/local-badge.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/local-bar/local-bar.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/status-badge/status-badge.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/components/user-card/user-card.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/packages/shop/pages/list/list.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/cross-binding/cross-binding.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/detail/detail.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/dyn-page/dyn-page.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/home/home.wxml": {"items":[],"indexes":[],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/loops/loops.wxml": {"items":["grp","inner","item","outer","prod"],"indexes":["idx"],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/scope-leak/scope-leak.wxml": {"items":["grp","row","x","z"],"indexes":[],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml": {"items":["row"],"indexes":["idx"],"hasAnyWxFor":true},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/shared/header.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/common.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/secondary.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/unrelated.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "non-ascii-symbols-baseline.json::fixtures/wasm-spike/non-ascii.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "real-world-symbols-baseline.json::fixtures/real-world/component.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "real-world-symbols-baseline.json::fixtures/real-world/page.wxml": {"items":["user"],"indexes":["idx"],"hasAnyWxFor":true},
-  "real-world-symbols-baseline.json::fixtures/real-world/templates.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
-  "test-wxml-symbols-baseline.json::fixtures/test.wxml": {"items":["row"],"indexes":["idx"],"hasAnyWxFor":true},
-  "wx-for-unquoted-symbols-baseline.json::fixtures/wasm-spike/wx-for-unquoted.wxml": {"items":["user"],"indexes":["i"],"hasAnyWxFor":true},
-  "wx-for-block-symbols-baseline.json::fixtures/wasm-spike/wx-for-block.wxml": {"items":["row"],"indexes":[],"hasAnyWxFor":true},
-};
-
-function testCompatShimByteEqual() {
-  const baselineDir = path.join(ROOT, "fixtures/wasm-spike");
-  const files = fs.readdirSync(baselineDir).filter((f) => f.endsWith("-symbols-baseline.json"));
-  const actualKeys = new Set();
-  for (const baselineName of files) {
-    const baselinePath = path.join(baselineDir, baselineName);
-    const data = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
-    const fileModels = Array.isArray(data) ? data : data.files;
-    for (const fileModel of fileModels) {
-      const key = `${baselineName}::${fileModel.path}`;
-      actualKeys.add(key);
-      const expected = W7_FROZEN_WX_FOR_BINDINGS[key];
-      assert(
-        expected !== undefined,
-        `W-7: missing frozen snapshot for ${key}. Paste the literal from Step 1's command output into W7_FROZEN_WX_FOR_BINDINGS.`,
-      );
-      const actual = fileModel.wxForBindings;
-      assert(
-        JSON.stringify(actual) === JSON.stringify(expected),
-        `W-7: wxForBindings byte-equal failed for ${key}\n  expected ${JSON.stringify(expected)}\n  got      ${JSON.stringify(actual)}`,
-      );
-    }
-  }
-  for (const key of Object.keys(W7_FROZEN_WX_FOR_BINDINGS)) {
-    assert(
-      actualKeys.has(key),
-      `W-7: stale snapshot for ${key} — no matching fileModel found. Remove from W7_FROZEN_WX_FOR_BINDINGS.`,
-    );
-  }
 }
 
 // Synthetic scope/range builders for activeWxForBindingsAt unit tests.
@@ -406,10 +310,10 @@ const CASES = [
   ["S-F2: default wx:for produces implicit scope", testImplicitScopeShape],
   ["S-F3: nested loops produce nested scopes", testNestedScopes],
   ["S-F4: empty explicit attrs fall back to implicit", testEmptyAttrFallsBackToImplicit],
-  ["S-F5: loose attrs without wx:for preserve legacy compat", testLooseAttrCompat],
-  ["S-F6: bare wx:for preserves legacy hasAnyWxFor", testBareWxForCreatesScope],
-  ["S-F7: dynamic wx:for-item interpolation does not leak into items", testInterpolatedItemNameFallsBackToImplicit],
-  ["S-F8: <block wx:for> creates a scope (legacy compat)", testBlockElementCreatesScope],
+  ["S-F5: loose attrs without wx:for create no scope", testLooseAttrCompat],
+  ["S-F6: bare wx:for produces an implicit-default scope", testBareWxForCreatesScope],
+  ["S-F7: dynamic wx:for-item interpolation falls back to implicit", testInterpolatedItemNameFallsBackToImplicit],
+  ["S-F8: <block wx:for> creates a scope", testBlockElementCreatesScope],
   ["S-F9: wxForKeywordRange covers the narrow wx:for attribute-name token", testWxForKeywordRange],
   ["B-U1: activeWxForBindingsAt outside all scopes", testActiveBindingsOutside],
   ["B-U2: activeWxForBindingsAt single loop", testActiveBindingsSingle],
@@ -417,7 +321,6 @@ const CASES = [
   ["B-U4: activeWxForBindingsAt same-name shadow innermost-first", testActiveBindingsShadowInnermostFirst],
   ["B-U5: activeWxForBindingsAt iterable-exclusion keeps outer", testActiveBindingsIterableExclusion],
   ["B-U6: activeWxForBindingsAt skips range-less scopes", testActiveBindingsDefensive],
-  ["W-7: wxForBindings compat shim is byte-equal across all baselines", testCompatShimByteEqual],
 ];
 
 let passed = 0, failed = 0;
