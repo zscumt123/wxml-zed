@@ -25,10 +25,16 @@ any third-party tree) counted refs that **pass today** (name present in the flat
 shim) but **would warn** under per-position scoping (name not in global scope AND
 not active at the ref's own position):
 
-| Corpus | wxml files | non-template refs | loop-dependent refs | in-scope | **newly-warned** |
+| Corpus | graph wxml files | non-template refs | loop-dependent refs | in-scope | **newly-warned** |
 |---|---|---|---|---|---|
 | our `fixtures/miniprogram` | 17 | 47 | 8 | 8 | **0** |
-| chelaile (real, 196 files) | 196 | 1700 | 331 | 331 | **0** |
+| chelaile (real) | 196 | 1700 | 331 | 331 | **0** |
+
+(Counts are over the app.json-reachable graph — what `expressionRefDiagnostics`
+actually runs on. `fixtures/miniprogram` has 18 `.wxml` on disk; the 18th,
+`templates/unrelated.wxml`, is not reachable from `app.json` so it has no owner
+script and is skipped anyway. The on-disk count matters only for the wasm
+baseline glob — see Regression.)
 
 All 331 loop-variable references in a real 196-file project sit inside their
 loop's active scope: **zero new warnings**. The scan demonstrably sees `wx:for`
@@ -211,18 +217,35 @@ language-service runner. New scenarios on `scope-leak.wxml`:
 - **E-6 block loop:** `{{grp}}` inside `<block wx:for>` clean; `{{grp}}` after it
   warns.
 - **E-7 regression — no new warnings elsewhere:** existing graph-smoke scenarios
-  and their expected diagnostic sets stay byte-identical; the pre-scan's
-  0-newly-warned on the existing 17 fixtures holds (only `scope-leak` introduces
-  new Warnings).
+  keep the same diagnostic `code`/`severity`/`range`/count; only `scope-leak`
+  introduces new Warnings. (The pre-scan's 0-newly-warned on every existing
+  graph file holds.)
 
 ### Regression / invariant
 
-- All existing graph-smoke scenarios (21) stay green with unchanged expected
-  diagnostics. `verify-wxml-language-service.mjs` (hover/definition/completion +
-  W/D/HD/T/B series) untouched and green.
-- `W-7` byte-equal stays green; the `wxForBindings` shim is byte-unchanged.
-- wasm symbol baselines unchanged — the extractor is not modified; the new
-  fixture is added additively (and is not part of the wasm baseline set).
+- All existing graph-smoke scenarios (21) stay green: diagnostic
+  `code`/`severity`/`range`/count are unchanged. The only object-level change is
+  the `missing-expression-ref` **message** text wherever that code is emitted
+  (§2's reworded constant). Existing assertions match on code + the quoted
+  identifier substring (e.g. `.message.includes('"__undef_a__"')`), not the full
+  message string, so they stay green; do not claim the diagnostic objects are
+  byte-identical — the message field changes.
+- `verify-wxml-language-service.mjs` (hover/definition/completion + W/D/HD/T/B
+  series) untouched and green.
+- **wasm symbol baselines + W-7 must be updated for the new fixture (NOT
+  unchanged).** `verify-wasm-symbol-baselines.mjs`'s `miniprogram` case globs
+  `fixtures/miniprogram` recursively for every `.wxml`, so adding
+  `scope-leak.wxml` (18→19 on disk) requires regenerating
+  `fixtures/wasm-spike/miniprogram-symbols-baseline.json`. Correspondingly,
+  `scripts/verify-wxml-narrow-ranges.mjs`'s `W7_FROZEN_WX_FOR_BINDINGS` map needs
+  a new entry
+  `miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/scope-leak/scope-leak.wxml`
+  with the fixture's frozen `wxForBindings` (non-empty: it has `wx:for` loops —
+  `hasAnyWxFor: true`, sorted explicit `items`/`indexes`), or W-7's
+  missing-frozen-snapshot assert fires. The extractor itself is **not** modified;
+  these are purely additive baseline/map updates for the new fixture.
+- `W-7` byte-equal stays green after the map update; the `wxForBindings` shim is
+  byte-unchanged for all pre-existing files.
 - No `graph.version` bump (consumer-side only).
 - Post-implementation: re-run the pre-scan on our fixtures + chelaile; confirm
   newly-warned count matches the spec's intent (0 outside `scope-leak`).
@@ -243,6 +266,8 @@ language-service runner. New scenarios on `scope-leak.wxml`:
    limitation, not fixed. (unchanged behavior)
 7. `missing-expression-ref` code and Warning severity are unchanged; only the
    message constant is reworded to name the position.
-8. All existing diagnostics, hover/definition/completion tests, W-7, and the full
-   verifier suite stay green; `graph.version` and the `wxForBindings` shim are
-   byte-unchanged; the shim is left in place (retirement is a later round).
+8. The full verifier suite stays green after the additive baseline updates: the
+   wasm `miniprogram` baseline and the `W7_FROZEN_WX_FOR_BINDINGS` map gain a
+   `scope-leak` entry (the extractor is unmodified, the shim is byte-unchanged for
+   all pre-existing files). `graph.version` is unchanged; the `wxForBindings` shim
+   is left in place (retirement is a later round).
