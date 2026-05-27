@@ -141,12 +141,6 @@ export function collectFile(tree, inputAbs) {
   const expressionRefs = [];
   // wxForScopes: real per-element loop scopes (one entry per element with wx:for).
   const wxForScopes = [];
-  // Loose accumulators preserve the legacy quirk where wx:for-item /
-  // wx:for-index without wx:for still leaks into wxForBindings.items /
-  // .indexes. Not surfaced in the public schema; only used to derive the
-  // compat shim. Will be removed when wxForBindings itself is retired.
-  const wxForLooseItems = new Set();
-  const wxForLooseIndexes = new Set();
   // Track depth inside `<template name="X">...</template>` nodes. Expressions
   // inside a template definition resolve in the caller's data scope at use
   // time (via `<template is="X" data="{{...}}"/>`), NOT in the file's own
@@ -321,9 +315,8 @@ export function collectFile(tree, inputAbs) {
           // attributeRawValue). The legacy helper returns null when the
           // quoted value contains an `interpolation` child — this is the
           // gate that keeps dynamic names like wx:for-item="{{dyn}}" out
-          // of the explicit-binding path. Using attributeRawValue would
-          // leak the literal "{{dyn}}" into wxForBindings.items and
-          // break W-7 byte-equal. Locked by S-F7.
+          // of the explicit-binding path, so the scope falls back to an
+          // implicit itemName instead of capturing "{{dyn}}". Locked by S-F7.
           const itemRaw = wxForItemAttr ? quotedAttrTextValue(wxForItemAttr) : undefined;
           const indexRaw = wxForIndexAttr ? quotedAttrTextValue(wxForIndexAttr) : undefined;
           const itemValueNode = wxForItemAttr
@@ -359,20 +352,6 @@ export function collectFile(tree, inputAbs) {
             indexSource: indexExplicit ? "explicit" : "implicit",
             ownerTag: name ?? null,  // null on grammar error-recovery (missing tag_name)
           });
-        } else {
-          // Loose wx:for-item / wx:for-index (no wx:for on this element).
-          // Preserve legacy behavior verbatim: same quotedAttrTextValue
-          // helper (interpolation values return null and don't leak)
-          // and same `length > 0` gate. Feed into loose accumulators
-          // for the compat shim only; do NOT create a scope.
-          if (wxForItemAttr) {
-            const v = quotedAttrTextValue(wxForItemAttr);
-            if (typeof v === "string" && v.length > 0) wxForLooseItems.add(v);
-          }
-          if (wxForIndexAttr) {
-            const v = quotedAttrTextValue(wxForIndexAttr);
-            if (typeof v === "string" && v.length > 0) wxForLooseIndexes.add(v);
-          }
         }
 
         // Existing custom-component extraction (preserved).
@@ -406,23 +385,5 @@ export function collectFile(tree, inputAbs) {
     eventHandlers,
     expressionRefs,
     wxForScopes,
-    /** @deprecated compatibility shim derived from wxForScopes plus loose-attr accumulators;
-     * new code should consume wxForScopes directly.
-     * Legacy compat shim. As of v2-C no runtime consumer reads this (completion
-     * migrated in v2-B, diagnostics in v2-C); only verify-wxml-narrow-ranges' W-7
-     * byte-equal invariant still asserts it. Retire in a dedicated later round. */
-    wxForBindings: (() => {
-      const explicitItems = wxForScopes
-        .filter((s) => s.itemSource === "explicit")
-        .map((s) => s.itemName);
-      const explicitIndexes = wxForScopes
-        .filter((s) => s.indexSource === "explicit")
-        .map((s) => s.indexName);
-      return {
-        items: [...new Set([...explicitItems, ...wxForLooseItems])].sort(),
-        indexes: [...new Set([...explicitIndexes, ...wxForLooseIndexes])].sort(),
-        hasAnyWxFor: wxForScopes.length > 0,
-      };
-    })(),
   };
 }

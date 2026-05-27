@@ -113,14 +113,7 @@
           "indexSource": "implicit",
           "ownerTag": "block"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "row"
-        ],
-        "indexes": [],
-        "hasAnyWxFor": true
-      }
+      ]
     }
   ]
 }

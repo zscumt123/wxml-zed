@@ -126,12 +126,7 @@
           "containingAttribute": "data-id"
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     }
   ]
 }

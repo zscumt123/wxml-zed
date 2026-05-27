@@ -37,12 +37,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/folder-comp/index.wxml",
@@ -80,12 +75,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/global-badge/global-badge.wxml",
@@ -123,12 +113,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/local-badge/local-badge.wxml",
@@ -166,12 +151,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/local-bar/local-bar.wxml",
@@ -236,12 +216,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/status-badge/status-badge.wxml",
@@ -306,12 +281,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/components/user-card/user-card.wxml",
@@ -427,12 +397,7 @@
           "containingAttribute": "status"
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/packages/shop/pages/list/list.wxml",
@@ -466,12 +431,7 @@
       ],
       "eventHandlers": [],
       "expressionRefs": [],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/pages/cross-binding/cross-binding.wxml",
@@ -1068,12 +1028,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/pages/detail/detail.wxml",
@@ -1178,12 +1133,7 @@
           "containingAttribute": "caption"
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/pages/dyn-page/dyn-page.wxml",
@@ -1245,12 +1195,7 @@
           "containingAttribute": "locationError"
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/pages/home/home.wxml",
@@ -1665,12 +1610,7 @@
           "indexSource": "implicit",
           "ownerTag": "user-card"
         }
-      ],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": true
-      }
+      ]
     },
     {
       "path": "fixtures/miniprogram/pages/loops/loops.wxml",
@@ -2375,20 +2315,7 @@
           "indexSource": "implicit",
           "ownerTag": "block"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "grp",
-          "inner",
-          "item",
-          "outer",
-          "prod"
-        ],
-        "indexes": [
-          "idx"
-        ],
-        "hasAnyWxFor": true
-      }
+      ]
     },
     {
       "path": "fixtures/miniprogram/pages/scope-leak/scope-leak.wxml",
@@ -2889,17 +2816,7 @@
           "indexSource": "implicit",
           "ownerTag": "block"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "grp",
-          "row",
-          "x",
-          "z"
-        ],
-        "indexes": [],
-        "hasAnyWxFor": true
-      }
+      ]
     },
     {
       "path": "fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml",
@@ -3381,16 +3298,7 @@
           "indexSource": "implicit",
           "ownerTag": "view"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "row"
-        ],
-        "indexes": [
-          "idx"
-        ],
-        "hasAnyWxFor": true
-      }
+      ]
     },
     {
       "path": "fixtures/miniprogram/shared/header.wxml",
@@ -3428,12 +3336,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/templates/common.wxml",
@@ -3486,12 +3389,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/templates/secondary.wxml",
@@ -3544,12 +3442,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/miniprogram/templates/unrelated.wxml",
@@ -3602,12 +3495,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     }
   ]
 }

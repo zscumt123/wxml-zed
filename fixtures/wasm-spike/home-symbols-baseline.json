@@ -414,12 +414,7 @@
           "indexSource": "implicit",
           "ownerTag": "user-card"
         }
-      ],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": true
-      }
+      ]
     }
   ]
 }

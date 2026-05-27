@@ -40,7 +40,7 @@ async function extractFile(parser, filePath) {
   const cstMs = elapsedMs(cstStart);
 
   const extractStart = performance.now();
-  const { dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForScopes, wxForBindings } = collectFile(tree, inputAbs);
+  const { dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForScopes } = collectFile(tree, inputAbs);
   const extractMs = elapsedMs(extractStart);
 
   profileEvent({
@@ -53,7 +53,7 @@ async function extractFile(parser, filePath) {
     totalMs: elapsedMs(totalStart),
   });
 
-  return { path: inputRel, dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForScopes, wxForBindings };
+  return { path: inputRel, dependencies, symbols, references, components, eventHandlers, expressionRefs, wxForScopes };
 }
 
 async function main() {

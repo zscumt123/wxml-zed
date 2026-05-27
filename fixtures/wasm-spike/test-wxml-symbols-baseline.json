@@ -1172,16 +1172,7 @@
           "indexSource": "implicit",
           "ownerTag": "view"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "row"
-        ],
-        "indexes": [
-          "idx"
-        ],
-        "hasAnyWxFor": true
-      }
+      ]
     }
   ]
 }

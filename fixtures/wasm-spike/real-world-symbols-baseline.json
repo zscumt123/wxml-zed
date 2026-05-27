@@ -535,12 +535,7 @@
           "containingAttribute": "hidden"
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     },
     {
       "path": "fixtures/real-world/page.wxml",
@@ -1479,16 +1474,7 @@
           "indexSource": "explicit",
           "ownerTag": "user-card"
         }
-      ],
-      "wxForBindings": {
-        "items": [
-          "user"
-        ],
-        "indexes": [
-          "idx"
-        ],
-        "hasAnyWxFor": true
-      }
+      ]
     },
     {
       "path": "fixtures/real-world/templates.wxml",
@@ -1763,12 +1749,7 @@
           "containingAttribute": null
         }
       ],
-      "wxForScopes": [],
-      "wxForBindings": {
-        "items": [],
-        "indexes": [],
-        "hasAnyWxFor": false
-      }
+      "wxForScopes": []
     }
   ]
 }
