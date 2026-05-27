@@ -1318,6 +1318,36 @@ umbrella green. 3 commits (`feb4285` fixture → `d47ff56` diagnostics+tests →
 `42e2067` shim comment), subagent-driven (implementer + spec + code-quality per
 task), final holistic review SHIP with zero Critical/Important findings.
 
+### Follow-up: v2-B + v2-C real-Zed-UI dogfood (2026-05-27)
+
+Both cursor-scope features validated in the actual Zed UI against real projects
+(not just the offline verifiers); no regression, workspace left clean.
+
+- **v2-B completion** (mp-wx-bus, `components/error-state/index.wxml`): inside the
+  default loop `wx:for="{{msgList}}"`, typing `{{i` offered `index` (wx:for index)
+  and `item` (wx:for item) with the correct detail labels; typing `{{i` *outside*
+  the loop offered neither (only generic tag/keyword candidates). Confirms
+  completion tightened from flat file-scope to cursor scope, and that the
+  default-loop `item`/`index` names surface correctly in the real client.
+- **v2-C diagnostics** (chelaile, `pages/main/fav-page/index.wxml`): the file
+  already carried 1 diagnostic (a pre-existing genuinely-undefined ref —
+  consistent with the pre-scan's ~9 absolute chelaile warnings). Temporarily
+  inserting an out-of-loop `{{item}}` took the count 1→2, the new diagnostic
+  reading `"item" is not defined … the wx:for scope at this position …`; undo
+  returned it to 1. This is the path the offline `getDiagnostics` tests do NOT
+  exercise — it runs through the **didChange overlay**, so the 1→2→1 cycle is
+  real-environment proof that the overlay rebuilds `wxForScopes` *and*
+  `expressionRefs` together from the live buffer with consistent positions (the
+  "no staleness window" claim). It also confirms the reworded message renders in
+  the real LSP wire path.
+- **Hygiene:** all temporary edits reverted; `git diff` clean in wxml-zed,
+  mp-wx-bus, and the two touched chelaile files (third-party projects never
+  committed to).
+
+This was the dogfood that v2-C's spec deferred to (downgraded from a go/no-go gate
+to a confirmation, since the pre-scan had already measured ~0 real-world noise) —
+now confirmed.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
