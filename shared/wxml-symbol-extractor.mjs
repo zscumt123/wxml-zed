@@ -407,7 +407,10 @@ export function collectFile(tree, inputAbs) {
     expressionRefs,
     wxForScopes,
     /** @deprecated compatibility shim derived from wxForScopes plus loose-attr accumulators;
-     * new code should consume wxForScopes directly. */
+     * new code should consume wxForScopes directly.
+     * Legacy compat shim. As of v2-C no runtime consumer reads this (completion
+     * migrated in v2-B, diagnostics in v2-C); only verify-wxml-narrow-ranges' W-7
+     * byte-equal invariant still asserts it. Retire in a dedicated later round. */
     wxForBindings: (() => {
       const explicitItems = wxForScopes
         .filter((s) => s.itemSource === "explicit")
