@@ -24,6 +24,7 @@
 - **Modify** `scripts/verify-wxml-narrow-ranges.mjs` — add the `scope-leak` entry to `W7_FROZEN_WX_FOR_BINDINGS`.
 - **Modify** `server/wxml-language-service.mjs:847` — `expressionRefDiagnostics` (split scope + per-ref active lookup) and the `missing-expression-ref` message constant.
 - **Modify** `scripts/verify-wxml-language-service.mjs` — add E-1..E-7 `getDiagnostics`-based tests.
+- **Modify** `shared/wxml-symbol-extractor.mjs` — add a one-line comment marking the `wxForBindings` shim as having no runtime consumer (the derived value is byte-unchanged; W-7 stays green). Task 3 Step 3.
 
 ---
 
@@ -339,7 +340,9 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 ## Task 3: Full verification sweep + post-implementation pre-scan
 
-**Files:** none modified (verification only; may add a one-line shim comment).
+**Files:**
+- Modify: `shared/wxml-symbol-extractor.mjs` (one-line shim comment, Step 3 — staged and committed in Step 5)
+- Verification only otherwise (run the offline suite + umbrella + post-impl pre-scan)
 
 - [ ] **Step 1: Run the full offline verifier suite**
 
