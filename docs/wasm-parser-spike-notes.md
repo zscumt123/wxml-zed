@@ -1268,6 +1268,56 @@ threads `position`, `wxForBindings` has exactly one remaining (diagnostics)
 consumer, shadow parity confirmed. (GPT executed the 3-task plan; this review +
 sweep confirmed it.)
 
+### Follow-up: diagnostics cursor-scope tightening (v2-C, 2026-05-27)
+
+Closed the wx:for depth line: with completion migrated in v2-B, the
+`missing-expression-ref` diagnostic was the last consumer of the flat
+file-level `wxForBindings` shim — it dumped every loop's binding names into one
+file-wide scope, so a `{{item}}` written *outside* every loop was silently
+accepted. v2-C makes diagnostics resolve loop bindings per ref, matching
+hover/definition/completion.
+
+`expressionRefDiagnostics` now builds a file-**global** scope (data + property +
+wxs only) and, per ref, calls `activeWxForBindingsAt(fileModel.wxForScopes, {
+line: ref.range.start.row, character: ref.range.start.column })` — accepting the
+name iff it is global OR active at that exact position. The flat `wxForBindings`
+block (incl. the `hasAnyWxFor`-driven `item`/`index` injection) is deleted from
+the function. Diagnostics only judges *existence*, so no innermost-first ordering
+is needed — `.some(b => b.name === ref.name)` suffices. Unlike completion there
+is **no staleness window**: `expressionRefs` and `wxForScopes` come from the same
+parse, so ref position and scope ranges are always consistent. The
+`dead-component-binding` fall-through is untouched (the accept-check sits before
+it). Message reworded to "…the wx:for scope at this position…".
+
+Risk was *measured before* speccing, not assumed: a throwaway pre-scan
+(`$TMPDIR`, read-only) counted refs that pass today but would warn under
+per-position scoping. Result: our 17 graph fixtures → 0 newly-warned (every
+loop-name ref is data-backed or in-loop); chelaile's real corpus (196 files, 331
+loop-dependent refs) → **0** newly-warned. The feared "wave of red squiggles" on
+real code does not exist — authors don't write loop vars outside loops (the page
+wouldn't render). So it shipped as a plain `missing-expression-ref` Warning, no
+severity downgrade, no new code; dogfood became a *confirmation* not a gate. The
+post-impl re-scan reproduced fixtures=3 (the new `scope-leak` fixture's three
+out-of-loop refs), chelaile=0.
+
+New fixture `fixtures/miniprogram/pages/scope-leak/` is the only sample that
+triggers a new warning (loop vars `row`/`x`/`z`/`grp` deliberately NOT
+data-backed). Adding it to `fixtures/miniprogram` forced two *additive* baseline
+updates the wasm `miniprogram` glob requires: regenerate
+`miniprogram-symbols-baseline.json` and add a `W7_FROZEN_WX_FOR_BINDINGS` entry
+(`{"items":["grp","row","x","z"],"indexes":[],"hasAnyWxFor":true}`) — a review
+finding that would otherwise have reddened the suite. The extractor and the shim
+*value* are unchanged (W-7 byte-equal green); the shim now has a comment marking
+it has no runtime consumer (retirement is a dedicated later round). Verification:
+E-1..E-7 (`getDiagnostics`-based, in `verify-wxml-language-service.mjs` — where
+scope-logic tests live; wire-format is already covered by the protocol L-tests) +
+the migrated `assertExpressionRefDiagnosticSyntheticForItemSuppresses` (now drives
+suppression via a synthetic `wxForScope`, stronger than the old flat-items path);
+narrow-ranges 21/21, wasm 8/8, language-service exit 0, graph-smoke 21/21,
+umbrella green. 3 commits (`feb4285` fixture → `d47ff56` diagnostics+tests →
+`42e2067` shim comment), subagent-driven (implementer + spec + code-quality per
+task), final holistic review SHIP with zero Critical/Important findings.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
