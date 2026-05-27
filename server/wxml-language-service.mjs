@@ -849,22 +849,17 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
   if (!ownerConfig) return [];
   if (ownerConfig.script.hasDynamicData) return [];
 
-  const scope = new Set();
-  for (const key of ownerConfig.script.dataKeys ?? []) scope.add(key.name);
+  // File-global scope: data + properties + wxs modules. wx:for bindings are NOT
+  // global — they are resolved per ref at the ref's own position below, so a loop
+  // variable referenced outside its loop is correctly flagged. (wxForBindings flat
+  // shim is intentionally no longer read here; see v2-C spec.)
+  const global = new Set();
+  for (const key of ownerConfig.script.dataKeys ?? []) global.add(key.name);
   // Component properties contribute to template scope identically to data
   // (see WeChat docs on `properties:` — values are reactive template state).
-  for (const key of ownerConfig.script.propertyKeys ?? []) scope.add(key.name);
+  for (const key of ownerConfig.script.propertyKeys ?? []) global.add(key.name);
   for (const sym of fileModel.symbols ?? []) {
-    if (sym.kind === "wxs" && typeof sym.name === "string") scope.add(sym.name);
-  }
-  const bindings = fileModel.wxForBindings;
-  if (bindings) {
-    if (bindings.hasAnyWxFor) {
-      scope.add("item");
-      scope.add("index");
-    }
-    for (const name of bindings.items ?? []) scope.add(name);
-    for (const name of bindings.indexes ?? []) scope.add(name);
+    if (sym.kind === "wxs" && typeof sym.name === "string") global.add(sym.name);
   }
 
   const refs = fileModel.expressionRefs ?? [];
@@ -874,7 +869,17 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
     // data scope at use time (via `<template is="X" data="{{...}}"/>`), not
     // in this file's owner script. Skip — we don't have call-site context.
     if (ref.inTemplateDefinition) continue;
-    if (scope.has(ref.name)) continue;
+    if (global.has(ref.name)) continue;
+    // wx:for binding active at THIS ref's position (item+index of every enclosing
+    // loop, minus a loop's own iterable per iterable-exclusion). expressionRefs and
+    // wxForScopes come from the same parse, so positions are consistent (no live-
+    // buffer staleness). activeWxForBindingsAt takes an LSP position; ref.range.start
+    // is symbol-form { row, column } — convert explicitly.
+    const active = activeWxForBindingsAt(fileModel.wxForScopes, {
+      line: ref.range.start.row,
+      character: ref.range.start.column,
+    });
+    if (active.some((binding) => binding.name === ref.name)) continue;
 
     // Cross-component prop binding check: if the failing identifier is
     // inside a non-reserved attribute and the child component statically
@@ -904,7 +909,7 @@ function expressionRefDiagnostics(graph, documentGraphPath, fileModel) {
       severity: WARNING,
       source: "wxml-zed",
       code: "missing-expression-ref",
-      message: `"${ref.name}" is not defined in the page/component data, wx:for scope, or any <wxs> module.`,
+      message: `"${ref.name}" is not defined in the page/component data, the wx:for scope at this position, or any <wxs> module.`,
     });
   }
   return out;

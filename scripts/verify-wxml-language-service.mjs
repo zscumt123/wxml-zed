@@ -32,6 +32,7 @@ const DYN_PAGE_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/dyn-page/dyn-page.w
 const LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/loops/loops.wxml");
 const LOOPS_WXML_GRAPH_PATH = "fixtures/miniprogram/pages/loops/loops.wxml";
 const TPL_LOOPS_WXML = path.join(MINIPROGRAM_ROOT, "pages/tpl-loops/tpl-loops.wxml");
+const SCOPE_LEAK_WXML = path.join(MINIPROGRAM_ROOT, "pages/scope-leak/scope-leak.wxml");
 const LOCAL_BAR_CONFIG_PATH = "fixtures/miniprogram/components/local-bar/local-bar.json";
 const DYN_CARD_CONFIG_PATH = "fixtures/miniprogram/components/dyn-card/dyn-card.json";
 
@@ -2027,11 +2028,16 @@ function assertExpressionRefDiagnosticSuppressedInTemplateDefinition(graph) {
 }
 
 function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
+  // v2-C: diagnostics use per-ref activeWxForBindingsAt(wxForScopes, position)
+  // rather than the flat wxForBindings shim. A synthetic expressionRef at row 0
+  // col 0 (before any wx:for block in home.wxml, so outside every scope) warns when no
+  // active scope covers it, and is suppressed when a synthetic wxForScope does.
   const homeFile = graph.wxml.find((f) => f.path === HOME_WXML_GRAPH_PATH);
   assert(homeFile, "test setup: home file must exist in graph.wxml");
   assert(Array.isArray(homeFile.expressionRefs), "expressionRefs missing from home file model");
-  const originalItems = homeFile.wxForBindings?.items ?? [];
+  const originalScopes = homeFile.wxForScopes ?? [];
   const originalRefs = homeFile.expressionRefs;
+  // Place the synthetic ref OUTSIDE any existing wx:for scope (row 0 col 0).
   const synthetic = {
     name: "__synthetic_for_user__",
     source: "interpolation",
@@ -2044,20 +2050,28 @@ function assertExpressionRefDiagnosticSyntheticForItemSuppresses(graph) {
   try {
     const before = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT })
       .filter((d) => d.code === "missing-expression-ref" && d.message.includes("__synthetic_for_user__"));
-    assert(before.length === 1, `pre-add: expected 1 synthetic warning, got ${before.length}`);
+    assert(before.length === 1, `pre-add: expected 1 synthetic warning (outside any wx:for scope), got ${before.length}`);
 
-    homeFile.wxForBindings = {
-      ...homeFile.wxForBindings,
-      items: [...originalItems, "__synthetic_for_user__"],
+    // Add a synthetic wxForScope that covers row 0 col 0 and declares the name.
+    // activeWxForBindingsAt checks scopeRange (not bodyRange) and requires
+    // position inside scopeRange but NOT inside wxForRange.
+    const syntheticScope = {
+      itemName: "__synthetic_for_user__",
+      itemSource: "explicit",
+      indexName: "__synthetic_idx__",
+      indexSource: "implicit",
+      // scopeRange covers the ref position (row 0 col 0)
+      scopeRange: { start: { row: 0, column: 0 }, end: { row: 1, column: 0 } },
+      // wxForRange must NOT cover the position (so iterable-exclusion doesn't block it)
+      wxForRange: { start: { row: 1, column: 0 }, end: { row: 1, column: 10 } },
     };
+    homeFile.wxForScopes = [...originalScopes, syntheticScope];
     const after = getDiagnostics({ graph, documentPath: HOME_WXML, extensionRoot: ROOT })
       .filter((d) => d.code === "missing-expression-ref" && d.message.includes("__synthetic_for_user__"));
-    assert(after.length === 0, `post-add: expected wx:for-item suppression, got ${JSON.stringify(after)}`);
+    assert(after.length === 0, `post-add: expected wx:for-item suppression via wxForScopes, got ${JSON.stringify(after)}`);
   } finally {
     homeFile.expressionRefs = originalRefs;
-    if (homeFile.wxForBindings) {
-      homeFile.wxForBindings = { ...homeFile.wxForBindings, items: originalItems };
-    }
+    homeFile.wxForScopes = originalScopes;
   }
 }
 
@@ -3706,6 +3720,54 @@ function assertCompletionTemplateBodySuppressed(graph) {
   assert(items.length === 0, `B-7: completion inside <template name> body must stay suppressed; got ${items.length} items`);
 }
 
+// Phase 3 v2-C — cursor-scope wx:for diagnostics ---------------------------
+
+function scopeLeakWarnings(graph) {
+  const diagnostics = getDiagnostics({ graph, documentPath: SCOPE_LEAK_WXML, extensionRoot: ROOT });
+  return diagnostics.filter((d) => d.code === "missing-expression-ref");
+}
+
+// E-1..E-6: exactly the three out-of-loop references warn; in-loop, nested,
+// iterable-exclusion, and block-loop references stay clean.
+function assertScopeLeakWarnsOnlyOutOfLoop(graph) {
+  const warns = scopeLeakWarnings(graph);
+  const byLine = warns.map((d) => d.range.start.line).sort((a, b) => a - b);
+  assertDeepEqual(byLine, [1, 7, 10], "v2-C: missing-expression-ref only on out-of-loop refs (lines 1,7,10)");
+  for (const d of warns) {
+    assert(d.severity === 2, `v2-C: out-of-loop ref must be Warning(2); got ${d.severity} @${d.range.start.line}`);
+    assert(d.source === "wxml-zed", `v2-C: source wxml-zed; got ${d.source}`);
+  }
+  // Lock which identifier warns on each line (E-2 row, E-4 z, E-6 grp).
+  const nameAt = (line) => {
+    const d = warns.find((w) => w.range.start.line === line);
+    return d ? d.message.match(/^"([^"]+)"/)?.[1] : null;
+  };
+  assert(nameAt(1) === "row", `E-2: line 1 must warn on 'row'; got ${nameAt(1)}`);
+  assert(nameAt(7) === "z", `E-4: line 7 must warn on 'z'; got ${nameAt(7)}`);
+  assert(nameAt(10) === "grp", `E-6: line 10 must warn on 'grp'; got ${nameAt(10)}`);
+}
+
+// E-1/E-3/E-5/E-6: no warning on any in-scope line (in-loop, nested body,
+// inner iterable resolving the outer binding, block-loop body).
+// (E-6 has two halves; the block-loop *warns* half is in assertScopeLeakWarnsOnlyOutOfLoop)
+function assertScopeLeakCleanInScope(graph) {
+  const warns = scopeLeakWarnings(graph);
+  for (const line of [0, 4, 9]) {
+    const hit = warns.find((d) => d.range.start.line === line);
+    assert(!hit, `v2-C: in-scope line ${line} must NOT warn; got ${JSON.stringify(hit)}`);
+  }
+}
+
+// E-7 (message): the reworded constant names the position.
+function assertScopeLeakMessageWording(graph) {
+  const warns = scopeLeakWarnings(graph);
+  assert(warns.length > 0, "E-7: expected at least one warning to check message");
+  assert(
+    warns[0].message.includes("the wx:for scope at this position"),
+    `E-7: message must name the position; got ${warns[0].message}`,
+  );
+}
+
 const graph = loadGraph();
 assertHomeConfigScript(graph);
 assertEventHandlerDefinition(graph);
@@ -3889,3 +3951,8 @@ assertCompletionNestedUnion(graph);
 assertCompletionIterableExclusion(graph);
 assertCompletionBlockLoop(graph);
 assertCompletionTemplateBodySuppressed(graph);
+
+// Phase 3 v2-C — cursor-scoped wx:for diagnostics
+assertScopeLeakWarnsOnlyOutOfLoop(graph);
+assertScopeLeakCleanInScope(graph);
+assertScopeLeakMessageWording(graph);
