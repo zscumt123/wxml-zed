@@ -1224,6 +1224,50 @@ green. A final holistic review returned SHIP with zero findings after live
 edge-probing (iterable-exclusion × template branch, Case-2 boundary arithmetic
 on real ranges, template_definition-vs-usage `kind` collision).
 
+### Follow-up: completion cursor-scope tightening (v2-B, 2026-05-26)
+
+Closed the last gap on the wx:for depth line: hover/definition already resolved
+loop bindings per-element via `wxForScopes[]`, but `{{ }}` completion still read
+the flat file-level `wxForBindings` shim, so every loop's binding names were
+suggested everywhere in the file. Now completion offers a loop binding only
+inside that loop's active scope, matching hover/definition.
+
+The primitive is one pure leaf helper, `activeWxForBindingsAt(scopes, position)`
+in `server/wxml-for-scope.mjs`: reverse-scan (innermost-first), keep scopes whose
+`scopeRange` contains the position but whose own `wxForRange` does NOT
+(iterable-exclusion — an identifier inside `wx:for="{{x}}"` evaluates in the
+outer scope), return each loop's `{name, kind}` item+index pair. Range-less
+scopes skipped defensively. This is also the position→active-bindings primitive
+v2-C will reuse for diagnostics.
+
+`dataRefCompletionItems` gained a `position` param and now pushes active wx:for
+bindings **first** — before data/property/wxs — so the `seen` first-wins dedup
+gives an in-scope loop variable the candidate, shadowing a same-named
+data/property/wxs symbol exactly as hover/definition do (wx:for is step 2a, ahead
+of 2b/2c/2d). The load-bearing lock: with `data.item` present plus a default
+loop, the cursor inside the loop offers `item` as `wx:for item`; outside any loop
+it offers `item` as `data`. The old `hasAnyWxFor`-driven `item`/`index` injection
+is gone — a default loop's `itemName`/`indexName` literally are `"item"`/`"index"`,
+so they surface exactly (and only) inside that loop's scope.
+
+Scope held: the `wxForBindings` shim is untouched (W-7 byte-equal green) and
+still consumed by `expressionRefDiagnostics` — completion is just no longer one
+of its readers; the shim retires only when v2-C migrates diagnostics. Template
+bodies stay fully suppressed upstream in `interpolationCompletionContext`, so
+`activeWxForBindingsAt` never runs there (B-7 locks this). Honest limitation:
+completion runs against the live buffer for position but the saved graph for
+`wxForScopes`, so an unsaved structural edit can momentarily under-offer a
+binding — transient, self-heals on save, only ever omits a candidate.
+
+Verification: 6 new unit cases B-U1..B-U6 (narrow-ranges 15→21, synthetic
+scopes) + 7 integration cases B-1..B-7 (real `loops.wxml`/`tpl-loops.wxml` as
+both sourceText AND graph, since synthetic cursors fall outside the real graph's
+scope ranges) — all green; wasm baselines 8/8, language-service exit 0,
+graph-smoke 21/21. Reviewed against the plan with zero findings: single call site
+threads `position`, `wxForBindings` has exactly one remaining (diagnostics)
+consumer, shadow parity confirmed. (GPT executed the 3-task plan; this review +
+sweep confirmed it.)
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
