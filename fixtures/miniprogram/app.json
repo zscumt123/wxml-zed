@@ -5,7 +5,8 @@
     "pages/cross-binding/cross-binding",
     "pages/dyn-page/dyn-page",
     "pages/loops/loops",
-    "pages/tpl-loops/tpl-loops"
+    "pages/tpl-loops/tpl-loops",
+    "pages/scope-leak/scope-leak"
   ],
   "subPackages": [
     {

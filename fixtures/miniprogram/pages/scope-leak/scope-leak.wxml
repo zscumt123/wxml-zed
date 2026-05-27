@@ -1,0 +1,11 @@
+<view wx:for="{{list}}" wx:for-item="row">{{row.name}}</view>
+<view>{{row.name}}</view>
+
+<view wx:for="{{a}}" wx:for-item="x">
+  <view wx:for="{{x.items}}" wx:for-item="z">{{x}} {{z}}</view>
+</view>
+
+<view>{{z}}</view>
+
+<block wx:for="{{g}}" wx:for-item="grp">{{grp}}</block>
+<view>{{grp}}</view>

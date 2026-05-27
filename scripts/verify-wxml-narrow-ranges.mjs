@@ -277,6 +277,7 @@ const W7_FROZEN_WX_FOR_BINDINGS = {
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/dyn-page/dyn-page.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/home/home.wxml": {"items":[],"indexes":[],"hasAnyWxFor":true},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/loops/loops.wxml": {"items":["grp","inner","item","outer","prod"],"indexes":["idx"],"hasAnyWxFor":true},
+  "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/scope-leak/scope-leak.wxml": {"items":["grp","row","x","z"],"indexes":[],"hasAnyWxFor":true},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/pages/tpl-loops/tpl-loops.wxml": {"items":["row"],"indexes":["idx"],"hasAnyWxFor":true},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/shared/header.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
   "miniprogram-symbols-baseline.json::fixtures/miniprogram/templates/common.wxml": {"items":[],"indexes":[],"hasAnyWxFor":false},
