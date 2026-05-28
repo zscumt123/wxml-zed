@@ -34,8 +34,10 @@ const FILES = [
   "scripts/extract-wxml-symbols.mjs",
   "grammar/tree-sitter-wxml/tree-sitter-wxml.wasm",
   "grammar/tree-sitter-javascript/tree-sitter-javascript.wasm",
+  "grammar/tree-sitter-javascript/LICENSE",
   "LICENSE",
   "NOTICE",
+  "THIRD_PARTY_NOTICES.md",
 ];
 
 async function copyInto(rel) {

@@ -195,6 +195,19 @@ async function main() {
     `web-tree-sitter must resolve under the artifact, not the repo; got ${resolved}`,
   );
 
+  // License compliance: every bundled third-party component's license text must
+  // travel in the artifact (the JS grammar wasm is MIT — © Max Brunsfeld — and
+  // must not ship without its notice).
+  for (const rel of [
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
+    "grammar/tree-sitter-javascript/LICENSE",
+    "node_modules/web-tree-sitter/LICENSE",
+  ]) {
+    assert(fs.existsSync(path.join(artifact, rel)), `artifact missing required license file: ${rel}`);
+  }
+
   // Copy the mini-program project OUT of the repo too, so the artifact, its cwd,
   // and the opened project are all outside the source repo (repo = input source).
   const projectRoot = path.join(unpackBase, "project", "miniprogram");
