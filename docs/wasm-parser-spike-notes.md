@@ -1420,6 +1420,46 @@ README/license-caveat fix (MIT + NOTICE already satisfy redistribution; the
 "needs upstream authorization" line is over-cautious). Node-on-PATH stays a
 documented prerequisite (no binary-ization this round).
 
+### Follow-up: publish-readiness #2 — extension external LSP launch (2026-05-28)
+
+Rewrote the extension's `src/lib.rs` `language_server_command` to launch the
+**external** artifact instead of the in-repo `server/wxml-lsp.mjs` (the
+Zed-forbidden bundled-server path, now removed). Three-branch total function:
+(1) `WXML_ZED_LSP_ARTIFACT_DIR` (env → `node $dir/server/wxml-lsp.mjs`, the
+dogfood-validated dev path); (2) GitHub Release download/cache (skeleton:
+`latest_github_release` → exactly-one asset `wxml-lsp-node-v<ver>.tar.gz` →
+`download_file(GzipTar)` into a version-keyed cache dir gated on the entry FILE
+existing → launch; full `CheckingForUpdate`/`Downloading`/`None`/`Failed` status
+lifecycle; raw cause wrapped, never leaked); (3) one actionable error. README
+gained a "Running the LSP (development)" section. 2 commits (`532ae69` local+remove
+in-repo, `56e58d8` download skeleton), subagent-driven, final holistic review SHIP
+zero Critical/Important. The plan's Rust was pre-compiled against the real
+`zed_extension_api` 0.7.0 before execution; gate = `CARGO_TARGET_DIR="$PWD/target"
+cargo build --release --target wasm32-wasip1 --offline` (the target-dir override is
+required — the machine's `~/.cargo/config` points the default target dir outside
+the sandbox-writable area).
+
+**Validation model (different from the LSP work):** `src/lib.rs` only runs inside
+Zed, so the automated gate is just "compiles to wasm". Real functional proof is
+**manual Zed dogfood (still PENDING)** — build artifact → unpack → set env → reload
+dev extension → confirm the LSP starts from the **artifact** path (not in-repo) and
+a JS-backed feature works.
+
+**Pending / deferred (carried for the dogfood + later publish steps):**
+- **dogfood not yet done** — the round's real validation.
+- **Contingency C1 (pre-written in the plan)** — the local branch's `is_file()` on
+  an arbitrary absolute path may be blocked by the wasm fs sandbox; if dogfood shows
+  a valid env dir failing to launch, apply C1 (drop the stat, launch directly,
+  consciously dropping the friendly invalid-env error). Don't apply unless that
+  failure is observed.
+- **download path not validated e2e** — no GitHub Release exists; it fails cleanly.
+- **deferred download-path hardening** (when it goes live, code-quality review
+  flagged, non-blocking now): guard `cache_dir` against path-traversal if a release
+  tag is ever malformed; consider `to_str().ok_or(...)` instead of
+  `to_string_lossy()`; the `release.version` borrow is fine as-is.
+- **`LSP_REPO = "zscumt123/wxml-zed"` is a placeholder** — backfill when the real
+  public LSP/extension repos are decided (the repo-split step).
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
