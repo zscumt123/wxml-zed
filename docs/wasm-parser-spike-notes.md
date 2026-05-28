@@ -1378,6 +1378,48 @@ extractor+CLI+baselines), subagent-driven, final holistic review SHIP with zero
 findings. `wxForScopes` is now the single source of truth for wx:for binding
 scope across hover/definition/completion/diagnostics.
 
+### Follow-up: publish-readiness #1 — self-contained LSP artifact (2026-05-28)
+
+First step of the Zed-marketplace publish track. Zed's official rule (verified in
+the docs) is that an extension providing a language server **must not ship the
+server as part of the extension** — it must download or detect it. So before any
+download glue, the gating unknown was simply: *can this Node LSP run outside its
+repo at all?* This step de-risks exactly that, producer-only.
+
+The LSP turned out to be a three-entry, two-hop spawn chain
+(`wxml-lsp.mjs` → `extract-wxml-project-graph.mjs` → `extract-wxml-symbols.mjs`),
+but every script anchors on its own `import.meta.url` and `wxml-lsp.mjs`'s
+`EXTENSION_ROOT = dirname(server)/..`. So a **repo-runtime-subset artifact** that
+preserves relative structure (`server/`, `shared/`, the two runtime `scripts/`,
+`grammar/tree-sitter-wxml/…wasm`) plus a vendored `node_modules/web-tree-sitter`
+runs with **zero code changes** — `EXTENSION_ROOT`/spawn-chain/wasm paths all
+resolve, the bare `web-tree-sitter` import resolves from the artifact. `tree-sitter-javascript.wasm`
+(loaded by the graph extractor to parse `.js`/`.ts` siblings) MUST travel too —
+its absence soft-degrades (`WARN … configs[].script omitted`) and silently breaks
+every JS-backed feature, so it was the load-bearing addition a review caught.
+
+`scripts/build-lsp-artifact.mjs` assembles `dist/wxml-lsp-node/` (+ tarball);
+`scripts/verify-lsp-artifact.mjs` is the proof: a hand-rolled minimal stdio LSP
+client builds+unpacks under `$TMPDIR` **outside the repo subtree**, copies the
+test mini-program project out too (artifact + cwd + project all detached), and
+asserts a **JS-backed go-to-definition** (`handleSelect` → `home.js`) resolves
+with no `JS wasm load failed` on stderr — plus a **negative control** that strips
+the JS wasm from a copy and asserts the same definition then fails, proving the
+smoke discriminates (an independent reviewer reproduced this). A resolve-probe
+asserts `web-tree-sitter` resolves under the artifact, not the repo `node_modules`.
+`version` synced into `package.json` + `package-lock.json` (no bump-driven
+lockfile drift); `dist/` git-ignored. 2 commits (`77cd4df` packaging →
+`c6f9037` smoke), subagent-driven, final holistic review SHIP with zero
+Critical/Important findings.
+
+**Deferred (the rest of the publish track):** Zed extension download/cache/launch
+glue (`src/lib.rs` + `zed::latest_github_release`/`download_file`), repo split
+(slim extension repo vs this LSP/tooling repo), grammar public repo + repin
+`extension.toml` off the `file:///tmp` path, GitHub Release automation,
+README/license-caveat fix (MIT + NOTICE already satisfy redistribution; the
+"needs upstream authorization" line is over-cautious). Node-on-PATH stays a
+documented prerequisite (no binary-ization this round).
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
