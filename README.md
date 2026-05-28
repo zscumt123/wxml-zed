@@ -152,6 +152,25 @@ When changing queries or snippets:
    `fixtures/real-world/`; inspect highlighting, outline, snippets, text
    objects, injection behavior, and basic tag editing behavior.
 
+### Running the LSP (development)
+
+The WXML language server is distributed as a separate artifact (`wxml-lsp-node`),
+not bundled in the extension. For local development, point the extension at an
+unpacked artifact:
+
+1. Build it: `node scripts/build-lsp-artifact.mjs`, then unpack
+   `dist/wxml-lsp-node-v<version>.tar.gz` somewhere, e.g. `/tmp/wxml-lsp-node`.
+2. Set `WXML_ZED_LSP_ARTIFACT_DIR` to the unpacked artifact **root** (the directory
+   that directly contains `server/wxml-lsp.mjs`):
+   `export WXML_ZED_LSP_ARTIFACT_DIR=/tmp/wxml-lsp-node`.
+3. Launch Zed from that shell (so the extension's `worktree.shell_env()` sees the
+   variable — a GUI-launched Zed may not inherit a var set only in an interactive
+   shell), then reload the dev extension.
+
+Requirements: `node` must be on `PATH`. Without the env var set, the extension
+falls back to downloading the artifact from a GitHub Release (not yet published),
+and errors clearly if neither is available.
+
 ## Scope
 
 This baseline is syntax-level editor support plus narrow prototype LSP behavior:
