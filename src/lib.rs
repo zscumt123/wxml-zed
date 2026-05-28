@@ -94,20 +94,16 @@ impl zed::Extension for WxmlExtension {
             .ok_or_else(|| "node must be available on PATH to run the WXML LSP".to_string())?;
 
         // (1) Local artifact (dev). Highest priority: the env value is the artifact
-        // ROOT and must contain server/wxml-lsp.mjs. A set-but-invalid value is a
-        // user mistake — surface it; do NOT fall through to download or the repo.
+        // ROOT and must contain server/wxml-lsp.mjs. Do not stat this arbitrary
+        // absolute path from the extension wasm: Zed's extension filesystem may not
+        // expose it even though the spawned Node process can execute it.
         if let Some(dir) = Self::shell_env_var(worktree, ARTIFACT_DIR_ENV) {
             let entry = Path::new(&dir).join("server").join("wxml-lsp.mjs");
-            if entry.is_file() {
-                return Ok(zed::Command {
-                    command: node,
-                    args: vec![entry.to_string_lossy().into_owned()],
-                    env: worktree.shell_env(),
-                });
-            }
-            return Err(format!(
-                "{NOT_FOUND_ERROR}\n  cause: {ARTIFACT_DIR_ENV}={dir} has no server/wxml-lsp.mjs"
-            ));
+            return Ok(zed::Command {
+                command: node,
+                args: vec![entry.to_string_lossy().into_owned()],
+                env: worktree.shell_env(),
+            });
         }
 
         // (2) GitHub Release download/cache (skeleton; not validated e2e this round).

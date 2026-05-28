@@ -1440,18 +1440,28 @@ required — the machine's `~/.cargo/config` points the default target dir outsi
 the sandbox-writable area).
 
 **Validation model (different from the LSP work):** `src/lib.rs` only runs inside
-Zed, so the automated gate is just "compiles to wasm". Real functional proof is
-**manual Zed dogfood (still PENDING)** — build artifact → unpack → set env → reload
-dev extension → confirm the LSP starts from the **artifact** path (not in-repo) and
-a JS-backed feature works.
+Zed, so the automated gate is just "compiles to wasm". Real functional proof was
+manual Zed dogfood: build artifact → unpack → set env → reinstall/reload the dev
+extension → confirm the LSP starts from the **artifact** path (not in-repo) and a
+JS-backed feature works.
 
-**Pending / deferred (carried for the dogfood + later publish steps):**
-- **dogfood not yet done** — the round's real validation.
-- **Contingency C1 (pre-written in the plan)** — the local branch's `is_file()` on
-  an arbitrary absolute path may be blocked by the wasm fs sandbox; if dogfood shows
-  a valid env dir failing to launch, apply C1 (drop the stat, launch directly,
-  consciously dropping the friendly invalid-env error). Don't apply unless that
-  failure is observed.
+**Dogfood result (2026-05-28):** first launch hit the expected environment caveat:
+an already-running Zed instance ignored the new shell env and fell through to the
+GitHub Release skeleton (404, clean actionable error). After quitting Zed and
+relaunching from the env-bearing shell, the extension saw
+`WXML_ZED_LSP_ARTIFACT_DIR`, but the wasm-side `entry.is_file()` check falsely
+reported the valid `/tmp/.../wxml-lsp-node/server/wxml-lsp.mjs` as missing. This
+triggered Contingency C1; the local artifact branch now launches
+`node $WXML_ZED_LSP_ARTIFACT_DIR/server/wxml-lsp.mjs` without statting the absolute
+path. Reinstalling the dev extension then started the LSP from
+`/tmp/wxml-zed-dogfood.mPhENh/wxml-lsp-node/server/wxml-lsp.mjs`, and F12 on
+`bindtap="openByNavigateTo"` in `/Users/zs/Desktop/demo/pages/index/index.wxml`
+jumped to `pages/index/index.js::openByNavigateTo(e)`.
+
+**Pending / deferred (carried for later publish steps):**
+- **Contingency C1 applied** — the local branch's `is_file()` on an arbitrary
+  absolute path was blocked by the wasm fs sandbox during dogfood, so the branch now
+  launches directly and intentionally drops the friendly invalid-env stat check.
 - **download path not validated e2e** — no GitHub Release exists; it fails cleanly.
 - **deferred download-path hardening** (when it goes live, code-quality review
   flagged, non-blocking now): guard `cache_dir` against path-traversal if a release

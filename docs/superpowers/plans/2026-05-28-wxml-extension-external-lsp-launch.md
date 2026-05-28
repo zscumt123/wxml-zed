@@ -335,7 +335,7 @@ The extension only runs inside Zed, so functional proof is manual dogfood (do th
 2. `export WXML_ZED_LSP_ARTIFACT_DIR=/tmp/wxml-lsp-node`; launch Zed from that terminal; reload the dev extension.
 3. Open a real mini-program `.wxml`; confirm the LSP starts and a JS-backed feature works (diagnostics / go-to-definition), and confirm via the launched command / Zed logs that the entry is the **artifact** path, not an in-repo `server/wxml-lsp.mjs`.
 4. Unset the env var → confirm you get the actionable error (the download path fails cleanly, no release yet), NOT a silent in-repo launch.
-5. (Optional) Set `WXML_ZED_LSP_ARTIFACT_DIR` to a wrong dir → confirm the `cause: ... has no server/wxml-lsp.mjs` error.
+5. If Contingency C1 is not applied, optionally set `WXML_ZED_LSP_ARTIFACT_DIR` to a wrong dir → confirm the `cause: ... has no server/wxml-lsp.mjs` error. If C1 is applied, this friendly invalid-env stat check is intentionally gone; Node will surface a bad path instead.
 
 ## Contingency C1 — pre-decided (apply ONLY if dogfood step 2 fails this way)
 
@@ -394,6 +394,13 @@ error becomes the surface. Re-run dogfood step 2 to confirm the valid env now
 launches; step 5 (wrong-env) will then show node's error instead of the wrapped one,
 which is acceptable. Do NOT apply C1 if step 2 already passes (the `is_file()` guard
 works → keep the friendlier error).
+
+**Applied during dogfood (2026-05-28):** a correctly unpacked artifact at
+`/tmp/wxml-zed-dogfood.mPhENh/wxml-lsp-node` failed the wasm-side `is_file()` guard
+with `cause: ... has no server/wxml-lsp.mjs`; after applying C1 and reinstalling the
+dev extension, Zed started the LSP with
+`args: ["/tmp/wxml-zed-dogfood.mPhENh/wxml-lsp-node/server/wxml-lsp.mjs"]` and a
+WXML event-handler F12 jump resolved into `pages/index/index.js`.
 
 ---
 
