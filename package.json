@@ -1,7 +1,11 @@
 {
   "name": "wxml-zed",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build:lsp": "node scripts/build-lsp-artifact.mjs"
+  },
   "dependencies": {
     "web-tree-sitter": "0.25.10"
   }
