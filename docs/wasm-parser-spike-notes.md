@@ -1348,6 +1348,36 @@ This was the dogfood that v2-C's spec deferred to (downgraded from a go/no-go ga
 to a confirmation, since the pre-scan had already measured ~0 real-world noise) —
 now confirmed.
 
+### Follow-up: `wxForBindings` compat shim retirement (2026-05-28)
+
+With completion (v2-B) and diagnostics (v2-C) both migrated to `wxForScopes` +
+`activeWxForBindingsAt`, the flat file-level `wxForBindings` shim had zero runtime
+consumers — only the verifier still touched it. This round deleted it entirely:
+the derivation IIFE, the `wxForLooseItems`/`wxForLooseIndexes` loose-attr
+accumulators, and the dead `else` feeder branch in
+`shared/wxml-symbol-extractor.mjs` (the branch only existed to preserve the legacy
+quirk where a `wx:for-item` with no `wx:for` leaked a name into the shim — it
+created no scope, so removing it changes nothing real); the CLI passthrough in
+`scripts/extract-wxml-symbols.mjs`; and the W-7 byte-equal invariant + its frozen
+map. The four S-F tests that read both the shim and `wxForScopes` (S-F5/F6/F7/F8)
+were converted to assert only `wxForScopes` — the behaviors they guard
+(loose→no scope, bare→implicit defaults, dynamic→implicit fallback, block→scope)
+are all real `wxForScopes` properties, so coverage was preserved, not dropped.
+
+The load-bearing guard: regenerating the 8 wasm baselines is self-fulfilling
+(new extractor == new baseline) and can't prove "only `wxForBindings` was
+removed" on its own. So the plan added a normalized pre/post check — strip every
+`wxForBindings` key from both the pre-change snapshot and the regenerated baseline,
+then `deepStrictEqual` — plus an explicit `grep` proving the key is gone. Both the
+implementer and two independent reviewers ran it: across all 8 baselines, only
+`wxForBindings` was removed, every other field byte-identical. `version: 1` was
+deliberately NOT bumped (internal tool output; unread-field removal is
+backward-safe, and a bump would itself perturb every baseline and pollute the
+clean-diff guard). 2 commits (`5ab9a17` tests-first conversion → `537582f`
+extractor+CLI+baselines), subagent-driven, final holistic review SHIP with zero
+findings. `wxForScopes` is now the single source of truth for wx:for binding
+scope across hover/definition/completion/diagnostics.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
