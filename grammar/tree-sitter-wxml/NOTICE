@@ -1,0 +1,5 @@
+tree-sitter-wxml
+
+Adapted from BlockLune/tree-sitter-wxml (MIT). Maintained as part of the
+wxml-zed project. Original copyright held by BlockLune; modifications by
+zscumt123 and wxml-zed contributors. See LICENSE for the MIT terms.

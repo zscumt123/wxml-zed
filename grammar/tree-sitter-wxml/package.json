@@ -2,7 +2,7 @@
   "name": "tree-sitter-wxml",
   "version": "0.1.1",
   "description": "WXML (WeiXin Markup Language) grammar for tree-sitter",
-  "repository": "https://github.com/blocklune/tree-sitter-wxml",
+  "repository": "https://github.com/zscumt123/tree-sitter-wxml",
   "funding": "https://github.com/BlockLune",
   "license": "MIT",
   "author": {
