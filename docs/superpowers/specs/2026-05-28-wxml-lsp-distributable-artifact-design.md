@@ -39,6 +39,16 @@ server/wxml-lsp.mjs
   relative to their own `import.meta.url`.
 - All three do `import { Parser } from "web-tree-sitter"` (a bare specifier), and
   `web-tree-sitter` loads its own core `tree-sitter.wasm` from inside its package.
+- **Two grammar wasms, not one.** `wxml-lsp.mjs` loads
+  `grammar/tree-sitter-wxml/tree-sitter-wxml.wasm`; the project-graph extractor
+  *also* loads `grammar/tree-sitter-javascript/tree-sitter-javascript.wasm`
+  (`extract-wxml-project-graph.mjs:14,452`) to parse `.js`/`.ts` siblings for
+  `data`/`property`/method extraction. **Its absence does not crash** — the
+  extractor catches the load failure, emits a single `WARN: JS wasm load failed
+  … configs[].script omitted` to stderr, and builds a graph with no owner-script
+  info. The artifact MUST carry both wasms, or every JS-backed feature (event
+  handlers, data/property refs, `missing-expression-ref`) silently degrades while
+  the smoke could still pass on WXML-only paths.
 
 Therefore, if the artifact **preserves the repo's relative structure**
 (`server/`, `shared/`, `scripts/`, `grammar/tree-sitter-wxml/…wasm`) and vendors
@@ -74,7 +84,9 @@ wxml-lsp-node/
     extract-wxml-symbols.mjs
   grammar/
     tree-sitter-wxml/
-      tree-sitter-wxml.wasm
+      tree-sitter-wxml.wasm           # WXML parse (server/wxml-lsp.mjs)
+    tree-sitter-javascript/
+      tree-sitter-javascript.wasm     # JS/TS sibling parse (extract-wxml-project-graph.mjs)
   node_modules/
     web-tree-sitter/          # vendored package (incl. its tree-sitter.wasm + LICENSE)
   package.json                # minimal: name, version, "type":"module", web-tree-sitter dep
@@ -99,7 +111,9 @@ Version is read from the root `package.json` `version` field (add `"0.3.0"`).
 
 - Reads version from root `package.json`.
 - Cleans/creates `dist/wxml-lsp-node/`.
-- Copies the runtime closure listed above, preserving relative structure.
+- Copies the runtime closure listed above, preserving relative structure —
+  including **both** grammar wasms (`tree-sitter-wxml/tree-sitter-wxml.wasm` and
+  `tree-sitter-javascript/tree-sitter-javascript.wasm`).
 - Vendors `web-tree-sitter`: copy `node_modules/web-tree-sitter/` into the
   artifact's `node_modules/` (the package, with its `tree-sitter.wasm`,
   `package.json`, and `LICENSE`).
@@ -124,12 +138,21 @@ Proves the artifact runs detached from the repo:
 - Spawn `node <unpacked>/server/wxml-lsp.mjs` as a stdio LSP server **with cwd
   set outside the repo** (e.g. the unpacked dir or `$TMPDIR`).
 - Drive a minimal LSP session over stdio JSON-RPC: `initialize` →
-  `initialized` → open a WXML document (a small inline fixture or a copied
-  sample) → assert a `textDocument/publishDiagnostics` (or a
-  diagnostics/graph-smoke-level response) comes back correctly, proving the
-  parser wasm loaded and the spawn chain ran. Reuse the existing stdio
-  LSP-protocol harness from `scripts/verify-lsp-diagnostics.mjs` where practical,
-  but pointed at the **unpacked artifact path** and a non-repo cwd.
+  `initialized` → open a WXML document → assert correct responses. Reuse the
+  existing stdio LSP-protocol harness from `scripts/verify-lsp-diagnostics.mjs`
+  where practical, but pointed at the **unpacked artifact path** and a non-repo
+  cwd.
+- **The smoke MUST exercise at least one JS-backed scenario, not only WXML-only
+  paths** — otherwise a missing `tree-sitter-javascript.wasm` (which only
+  degrades owner-script extraction) would go undetected. Use a fixture with a
+  `.js` sibling that declares data/methods and assert a JS-derived capability,
+  e.g. an event-handler or data-ref definition/completion resolving, or a
+  `missing-event-handler` diagnostic firing — something that is only possible
+  when `configs[].script` was populated.
+- **Assert the run produced no `JS wasm load failed` (nor any other wasm-load
+  failure) on the artifact server's stderr**, and/or that the built graph's owner
+  config carries `script` info. This is the direct guard against the silent
+  JS-wasm-omission degrade.
 - Exit non-zero with a clear message on any failure (no test framework; plain
   `assert`).
 
@@ -165,7 +188,8 @@ repo:
   tarball without error.
 - `node scripts/verify-lsp-artifact.mjs` is green: unpacks under `$TMPDIR`, runs
   the LSP from the unpacked entry with a non-repo cwd, completes an
-  initialize+diagnostics exchange, and asserts `web-tree-sitter` resolved under
+  initialize+diagnostics exchange, exercises a JS-backed scenario with **no
+  `JS wasm load failed` on stderr**, and asserts `web-tree-sitter` resolved under
   the unpacked dir.
 - The existing full verifier suite (narrow-ranges, wasm baselines,
   language-service, graph-smoke, umbrella) stays green — this round adds files
@@ -179,11 +203,14 @@ repo:
    layout above plus `dist/wxml-lsp-node-v<version>.tar.gz`, with no edits to
    `server/`/`shared/`/`scripts/` runtime code.
 2. The artifact contains the full runtime closure + vendored `web-tree-sitter`
-   (with its `tree-sitter.wasm`) + the grammar wasm + minimal `package.json` +
-   `LICENSE`/`NOTICE`.
+   (with its `tree-sitter.wasm`) + **both** grammar wasms
+   (`tree-sitter-wxml.wasm` AND `tree-sitter-javascript.wasm`) + minimal
+   `package.json` + `LICENSE`/`NOTICE`.
 3. The offline smoke runs `node <unpacked>/server/wxml-lsp.mjs` from a `$TMPDIR`
-   location outside the repo, with a non-repo cwd, and completes an
-   `initialize` + diagnostics exchange successfully.
+   location outside the repo, with a non-repo cwd, completes an `initialize` +
+   diagnostics exchange, **exercises at least one JS-backed scenario** (proving
+   owner-script extraction worked), and **asserts no `JS wasm load failed` (or
+   any wasm-load failure) appeared on the artifact server's stderr**.
 4. The smoke asserts the running LSP resolves `web-tree-sitter` from the unpacked
    artifact, not the repo `node_modules`.
 5. `dist/` is git-ignored; the existing verifier suite stays green; no runtime
