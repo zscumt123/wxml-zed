@@ -15,6 +15,7 @@
 ## File Structure
 
 - **Modify** `package.json` — add `"version": "0.3.0"` (the packaging script reads it for the tarball name + artifact `package.json`).
+- **Modify** `package-lock.json` — add the matching `"version": "0.3.0"` at the top level and in `packages[""]`, so a later `npm install` won't mechanically rewrite the lockfile and produce an unrelated diff.
 - **Modify** `.gitignore` — add `/dist` (build output, never committed).
 - **Create** `scripts/build-lsp-artifact.mjs` — assembles `dist/wxml-lsp-node/` + `dist/wxml-lsp-node-v<version>.tar.gz`. [Task 1]
 - **Create** `scripts/verify-lsp-artifact.mjs` — offline standalone smoke + negative control. [Task 2]
@@ -30,9 +31,9 @@ No runtime code (`server/`, `shared/`, `scripts/extract-*`) is modified — the 
 - Modify: `.gitignore`
 - Create: `scripts/build-lsp-artifact.mjs`
 
-- [ ] **Step 1: Add a version to `package.json`**
+- [ ] **Step 1: Add a version to `package.json` AND sync `package-lock.json`**
 
-Replace:
+In `package.json`, replace:
 ```json
 {
   "name": "wxml-zed",
@@ -55,6 +56,30 @@ with:
   }
 }
 ```
+
+Then sync `package-lock.json` the way npm would, so a future `npm install` is a no-op. Add `"version": "0.3.0"` at the top level (after the top `"name"`):
+```json
+{
+  "name": "wxml-zed",
+  "version": "0.3.0",
+  "lockfileVersion": 3,
+```
+and in the root package entry `packages[""]` (after its `"name"`):
+```json
+    "": {
+      "name": "wxml-zed",
+      "version": "0.3.0",
+      "dependencies": {
+        "web-tree-sitter": "0.25.10"
+      }
+    },
+```
+Verify no further drift (best-effort; skip if npm has no network/cache in this environment):
+```bash
+npm install --package-lock-only --offline >/dev/null 2>&1 || true
+git diff --exit-code package-lock.json && echo "lockfile in sync"
+```
+Expected: `lockfile in sync` (the hand-edit already matches npm's deterministic output; the command, if it runs, produces no additional change).
 
 - [ ] **Step 2: Ignore `/dist`**
 
@@ -192,7 +217,7 @@ Expected: every `ls` target exists (no "No such file"). This confirms the copy-s
 - [ ] **Step 5: Commit**
 
 ```bash
-git add package.json .gitignore scripts/build-lsp-artifact.mjs
+git add package.json package-lock.json .gitignore scripts/build-lsp-artifact.mjs
 git commit -m "build(lsp): packaging script for self-contained LSP artifact (publish-readiness #1)
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
@@ -227,8 +252,10 @@ import { spawn, execFileSync } from "node:child_process";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TMPBASE = process.env.TMPDIR || os.tmpdir();
-const HOME_WXML = path.join(ROOT, "fixtures/miniprogram/pages/home/home.wxml");
-const PROJECT_ROOT = path.join(ROOT, "fixtures/miniprogram");
+// The repo fixture is only the SOURCE of test input; it is copied out to a temp
+// dir (see main) so the artifact, its cwd, AND the opened mini-program project
+// are all outside the source repo — a full "detached from source repo" proof.
+const FIXTURE_SRC = path.join(ROOT, "fixtures/miniprogram");
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -323,19 +350,19 @@ class Lsp {
 
 // Drive an LSP at `entry` (cwd outside repo) and return whether go-to-definition
 // on `handleSelect` in home.wxml resolves into home.js. Captures stderr.
-async function definitionResolvesToJs(entry, cwd) {
+async function definitionResolvesToJs(entry, cwd, projectRoot, homeWxml) {
   const lsp = new Lsp(entry, cwd);
   try {
     await lsp.request("initialize", {
       processId: process.pid,
-      rootUri: pathToFileURL(PROJECT_ROOT).href,
+      rootUri: pathToFileURL(projectRoot).href,
       capabilities: {},
-      workspaceFolders: [{ uri: pathToFileURL(PROJECT_ROOT).href, name: "miniprogram" }],
+      workspaceFolders: [{ uri: pathToFileURL(projectRoot).href, name: "miniprogram" }],
     });
     lsp.notify("initialized", {});
 
-    const text = fs.readFileSync(HOME_WXML, "utf8");
-    const uri = pathToFileURL(HOME_WXML).href;
+    const text = fs.readFileSync(homeWxml, "utf8");
+    const uri = pathToFileURL(homeWxml).href;
     lsp.notify("textDocument/didOpen", {
       textDocument: { uri, languageId: "wxml", version: 1, text },
     });
@@ -391,8 +418,15 @@ async function main() {
     `web-tree-sitter must resolve under the artifact, not the repo; got ${resolved}`,
   );
 
+  // Copy the mini-program project OUT of the repo too, so the artifact, its cwd,
+  // and the opened project are all outside the source repo (repo = input source).
+  const projectRoot = path.join(unpackBase, "project", "miniprogram");
+  await fsp.cp(FIXTURE_SRC, projectRoot, { recursive: true });
+  const homeWxml = path.join(projectRoot, "pages/home/home.wxml");
+  assert(fs.existsSync(homeWxml), `copied fixture missing: ${homeWxml}`);
+
   // 4. Positive: a JS-backed definition resolves with no JS-wasm warning.
-  const good = await definitionResolvesToJs(entry, unpackBase);
+  const good = await definitionResolvesToJs(entry, unpackBase, projectRoot, homeWxml);
   assert(
     good.resolvedToJs,
     `JS-backed go-to-definition (handleSelect -> home.js) failed against the artifact; stderr:\n${good.stderr}`,
@@ -410,7 +444,12 @@ async function main() {
   await fsp.rm(path.join(brokenArtifact, "grammar/tree-sitter-javascript/tree-sitter-javascript.wasm"), {
     force: true,
   });
-  const broken = await definitionResolvesToJs(path.join(brokenArtifact, "server/wxml-lsp.mjs"), brokenBase);
+  const broken = await definitionResolvesToJs(
+    path.join(brokenArtifact, "server/wxml-lsp.mjs"),
+    brokenBase,
+    projectRoot,
+    homeWxml,
+  );
   assert(
     !broken.resolvedToJs,
     `negative control failed: definition still resolved with the JS wasm removed — the smoke is not discriminating`,
@@ -456,6 +495,6 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 ## Self-review checklist (run by plan author)
 
-- **Spec coverage:** layout (incl both wasms + vendored dep) → Task 1 Step 3 FILES + vendor copy; `dist/` gitignore + version → Task 1 Steps 1-2; packaging script → Task 1; offline smoke unpacking under `$TMPDIR` outside repo + non-repo cwd → Task 2 Step 1 (`unpackBase` under TMPBASE, `assert !artifact.startsWith(ROOT)`); JS-backed scenario + no-`JS wasm load failed` assertion → Task 2 `definitionResolvesToJs` + stderr assert; repo-`node_modules` resolution guard → Task 2 probe; negative control (the finding-#2 spirit) → Task 2 Step 1 part 5. Deferred items (esbuild, bin/lib, in-process extractor, src/lib.rs, Release automation, repo split, grammar repo) → untouched.
+- **Spec coverage:** layout (incl both wasms + vendored dep) → Task 1 Step 3 FILES + vendor copy; `dist/` gitignore + version + lockfile sync → Task 1 Steps 1-2; packaging script → Task 1; offline smoke unpacking under `$TMPDIR` outside repo + non-repo cwd + the opened mini-program project ALSO copied outside the repo → Task 2 Step 1 (`unpackBase` under TMPBASE, `assert !artifact.startsWith(ROOT)`, `projectRoot` under `unpackBase/project`); JS-backed scenario + no-`JS wasm load failed` assertion → Task 2 `definitionResolvesToJs` + stderr assert; repo-`node_modules` resolution guard → Task 2 probe; negative control → Task 2 Step 1 part 5. Deferred items (esbuild, bin/lib, in-process extractor, src/lib.rs, Release automation, repo split, grammar repo) → untouched.
 - **Placeholder scan:** every step has full code or exact commands; no TBD/TODO.
-- **Type/name consistency:** `dist/wxml-lsp-node/`, tar root `wxml-lsp-node`, entry `server/wxml-lsp.mjs`, version `0.3.0`, tarball `wxml-lsp-node-v0.3.0.tar.gz` consistent across Task 1 build script, Task 1 Step 4 assertions, and Task 2 smoke. `definitionResolvesToJs(entry, cwd)` signature used consistently for both positive and negative-control calls.
+- **Type/name consistency:** `dist/wxml-lsp-node/`, tar root `wxml-lsp-node`, entry `server/wxml-lsp.mjs`, version `0.3.0`, tarball `wxml-lsp-node-v0.3.0.tar.gz` consistent across Task 1 build script, Task 1 Step 4 assertions, and Task 2 smoke. `definitionResolvesToJs(entry, cwd, projectRoot, homeWxml)` is the single signature used by both the positive and negative-control calls (both pass the same copied-out `projectRoot`/`homeWxml`).
