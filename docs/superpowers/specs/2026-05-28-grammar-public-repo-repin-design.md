@@ -59,9 +59,22 @@ In `grammar/tree-sitter-wxml/` (the source-of-truth that gets pushed):
   for republishing; it also closes the missing-license gap on this vendored grammar.
 - **Add a short `NOTICE`** (provenance): "Adapted from BlockLune/tree-sitter-wxml
   (MIT); maintained as part of wxml-zed."
-- **Update `package.json` `repository`** to `https://github.com/zscumt123/tree-sitter-wxml`
-  (so the published repo's metadata self-references correctly); keep `author:
-  BlockLune` (accurate original author — fork attribution lives in LICENSE/NOTICE).
+- **Update the repository coordinate in BOTH grammar-metadata files** so the
+  published repo self-describes consistently (updating only one leaves it
+  half-new/half-old):
+  - `tree-sitter.json` → `metadata.links.repository` =
+    `https://github.com/zscumt123/tree-sitter-wxml` (this is the authoritative
+    tree-sitter grammar metadata — more so than package.json).
+  - `package.json` → `repository` = the same URL.
+  Keep `authors`/`author` and `funding` = BlockLune in both (accurate original
+  author; fork/modification provenance lives in LICENSE/NOTICE).
+- **Out of scope this round (explicit):** the grammar dir's *other* ecosystem
+  package coordinates still point at BlockLune — `Cargo.toml`, `pyproject.toml`,
+  `CMakeLists.txt`, `Makefile`, `go.mod`, and the Go binding import path. These are
+  NOT Zed/tree-sitter repin blockers (wxml-zed is not publishing Rust/Python/Go
+  packages), so they are intentionally left unchanged and deferred to a later
+  package-publishing cleanup if those ecosystems are ever targeted. Only the two
+  repository coordinates above are touched.
 
 In the wxml-zed root:
 - **Repin `extension.toml`** `[grammars.wxml]` to:
@@ -128,8 +141,11 @@ performs** (NEVER push to BlockLune `origin`; never push without explicit reques
 ## Acceptance Criteria
 
 1. `grammar/tree-sitter-wxml/` gains a correct MIT `LICENSE` (BlockLune original +
-   zscumt123 modifications) and a short `NOTICE`; `package.json` `repository`
-   points at the new public repo; `author` (BlockLune) preserved.
+   zscumt123 modifications) and a short `NOTICE`; the new public-repo URL is set in
+   BOTH `tree-sitter.json` (`metadata.links.repository`) and `package.json`
+   (`repository`); `authors`/`funding` (BlockLune) preserved. The other ecosystem
+   coordinates (Cargo.toml, pyproject.toml, CMakeLists.txt, Makefile, go.mod, Go
+   binding import path) are intentionally left pointing at BlockLune (deferred).
 2. The grammar dir is confirmed a complete, buildable, publishable set (no
    buildable source gitignored).
 3. After the user publishes and provides the sha, `extension.toml`
