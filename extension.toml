@@ -16,5 +16,5 @@ languages = ["WXML"]
 WXML = "wxml"
 
 [grammars.wxml]
-repository = "file:///private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511"
-rev = "fa31bef18059aacecc00a580463a6422c8a70fea"
+repository = "https://github.com/zscumt123/tree-sitter-wxml"
+rev = "fef7ea7277adba1cc697afd01c588da8c2c6e944"
