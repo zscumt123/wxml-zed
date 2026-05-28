@@ -1481,6 +1481,37 @@ jumped to `pages/index/index.js::openByNavigateTo(e)`.
 - **`LSP_REPO = "zscumt123/wxml-zed"` is a placeholder** — backfill when the real
   public LSP/extension repos are decided (the repo-split step).
 
+### Follow-up: publish-readiness #3 — grammar public repo + extension.toml repin (2026-05-28)
+
+Removed the last hard *config* blocker on the grammar side: `extension.toml`'s
+`[grammars.wxml]` no longer points at `file:///private/tmp/...` (unpublishable +
+reboot-fragile). The vendored `grammar/tree-sitter-wxml/` was already a complete,
+buildable tree-sitter repo (`grammar.js` + committed `src/parser.c`/`scanner.c`/
+`grammar.json`; `.gitignore` keeps sources + `!tree-sitter-wxml.wasm`); it only
+lacked a LICENSE. In-repo prep (`729863d`): added MIT `LICENSE` (BlockLune original
++ zscumt123 modifications) + provenance `NOTICE`, and synced the repository
+coordinate in BOTH `tree-sitter.json` (`metadata.links.repository`, the
+authoritative grammar metadata) and `package.json`. Then the grammar dir was
+published to **`github.com/zscumt123/tree-sitter-wxml`** (user-driven ops — the
+agent's `git push` was blocked by the harness permission layer even with the
+sandbox off, so the user pushed the agent-prepared standalone commit). Repin
+(`0b8bd7a`): `extension.toml` → `repository = "https://github.com/zscumt123/tree-sitter-wxml"`,
+`rev = "fef7ea7277adba1cc697afd01c588da8c2c6e944"`; no `file://` remains.
+
+Conservative model held: wxml-zed keeps its vendored grammar source as
+source-of-truth (public repo published from it); NOT a submodule; LSP
+`tree-sitter-wxml.wasm` path untouched. Deferred (explicit): the grammar's other
+ecosystem coords (`Cargo.toml`/`pyproject.toml`/`CMakeLists.txt`/`Makefile`/`go.mod`/
+Go import path) still point at BlockLune — not Zed/tree-sitter blockers, left for a
+later package-publishing cleanup. Vendored copy ↔ public repo can drift until a
+later de-dup decision; vendored copy is canonical and re-pushed when it changes.
+
+Validation: in-repo green (buildable sources not gitignored; no `file://` after
+repin; full offline suite — narrow-ranges 20/20, wasm 8/8, language-service exit 0,
+lsp-artifact exit 0 — unaffected). **PENDING: manual Zed dogfood** — confirm Zed
+clones+builds the grammar from the public repo at `fef7ea7` (not `file:///tmp`) and
+WXML highlight/outline render.
+
 ---
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
