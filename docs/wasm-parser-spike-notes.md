@@ -1463,6 +1463,17 @@ jumped to `pages/index/index.js::openByNavigateTo(e)`.
   absolute path was blocked by the wasm fs sandbox during dogfood, so the branch now
   launches directly and intentionally drops the friendly invalid-env stat check.
 - **download path not validated e2e** — no GitHub Release exists; it fails cleanly.
+- **download-path `is_file()` is now suspect (direct corollary of C1)** — dogfood
+  proved wasm `is_file()` is unreliable for an *arbitrary absolute* path. The
+  download branch still uses `is_file()` twice (cache-hit check + post-extract
+  verify) on *work-dir-relative* paths (`src/lib.rs:59,71`). Relative paths are the
+  standard Zed pattern (the work dir is WASI-preopened, so they *should* work — a
+  different case than the absolute one that failed), but this is UNVERIFIED. The
+  dangerous one is line 71: if relative `is_file()` also misfires here, the
+  post-extract verify would falsely `Err("…missing after extract")` even on a
+  successful download → the download path would never start. **When the download
+  path is dogfooded (after a real release exists), test these two `is_file()` calls
+  specifically; if they misfire, drop/replace them like C1 did for the absolute path.**
 - **deferred download-path hardening** (when it goes live, code-quality review
   flagged, non-blocking now): guard `cache_dir` against path-traversal if a release
   tag is ever malformed; consider `to_str().ok_or(...)` instead of
