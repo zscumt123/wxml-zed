@@ -302,10 +302,14 @@ CARGO_TARGET_DIR="$PWD/target" cargo build --release --target wasm32-wasip1 --of
 ```
 Expected: `Finished \`release\` profile`, exit 0. If any `zed_extension_api` symbol name/shape mismatches (`GithubReleaseOptions` fields, `LanguageServerInstallationStatus` variants, `download_file`/`DownloadedFileType::GzipTar`, `latest_github_release` signature), fix per the compiler against the vendored crate WIT at `~/.cargo/registry/src/*/zed_extension_api-0.7.0/wit/since_v0.6.0/`.
 
-- [ ] **Step 3: Confirm scope — only src/lib.rs changed this task**
+- [ ] **Step 3: Confirm scope + no in-repo-launch residue**
 
-Run: `git status --short`
-Expected: only `src/lib.rs` modified (README was committed in Task 1). No LSP/build/artifact files touched.
+Run:
+```bash
+git status --short
+grep -nE "CARGO_MANIFEST_DIR|server/wxml-lsp\.mjs" src/lib.rs README.md
+```
+Expected: `git status` shows only `src/lib.rs` modified (README was committed in Task 1; no LSP/build/artifact files touched). The `grep` returns NOTHING from `src/lib.rs` (the in-repo launch is fully gone; the only allowed `server/wxml-lsp.mjs` mentions are in README's dev-docs prose). If `src/lib.rs` still references `CARGO_MANIFEST_DIR` or builds a `server/wxml-lsp.mjs` path, the in-repo launch wasn't fully removed — fix before committing.
 
 - [ ] **Step 4: Commit**
 
@@ -333,16 +337,63 @@ The extension only runs inside Zed, so functional proof is manual dogfood (do th
 4. Unset the env var → confirm you get the actionable error (the download path fails cleanly, no release yet), NOT a silent in-repo launch.
 5. (Optional) Set `WXML_ZED_LSP_ARTIFACT_DIR` to a wrong dir → confirm the `cause: ... has no server/wxml-lsp.mjs` error.
 
-**Known risk to watch in dogfood (step 2/5):** the local-artifact branch calls
-`entry.is_file()` on the **arbitrary absolute** env path from inside the wasm
-sandbox. The download path's `is_file()` is work-dir-relative (the standard Zed
-pattern, reliable), but a wasm extension's filesystem visibility of arbitrary
-absolute paths is not guaranteed. If step 2 shows a *valid* env dir failing to
-launch (the `is_file()` guard wrongly reporting missing), the contingency is a
-one-line change: drop the `is_file()` guard in branch (1) and launch
-`node <dir>/server/wxml-lsp.mjs` unconditionally, letting node surface a wrong path
-(this sacrifices the friendly invalid-env error — AC#2 — but guarantees the core
-launch works). Decide based on what dogfood shows.
+## Contingency C1 — pre-decided (apply ONLY if dogfood step 2 fails this way)
+
+The local-artifact branch calls `entry.is_file()` on the **arbitrary absolute**
+env path from inside the wasm sandbox. The download path's `is_file()` is
+work-dir-relative (the standard, reliable Zed pattern), but a wasm extension's
+filesystem visibility of arbitrary absolute paths is not guaranteed. This is NOT
+an ordinary caveat: if the guard wrongly reports a *valid* artifact as missing, it
+defeats this round's primary goal (Zed launching the external artifact). So the fix
+is pre-written, not left to judgment.
+
+**Trigger (exact):** dogfood step 2 — a *correctly* set `WXML_ZED_LSP_ARTIFACT_DIR`
+(its `server/wxml-lsp.mjs` really exists on disk) — fails to launch and Zed/log
+shows the `cause: ...has no server/wxml-lsp.mjs` error (i.e. `is_file()` returned
+false for a path that exists).
+
+**Action (exact):** in `src/lib.rs`, replace the local-artifact branch
+```rust
+        if let Some(dir) = Self::shell_env_var(worktree, ARTIFACT_DIR_ENV) {
+            let entry = Path::new(&dir).join("server").join("wxml-lsp.mjs");
+            if entry.is_file() {
+                return Ok(zed::Command {
+                    command: node,
+                    args: vec![entry.to_string_lossy().into_owned()],
+                    env: worktree.shell_env(),
+                });
+            }
+            return Err(format!(
+                "{NOT_FOUND_ERROR}\n  cause: {ARTIFACT_DIR_ENV}={dir} has no server/wxml-lsp.mjs"
+            ));
+        }
+```
+with (no stat — wasm can't reliably see arbitrary absolute paths; node surfaces a
+wrong path itself):
+```rust
+        if let Some(dir) = Self::shell_env_var(worktree, ARTIFACT_DIR_ENV) {
+            // Do not pre-validate: a wasm extension can't reliably stat an arbitrary
+            // absolute path. node surfaces a clear "Cannot find module" if it's wrong.
+            let entry = Path::new(&dir).join("server").join("wxml-lsp.mjs");
+            return Ok(zed::Command {
+                command: node,
+                args: vec![entry.to_string_lossy().into_owned()],
+                env: worktree.shell_env(),
+            });
+        }
+```
+Then rebuild (the standard gate) and commit:
+```bash
+git add src/lib.rs
+git commit -m "fix(extension): drop arbitrary-path stat on local artifact dir (wasm fs sandbox)
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
+```
+**This consciously drops AC#2** (the friendly env-set-but-invalid error) — node's own
+error becomes the surface. Re-run dogfood step 2 to confirm the valid env now
+launches; step 5 (wrong-env) will then show node's error instead of the wrapped one,
+which is acceptable. Do NOT apply C1 if step 2 already passes (the `is_file()` guard
+works → keep the friendlier error).
 
 ---
 
