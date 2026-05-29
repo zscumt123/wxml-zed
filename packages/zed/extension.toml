@@ -1,6 +1,6 @@
-id = "wxml-zed"
+id = "weixin-wxml"
 name = "WXML"
-description = "WXML (WeiXin Markup Language) support for Zed."
+description = "WXML (WeiXin Markup Language) language support with diagnostics, go-to-definition, hover, and completion for WeChat Mini-Program projects."
 version = "0.3.0"
 schema_version = 1
 authors = ["zscumt123", "wxml-zed contributors"]
