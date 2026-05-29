@@ -224,21 +224,68 @@ copy under `grammar/tree-sitter-wxml/` remains the first-party source baseline a
 is the source from which that public repository is published.
 ```
 
-- [ ] **Step 4: Correct the root README — drop the over-cautious license caveat**
+- [ ] **Step 4: Correct the root README — rewrite the over-cautious `## Redistribution Status` section**
 
-In `README.md` near line 297, locate the line stating redistribution "needs upstream authorization or clean-room rewrite" (or similar). Delete that sentence. Provenance is already covered by `LICENSE` + `NOTICE` (MIT, with upstream attribution). Leave any surrounding accurate license text intact.
+In `README.md` the `## Redistribution Status` section (lines ~286-293) reads:
 
-- [ ] **Step 5: Sanity-check the root README has no remaining stale refs**
+```markdown
+## Redistribution Status
+
+This repository includes provenance notes in `NOTICE`. The current baseline is
+usable for local development, but the original public seed repositories did not
+include an explicit license at the time this baseline was created. Before
+publishing a marketplace extension or redistributing packaged artifacts, either
+obtain upstream authorization or replace inherited source/query content with
+clean-room equivalents.
+```
+
+Replace that entire section with:
+
+```markdown
+## Redistribution Status
+
+This project is MIT-licensed (`LICENSE`) with upstream provenance recorded in
+`NOTICE`. The slim extension surface under `packages/zed/` carries its own
+`LICENSE` and `NOTICE`; the distributable LSP artifact bundles third-party
+licenses (see `THIRD_PARTY_NOTICES.md`).
+```
+
+- [ ] **Step 5: Correct the root README — update the `## Project Layout` section for the move**
+
+In `README.md` the `## Project Layout` list (lines ~295-311) lists `extension.toml`, `Cargo.toml and src/lib.rs`, and `languages/wxml/` as root-level. After Task 1 these live under `packages/zed/`. Replace the first three bullets:
+
+```markdown
+- `extension.toml`: Zed extension metadata, grammar registration, snippets, and
+  WXML LSP registration.
+- `Cargo.toml` and `src/lib.rs`: minimal Zed Rust extension glue for launching
+  the Node LSP prototype.
+- `languages/wxml/`: language config and Tree-sitter query files.
+```
+
+with:
+
+```markdown
+- `packages/zed/`: the slim Zed extension surface published to the marketplace —
+  `extension.toml` (metadata, grammar registration, snippets, WXML LSP
+  registration), `Cargo.toml` + `src/lib.rs` (Rust glue that launches the Node
+  LSP), `languages/wxml/` (language config + Tree-sitter queries), `snippets/`,
+  `LICENSE`, `NOTICE`, `README.md`.
+```
+
+Leave the remaining bullets (`grammar/`, `fixtures/`, `server/`, `scripts/`, `docs/`) unchanged — they stay at root.
+
+- [ ] **Step 6: Sanity-check the root README has no remaining stale refs**
 
 ```bash
 grep -nE "file:///private/tmp|upstream authorization|clean-room" README.md
 ```
-Expected: **no output**. Also confirm the moved-path correction landed:
+Expected: **no output**. Also confirm the corrections landed:
 ```bash
-grep -n "packages/zed/languages/wxml" README.md   # expect: at least one line
+grep -n "packages/zed/languages/wxml" README.md       # expect: >= 1 (Step 2 query-edit instructions)
+grep -n "the slim Zed extension surface" README.md    # expect: 1 (Project Layout bullet)
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add packages/zed/README.md README.md
@@ -296,7 +343,10 @@ jobs:
             fi
           done
 
-      - name: Build LSP artifact
+      - name: Verify LSP artifact (build + detached smoke + negative control + license)
+        run: node scripts/verify-lsp-artifact.mjs
+
+      - name: Build LSP artifact for upload
         run: npm run build:lsp
 
       - name: Create release and upload artifact
@@ -310,15 +360,19 @@ jobs:
             --generate-notes
 ```
 
-> Design notes (do not paste into the file): `package.json` version is the artifact SoT; `build-lsp-artifact.mjs` derives the asset name `wxml-lsp-node-v<version>.tar.gz` from it, which is exactly what `src/lib.rs`'s `latest_github_release` reconstructs. The guard prevents both an asset-name/tag mismatch and silent extension-vs-artifact drift. `gh` is built into GitHub runners; `GITHUB_TOKEN` is auto-provided.
+> Design notes (do not paste into the file): `package.json` version is the artifact SoT; `build-lsp-artifact.mjs` derives the asset name `wxml-lsp-node-v<version>.tar.gz` from it, which is exactly what `src/lib.rs`'s `latest_github_release` reconstructs. The guard prevents both an asset-name/tag mismatch and silent extension-vs-artifact drift. **The `verify-lsp-artifact.mjs` step is the real gate** — it rebuilds, unpacks outside the repo, asserts a JS-backed go-to-definition resolves, runs a negative control, and checks bundled licenses; a `set -e` failure there stops the job before any build/upload, so a broken LSP tarball is never published. The subsequent `build:lsp` re-emits `dist/` immediately before upload (robust regardless of how `verify-lsp-artifact.mjs` treats its own temp/`dist`). `gh` is built into GitHub runners; `GITHUB_TOKEN` is auto-provided.
 
 - [ ] **Step 2: Lint the workflow YAML**
 
 ```bash
-command -v actionlint >/dev/null 2>&1 && actionlint .github/workflows/release.yml || echo "actionlint not installed — falling back to yaml syntax check"
-node -e "const fs=require('fs');const s=fs.readFileSync('.github/workflows/release.yml','utf8');require('child_process');console.log(s.includes('jobs:')&&s.includes('release:')?'structure OK':'STRUCTURE MISSING')"
+if command -v actionlint >/dev/null 2>&1; then
+  actionlint .github/workflows/release.yml
+else
+  echo "actionlint not installed; falling back to yaml syntax check"
+fi
+node -e "const fs=require('fs');const s=fs.readFileSync('.github/workflows/release.yml','utf8');console.log(s.includes('jobs:')&&s.includes('release:')?'structure OK':'STRUCTURE MISSING')"
 ```
-Expected: `actionlint` clean (if installed) or `structure OK`.
+Expected: if `actionlint` is installed it must exit 0 (a real lint error fails this step — it is NOT swallowed into the fallback); otherwise `structure OK`.
 
 - [ ] **Step 3: Locally prove the four-way guard logic (positive case)**
 
