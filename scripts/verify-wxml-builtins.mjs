@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { BUILTIN_TAG_NAMES } from "../shared/wxml-builtins.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const HIGHLIGHTS = path.join(ROOT, "languages/wxml/highlights.scm");
+const HIGHLIGHTS = path.join(ROOT, "packages/zed/languages/wxml/highlights.scm");
 
 function assert(condition, message) {
   if (!condition) {

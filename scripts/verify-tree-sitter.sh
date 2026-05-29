@@ -2,11 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+EXTENSION_DIR="$ROOT_DIR/packages/zed"
 GRAMMAR_DIR="$ROOT_DIR/grammar/tree-sitter-wxml"
 FIXTURE="$ROOT_DIR/fixtures/test.wxml"
 INJECTION_FIXTURE="$ROOT_DIR/fixtures/wxs-injection.wxml"
 TAG_EDITING_FIXTURE="$ROOT_DIR/fixtures/tag-editing.wxml"
-BRACKETS_QUERY="$ROOT_DIR/languages/wxml/brackets.scm"
+BRACKETS_QUERY="$EXTENSION_DIR/languages/wxml/brackets.scm"
 REAL_WORLD_DIR="$ROOT_DIR/fixtures/real-world"
 REAL_WORLD_PAGE="$REAL_WORLD_DIR/page.wxml"
 REAL_WORLD_COMPONENT="$REAL_WORLD_DIR/component.wxml"
@@ -48,15 +49,15 @@ assert_count_eq() {
 
 npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$FIXTURE" >$OUT_DIR/parse.out
 npx tree-sitter-cli test --grammar-path "$GRAMMAR_DIR" >$OUT_DIR/corpus-test.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$FIXTURE" >$OUT_DIR/highlights-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$FIXTURE" >$OUT_DIR/outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/highlights.scm" "$FIXTURE" >$OUT_DIR/highlights-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/outline.scm" "$FIXTURE" >$OUT_DIR/outline-query.out
 
-if [ -f "$ROOT_DIR/languages/wxml/textobjects.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/textobjects.scm" "$FIXTURE" >$OUT_DIR/textobjects-query.out
+if [ -f "$EXTENSION_DIR/languages/wxml/textobjects.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/textobjects.scm" "$FIXTURE" >$OUT_DIR/textobjects-query.out
 fi
-if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$FIXTURE" >$OUT_DIR/injections-query.out
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$INJECTION_FIXTURE" >$OUT_DIR/wxs-injections-query.out
+if [ -f "$EXTENSION_DIR/languages/wxml/injections.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/injections.scm" "$FIXTURE" >$OUT_DIR/injections-query.out
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/injections.scm" "$INJECTION_FIXTURE" >$OUT_DIR/wxs-injections-query.out
   npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$INJECTION_FIXTURE" >$OUT_DIR/wxs-injection-parse.out
 
   test "$(rg -c 'capture: .*injection\.content' $OUT_DIR/wxs-injections-query.out)" -ge 4
@@ -69,8 +70,8 @@ if [ -f "$ROOT_DIR/languages/wxml/injections.scm" ]; then
   test "$(rg -c '\(raw_text' $OUT_DIR/wxs-injection-parse.out)" -ge 2
   test "$(rg -c '\(expression' $OUT_DIR/wxs-injection-parse.out)" -ge 2
 fi
-if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$FIXTURE" >$OUT_DIR/indents-query.out
+if [ -f "$EXTENSION_DIR/languages/wxml/indents.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/indents.scm" "$FIXTURE" >$OUT_DIR/indents-query.out
 fi
 if [ ! -f "$BRACKETS_QUERY" ]; then
   echo "Missing required WXML bracket query: $BRACKETS_QUERY" >&2
@@ -107,15 +108,15 @@ for real_world_fixture in "$REAL_WORLD_PAGE" "$REAL_WORLD_COMPONENT" "$REAL_WORL
 done
 npx tree-sitter-cli parse --grammar-path "$GRAMMAR_DIR" "$REAL_WORLD_RECOVERY" >$OUT_DIR/real-world-recovery-parse.out || true
 
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-highlights-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_COMPONENT" >$OUT_DIR/real-world-component-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/outline.scm" "$REAL_WORLD_TEMPLATES" >$OUT_DIR/real-world-templates-outline-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-injections-query.out
-npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/injections.scm" "$REAL_WORLD_RECOVERY" >$OUT_DIR/real-world-recovery-injections-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/highlights.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-highlights-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/outline.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/outline.scm" "$REAL_WORLD_COMPONENT" >$OUT_DIR/real-world-component-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/outline.scm" "$REAL_WORLD_TEMPLATES" >$OUT_DIR/real-world-templates-outline-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/injections.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-injections-query.out
+npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/injections.scm" "$REAL_WORLD_RECOVERY" >$OUT_DIR/real-world-recovery-injections-query.out
 npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$BRACKETS_QUERY" "$REAL_WORLD_COMPONENT" >$OUT_DIR/real-world-component-brackets-query.out
-if [ -f "$ROOT_DIR/languages/wxml/indents.scm" ]; then
-  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$ROOT_DIR/languages/wxml/indents.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-indents-query.out
+if [ -f "$EXTENSION_DIR/languages/wxml/indents.scm" ]; then
+  npx tree-sitter-cli query --grammar-path "$GRAMMAR_DIR" "$EXTENSION_DIR/languages/wxml/indents.scm" "$REAL_WORLD_PAGE" >$OUT_DIR/real-world-page-indents-query.out
 fi
 
 rg -n '\(import_statement' $OUT_DIR/real-world-page-parse.out >/dev/null
@@ -436,7 +437,7 @@ for (const [key, prefix] of Object.entries(required)) {
     throw new Error(`WXML snippet ${key} prefix ${snippet.prefix} !== ${prefix}`);
   }
 }
-' "$ROOT_DIR/snippets/wxml.json"
+' "$EXTENSION_DIR/snippets/wxml.json"
 
 node "$ROOT_DIR/scripts/verify-wxml-language-service.mjs"
 node "$ROOT_DIR/scripts/verify-wasm-symbol-baselines.mjs"
