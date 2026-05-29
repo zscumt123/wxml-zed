@@ -112,20 +112,11 @@ open/save, caches the latest graph by mini program root, and coalesces repeated
 same-root diagnostic requests so graph extraction does not block the LSP message
 loop.
 
-For local Zed development, `extension.toml` currently points `[grammars.wxml]` at
-this local git checkout:
-
-```text
-file:///private/tmp/wxml-zed-tree-sitter-wxml-dev-git-20260511
-```
-
-Zed accepted that form during the local loading spike. It did not accept the
-vendored non-git grammar directory directly when using a pinned `rev`. If the
-temporary checkout is removed or this repository is moved to another machine,
-recreate a local git checkout of the grammar at the pinned revision and update
-`extension.toml` accordingly. The vendored grammar under
-`grammar/tree-sitter-wxml/` remains the first-party source baseline for this
-repository. See `docs/local-grammar-loading.md` for the observed Zed behavior.
+The WXML grammar is pinned in `packages/zed/extension.toml` to the public
+[`tree-sitter-wxml`](https://github.com/zscumt123/tree-sitter-wxml) repository at
+a fixed revision. Zed clones and builds it at extension-install time. The vendored
+copy under `grammar/tree-sitter-wxml/` remains the first-party source baseline and
+is the source from which that public repository is published.
 
 For local WXML LSP development:
 
@@ -145,7 +136,7 @@ For local WXML LSP development:
 
 When changing queries or snippets:
 
-1. Edit files under `languages/wxml/` or `snippets/`.
+1. Edit files under `packages/zed/languages/wxml/` or `packages/zed/snippets/`.
 2. Run `scripts/verify-tree-sitter.sh`.
 3. In Zed, run `zed: reload extensions` or reinstall the dev extension.
 4. Open `fixtures/test.wxml`, `fixtures/tag-editing.wxml`, and the files under
@@ -285,20 +276,18 @@ npm/plugin component navigation, or `componentGenerics` support.
 
 ## Redistribution Status
 
-This repository includes provenance notes in `NOTICE`. The current baseline is
-usable for local development, but the original public seed repositories did not
-include an explicit license at the time this baseline was created. Before
-publishing a marketplace extension or redistributing packaged artifacts, either
-obtain upstream authorization or replace inherited source/query content with
-clean-room equivalents.
+This project is MIT-licensed (`LICENSE`) with upstream provenance recorded in
+`NOTICE`. The slim extension surface under `packages/zed/` carries its own
+`LICENSE` and `NOTICE`; the distributable LSP artifact bundles third-party
+licenses (see `THIRD_PARTY_NOTICES.md`).
 
 ## Project Layout
 
-- `extension.toml`: Zed extension metadata, grammar registration, snippets, and
-  WXML LSP registration.
-- `Cargo.toml` and `src/lib.rs`: minimal Zed Rust extension glue for launching
-  the Node LSP prototype.
-- `languages/wxml/`: language config and Tree-sitter query files.
+- `packages/zed/`: the slim Zed extension surface published to the marketplace —
+  `extension.toml` (metadata, grammar registration, snippets, WXML LSP
+  registration), `Cargo.toml` + `src/lib.rs` (Rust glue that launches the Node
+  LSP), `languages/wxml/` (language config + Tree-sitter queries), `snippets/`,
+  `LICENSE`, `NOTICE`, `README.md`.
 - `grammar/tree-sitter-wxml/`: vendored grammar source.
 - `fixtures/test.wxml`: syntax coverage fixture.
 - `scripts/extract-wxml-symbols.mjs`: pre-LSP static dependency/symbol extractor.
