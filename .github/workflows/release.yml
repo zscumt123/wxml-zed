@@ -1,0 +1,52 @@
+name: Release LSP artifact
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Assert four-way version consistency
+        run: |
+          set -euo pipefail
+          PKG="$(node -p "require('./package.json').version")"
+          EXT="$(sed -nE 's/^version = "([^"]+)"/\1/p' packages/zed/extension.toml | head -n1)"
+          CARGO="$(sed -nE 's/^version = "([^"]+)"/\1/p' packages/zed/Cargo.toml | head -n1)"
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "package.json=$PKG extension.toml=$EXT Cargo.toml=$CARGO tag=$TAG"
+          for v in "$EXT" "$CARGO" "$TAG"; do
+            if [ "$v" != "$PKG" ]; then
+              echo "::error::version mismatch: package.json=$PKG but found $v"
+              exit 1
+            fi
+          done
+
+      - name: Verify LSP artifact (build + detached smoke + negative control + license)
+        run: node scripts/verify-lsp-artifact.mjs
+
+      - name: Build LSP artifact for upload
+        run: npm run build:lsp
+
+      - name: Create release and upload artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/wxml-lsp-node-${GITHUB_REF_NAME}.tar.gz" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
