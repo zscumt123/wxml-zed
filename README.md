@@ -160,8 +160,8 @@ unpacked artifact:
    shell), then reload the dev extension.
 
 Requirements: `node` must be on `PATH`. Without the env var set, the extension
-falls back to downloading the artifact from a GitHub Release (not yet published),
-and errors clearly if neither is available.
+downloads the artifact from the project's GitHub Releases, and errors clearly if
+neither the env var nor a downloadable release is available.
 
 ## Scope
 

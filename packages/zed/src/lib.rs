@@ -4,8 +4,8 @@ use zed_extension_api as zed;
 
 const ARTIFACT_DIR_ENV: &str = "WXML_ZED_LSP_ARTIFACT_DIR";
 const NOT_FOUND_ERROR: &str = "WXML LSP artifact not found. Set WXML_ZED_LSP_ARTIFACT_DIR to an unpacked wxml-lsp-node artifact, or publish a GitHub Release containing wxml-lsp-node-v*.tar.gz.";
-// Placeholder until the real public LSP/tooling repo is decided. The download
-// path is NOT validated end-to-end this round (no release exists yet).
+// Public repo that publishes the LSP artifact as a GitHub Release. The download
+// path is validated end-to-end (Release v0.3.0 + real-Zed download dogfood).
 const LSP_REPO: &str = "zscumt123/wxml-zed";
 
 struct WxmlExtension;
@@ -112,7 +112,7 @@ impl zed::Extension for WxmlExtension {
             });
         }
 
-        // (2) GitHub Release download/cache (skeleton; not validated e2e this round).
+        // (2) GitHub Release download/cache.
         match Self::entry_from_release(language_server_id) {
             Ok(entry) => {
                 zed::set_language_server_installation_status(

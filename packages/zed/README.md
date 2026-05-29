@@ -12,9 +12,9 @@ This extension does **not** bundle the language server. It requires:
   process.
 
 On first use the extension downloads the `wxml-lsp-node` artifact from this
-project's GitHub Releases and caches it locally; no manual install step is needed.
-(This requires a published Release — until one exists, point the extension at a
-local build via `WXML_ZED_LSP_ARTIFACT_DIR`, described under Local development.)
+project's [GitHub Releases](https://github.com/zscumt123/wxml-zed/releases) and
+caches it locally; no manual install step is needed. (For development you can
+point the extension at a local build instead — see Local development below.)
 
 ## Grammar
 
