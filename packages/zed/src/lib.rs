@@ -75,7 +75,13 @@ impl WxmlExtension {
                 ));
             }
         }
-        Ok(entry.to_string_lossy().into_owned())
+        // `download_file` and the cache checks above are relative to the
+        // extension work directory, but Zed starts the language server with the
+        // user's project as the process cwd. Return an absolute entry path so
+        // Node does not resolve it relative to the opened workspace.
+        let work_dir = std::env::current_dir()
+            .map_err(|e| format!("failed to resolve extension work dir: {e}"))?;
+        Ok(work_dir.join(entry).to_string_lossy().into_owned())
     }
 }
 
