@@ -1,5 +1,5 @@
 id = "weixin-wxml"
-name = "WXML"
+name = "Weixin WXML"
 description = "WXML (WeiXin Markup Language) language support with diagnostics, go-to-definition, hover, and completion for WeChat Mini-Program projects."
 version = "0.3.0"
 schema_version = 1
