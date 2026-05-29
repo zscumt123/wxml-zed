@@ -1512,7 +1512,61 @@ lsp-artifact exit 0 — unaffected). **PENDING: manual Zed dogfood** — confirm
 clones+builds the grammar from the public repo at `fef7ea7` (not `file:///tmp`) and
 WXML highlight/outline render.
 
+**publish #3 dogfood PASSED (2026-05-29):** Zed re-checked-out/compiled the grammar
+from the public repo at `fef7ea7` (log: `checking out → compiling → compiled wxml
+parser`); `grammars/wxml` origin=public repo, HEAD=`fef7ea7`, wasm regenerated;
+`index.wxml` + `fixtures/test.wxml` highlight correctly, status bar = WXML, Outline
+lists declarations. **Cache caveat (ops):** Zed keys the grammar cache by grammar
+*name* (`wxml`), so a repin (repo/rev change) does NOT auto-invalidate a stale local
+clone — first install failed on the old `file:///private/tmp/...` clone; moving aside
+`grammars/wxml` and reinstalling rebuilt at the new rev. **No impact on fresh
+marketplace users** (clean clone); only local dev migration / future rev bumps.
+
 ---
+
+## Publish-readiness #4 — monorepo split (`packages/zed/`) + Release CI (2026-05-29)
+
+Goal: make the repo marketplace-publishable and make the `src/lib.rs` GitHub-Release
+download path real. Single GitHub repo; the Zed extension surface moved into a slim
+`packages/zed/` subdirectory (marketplace submodule will use `path = "packages/zed"`);
+repo root stays the LSP/tooling source + Release emitter (`LSP_REPO="zscumt123/wxml-zed"`
+unchanged). Subagent-driven, 3 tasks, each with spec + code-quality review, then a final
+holistic review. Commits `976daed`→`36d818d`.
+
+- **Task 1 (`976daed`):** `git mv` extension surface (extension.toml, Cargo.toml,
+  Cargo.lock, src/lib.rs, languages/wxml/, snippets/) → `packages/zed/`; copied
+  LICENSE+NOTICE there (root LICENSE says "See NOTICE for provenance" — both must
+  travel together); Cargo version 0.2.0→0.3.0; repointed the two verifiers that
+  hardcoded root-relative query/snippet paths (`verify-tree-sitter.sh` via a new
+  `EXTENSION_DIR`, `verify-wxml-builtins.mjs:9`). Atomic so the sweep that gates the
+  commit stays green. Full offline sweep green incl. `verify-tree-sitter.sh`
+  (`wxml-zed tree-sitter verification passed`) + cargo wasm compile clean.
+- **Task 2 (`0e6e375`,`6a2f22d`):** slim `packages/zed/README.md` + minimal root README
+  correction (repoint moved paths, drop stale `file:///private/tmp` grammar block,
+  rewrite over-cautious Redistribution Status, update Project Layout); hedged the
+  LSP-download wording (no Release exists yet).
+- **Task 3 (`678fed0`,`51da96e`):** `.github/workflows/release.yml` — tag-triggered
+  (`v*.*.*`), **four-way version-consistency guard** (package.json / extension.toml /
+  Cargo.toml / tag all == version), order **verify→build→upload** (`verify-lsp-artifact.mjs`
+  is the gate; broken tarball never published), idempotent release step
+  (`gh release view` → `upload --clobber` else `create`). Guard logic proven locally
+  (positive: all four = 0.3.0; negative: rejects v0.4.0) — the part CI can't test
+  without pushing.
+- **Final-review post-fixes (`36d818d`):** dev-install README step now points at
+  `packages/zed/` (was "the repository directory" — would fail post-move); `.gitignore`
+  `/target`→`target` (root-anchored pattern missed `packages/zed/target/`).
+
+End-to-end asset-name chain verified consistent for a `v0.3.0` tag: package.json 0.3.0
+→ `build-lsp-artifact.mjs` emits `dist/wxml-lsp-node-v0.3.0.tar.gz` → CI uploads
+`wxml-lsp-node-${GITHUB_REF_NAME}.tar.gz` → `lib.rs` reconstructs
+`wxml-lsp-node-v0.3.0.tar.gz`.
+
+**Handed-to-user ops (agent can't push/cut Release):** (A) dogfood the moved extension
+(remove old root-installed dev extension, reinstall from `packages/zed/`, confirm
+highlight/outline); (B) `git tag v0.3.0 && git push origin v0.3.0` → CI → confirm Release
+carries the tarball; (C) download-path dogfood (unset `WXML_ZED_LSP_ARTIFACT_DIR`, confirm
+extension downloads + launches LSP) — **watch the two relative `is_file()` lines in
+`packages/zed/src/lib.rs`**; C2-a/C2-b standby patches in the plan if they misfire.
 
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
