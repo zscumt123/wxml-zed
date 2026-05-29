@@ -1568,6 +1568,30 @@ carries the tarball; (C) download-path dogfood (unset `WXML_ZED_LSP_ARTIFACT_DIR
 extension downloads + launches LSP) — **watch the two relative `is_file()` lines in
 `packages/zed/src/lib.rs`**; C2-a/C2-b standby patches in the plan if they misfire.
 
+**Ops outcome (2026-05-29):** Remote set up as fork layout (`origin`=`git@github.com:zscumt123/wxml-zed`
+via SSH; `upstream`=BlockLune, push DISABLED; `main` tracking unset then re-set to origin).
+Agent push works over SSH (the earlier "harness blocks push" belief was wrong — pushes
+execute; HTTPS just lacked creds). **CI ran green** (conclusion=success) and published
+**Release v0.3.0** with `wxml-lsp-node-v0.3.0.tar.gz` (verified contents: tar root
+`wxml-lsp-node/`, entry `server/wxml-lsp.mjs`, both wasms, vendored web-tree-sitter,
+licenses). **GitHub gotcha:** pushing `main` + tag in quick succession let the tag event
+beat the workflow's registration → no run; deleting + re-pushing the tag (fresh create
+event) triggered it. **dogfood A + B both PASSED.** dogfood B exposed a publish-path bug
+**that C2-a/C2-b did not cover**: download/cache were correct, but the download branch
+returned a *relative* entry path to Node, and Zed launches the LSP with the user's project
+as cwd → Node resolved the entry against the workspace → launch failed. Fix (`c35bcb3`,
+pushed): return `std::env::current_dir().join(entry)` (absolute; `current_dir()` in the
+wasm = the extension work dir that the relative cache checks already use). The relative
+`is_file()` cache logic was left intact and **confirmed working** (2nd cold start hit the
+cache, no re-extract — so C2-a/C2-b were genuinely unneeded; the "relative WASI paths are
+fine for fs *checks*" prediction held). The bug was specifically handing a relative path to
+a process with a *different* cwd. The LSP artifact tarball was NOT rebuilt (fix is in the
+extension launcher, not the artifact; v0.3.0 Release stays valid). Verified: cargo wasm
+compile clean; real Zed clean-env launch from the Release cache + F12
+`bindsubmit="onSubmit"` → `index.js::onSubmit`. **Remaining publish track:** README polish
+(non-blocking) → marketplace PR (`extensions.toml` `submodule=... path="packages/zed"`,
+referencing a commit that includes `c35bcb3`).
+
 **Regression anchor for parse-error case:** `fixtures/wasm-spike/edge-recovery-symbols-baseline.json` is the committed snapshot of that output. It is verified automatically by `scripts/verify-wasm-symbol-baselines.mjs` (one of 6 cases — the others lock in the legacy-equivalent behavior on home/miniprogram/test.wxml/real-world plus the UTF-16 column verification on non-ascii.wxml). The verifier is wired into `scripts/verify-tree-sitter.sh`, so the umbrella verification suite catches both kinds of regression: (a) the legacy-equivalent baselines drifting, and (b) parse-error tolerance reverting to exit-1.
 
 For ad-hoc local verification of just the parse-error case:
