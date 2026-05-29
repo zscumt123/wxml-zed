@@ -46,7 +46,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            "dist/wxml-lsp-node-${GITHUB_REF_NAME}.tar.gz" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          # Idempotent under job re-runs: if the release already exists, (re)upload
+          # the asset; otherwise create it. A bare `gh release create` fails when the
+          # tag's release already exists, leaving a re-run failed despite a correct release.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME exists — uploading asset only"
+            gh release upload "$GITHUB_REF_NAME" \
+              "dist/wxml-lsp-node-${GITHUB_REF_NAME}.tar.gz" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "dist/wxml-lsp-node-${GITHUB_REF_NAME}.tar.gz" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
