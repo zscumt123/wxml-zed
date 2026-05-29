@@ -1,5 +1,5 @@
 /grammars
-/target
+target
 extension.wasm
 /node_modules
 /dist

@@ -42,7 +42,8 @@ as a local development extension:
 
 1. Clone this repository.
 2. In Zed, run `zed: install dev extension`.
-3. Select the repository directory.
+3. Select the `packages/zed/` subdirectory inside the cloned repository (it
+   contains `extension.toml`).
 4. Open a `.wxml` file.
 
 ## Develop
