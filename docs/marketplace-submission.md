@@ -5,9 +5,14 @@ as a **new, independent** entry `weixin-wxml` (not a takeover of the existing
 `wxml` slot). Verified against the live registry on 2026-05-30:
 `extensions.toml`, `.gitmodules`, `package.json` scripts, and `CONTRIBUTING.md`.
 
-> Submodule pins this repo at commit
-> `e359f9c7d0dc13e71b5232831c30e2b80c66f650` (current `main`). Bump it if `main`
-> advances before you open the PR.
+> Submodule pins this repo at the `main` HEAD at submission time. The PR opened
+> 2026-05-30 pinned `9d478c95501fb9f34f805796bc59ce2bbf0d172e` (packages/zed/
+> content identical to `e359f9c`; later commits only touched docs/).
+>
+> **Status (2026-05-30):** branch `add-weixin-wxml` prepared + pushed to the
+> fork; `pnpm build` + `pnpm test` (111/111) green; PR ready to open via the
+> cross-fork compare URL. `package-extensions` was skipped locally (heavy;
+> zed-industries CI runs the real extension build on the PR).
 
 ## 0. One-time fork setup (on GitHub + locally)
 
