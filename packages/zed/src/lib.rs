@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use zed_extension_api as zed;
 
@@ -20,26 +20,44 @@ impl WxmlExtension {
             .map(|(_, v)| v)
     }
 
-    /// Resolve the LSP entry from the latest GitHub Release, downloading +
+    fn absolute_entry(entry: &Path) -> Result<String, String> {
+        // `download_file` and cache checks are relative to the extension work
+        // directory, but Zed starts the language server with the user's project
+        // as the process cwd. Return an absolute entry path so Node does not
+        // resolve it relative to the opened workspace.
+        let work_dir = std::env::current_dir()
+            .map_err(|e| format!("failed to resolve extension work dir: {e}"))?;
+        Ok(work_dir.join(entry).to_string_lossy().into_owned())
+    }
+
+    fn cached_entry(version: &str) -> (String, PathBuf) {
+        let cache_dir = format!("wxml-lsp-node-{version}");
+        let entry = Path::new(&cache_dir)
+            .join("wxml-lsp-node")
+            .join("server")
+            .join("wxml-lsp.mjs");
+        (cache_dir, entry)
+    }
+
+    /// Resolve the LSP entry for this extension version, downloading +
     /// extracting into a version-keyed cache dir if not already present. Returns
     /// the entry path string, or a raw cause on failure.
     fn entry_from_release(language_server_id: &zed::LanguageServerId) -> Result<String, String> {
+        let version = env!("CARGO_PKG_VERSION");
+        let (cache_dir, entry) = Self::cached_entry(version);
+        if entry.is_file() {
+            return Self::absolute_entry(&entry);
+        }
+
         zed::set_language_server_installation_status(
             language_server_id,
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
-        let release = zed::latest_github_release(
-            LSP_REPO,
-            zed::GithubReleaseOptions {
-                require_assets: true,
-                pre_release: false,
-            },
-        )?;
+        let release = zed::github_release_by_tag_name(LSP_REPO, &format!("v{version}"))?;
 
-        // Exact asset name from the release version (strip a leading `v`; the build
+        // Exact asset name from the extension version. The build
         // script names the tarball wxml-lsp-node-v<semver>.tar.gz). Require exactly
         // one match — never glob (future releases may carry checksum/debug assets).
-        let version = release.version.trim_start_matches('v');
         let asset_name = format!("wxml-lsp-node-v{version}.tar.gz");
         let mut matches = release.assets.iter().filter(|a| a.name == asset_name);
         let asset = matches
@@ -49,39 +67,24 @@ impl WxmlExtension {
             return Err(format!("multiple release assets named {asset_name}"));
         }
 
-        // Cache key is the ENTRY FILE, not the dir: a partial/failed extract must
-        // not count as a hit. The cache dir is work-dir-relative.
-        let cache_dir = format!("wxml-lsp-node-{version}");
-        let entry = Path::new(&cache_dir)
-            .join("wxml-lsp-node")
-            .join("server")
-            .join("wxml-lsp.mjs");
+        let _ = std::fs::remove_dir_all(&cache_dir);
+        zed::set_language_server_installation_status(
+            language_server_id,
+            &zed::LanguageServerInstallationStatus::Downloading,
+        );
+        zed::download_file(
+            &asset.download_url,
+            &cache_dir,
+            zed::DownloadedFileType::GzipTar,
+        )
+        .map_err(|e| format!("download/extract failed: {e}"))?;
         if !entry.is_file() {
-            let _ = std::fs::remove_dir_all(&cache_dir);
-            zed::set_language_server_installation_status(
-                language_server_id,
-                &zed::LanguageServerInstallationStatus::Downloading,
-            );
-            zed::download_file(
-                &asset.download_url,
-                &cache_dir,
-                zed::DownloadedFileType::GzipTar,
-            )
-            .map_err(|e| format!("download/extract failed: {e}"))?;
-            if !entry.is_file() {
-                return Err(format!(
-                    "artifact entry missing after extract: {}",
-                    entry.display()
-                ));
-            }
+            return Err(format!(
+                "artifact entry missing after extract: {}",
+                entry.display()
+            ));
         }
-        // `download_file` and the cache checks above are relative to the
-        // extension work directory, but Zed starts the language server with the
-        // user's project as the process cwd. Return an absolute entry path so
-        // Node does not resolve it relative to the opened workspace.
-        let work_dir = std::env::current_dir()
-            .map_err(|e| format!("failed to resolve extension work dir: {e}"))?;
-        Ok(work_dir.join(entry).to_string_lossy().into_owned())
+        Self::absolute_entry(&entry)
     }
 }
 
